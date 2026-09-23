@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard – Dream And Do It</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#053446" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+  <div class="page">
+    <div class="topbar">
+      <div class="brand">
+        <img src="icons/icon-192.png" alt="Dream And Do It Logo" onerror="this.style.display='none'" />
+        DREAM AND DO IT
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button class="icon-btn" id="theme-toggle" type="button">Hell/Dunkel</button>
+        <button class="icon-btn" id="logout-btn" type="button">Abmelden</button>
+      </div>
+    </div>
+
+    <div class="container wide" id="app-container">
+      <p class="center-text">Lade dein Profil …</p>
+    </div>
+
+    <div class="footer-note">
+      Fragen zu deinem Zugang? <a href="mailto:info@dreamanddoit.de">info@dreamanddoit.de</a>
+    </div>
+  </div>
+
+  <script type="module">
+    import { requireAuth, signOut, initTheme, toggleTheme } from './js/auth.js';
+
+    initTheme();
+    document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      await signOut();
+      window.location.href = 'index.html';
+    });
+
+    const container = document.getElementById('app-container');
+
+    requireAuth().then((profile) => {
+      if (!profile) return; // requireAuth leitet bereits zum Login um
+
+      if (profile.access_locked) {
+        renderLocked();
+        return;
+      }
+      renderDashboard(profile);
+    });
+
+    function renderLocked() {
+      container.innerHTML = `
+        <div class="card lock-screen">
+          <div class="icon">🔒</div>
+          <h2>Zugang derzeit gesperrt</h2>
+          <p style="color:var(--color-text-muted);">
+            Dein Zugang zur Plattform ist momentan eingeschränkt. Das kommt z.B. vor,
+            wenn eine Zahlung offen ist. Bitte melde dich bei uns, um das zu klären.
+          </p>
+          <a class="btn mt-16" style="display:inline-block; width:auto; padding:12px 24px;"
+             href="mailto:info@dreamanddoit.de">Kontakt aufnehmen</a>
+        </div>
+      `;
+    }
+
+    function renderDashboard(profile) {
+      const rolleLabel = profile.role === 'admin' ? 'Admin/Coach' : 'Kunde';
+      container.innerHTML = `
+        <div class="card">
+          <h2 style="font-size:1.15rem;">Willkommen, ${escapeHtml(profile.full_name || 'bei Dream And Do It')}</h2>
+          <p style="color:var(--color-text-muted); margin-top:-8px;">Rolle: ${rolleLabel}</p>
+        </div>
+
+        <div class="section-grid">
+          <div class="section-card">
+            <h3>Training</h3>
+            <p>Übungen, dein Trainingsplan und dein Trainingstagebuch.</p>
+            <span class="badge">in Kürze</span>
+          </div>
+          <div class="section-card">
+            <h3>Ernährung</h3>
+            <p>Rezepte, PAL-Rechner und dein Körperfett-Verlauf (Navy-Methode).</p>
+            <span class="badge">in Kürze</span>
+          </div>
+          <div class="section-card">
+            <h3>Coaching</h3>
+            <p>Content zu persönlicher Entwicklung, Fragebögen und dein Ziel-Modul.</p>
+            <span class="badge">in Kürze</span>
+          </div>
+          <div class="section-card">
+            <h3>Nachrichten</h3>
+            <p>Direkter Austausch mit deinem Coach zu deinen Leistungen.</p>
+            <span class="badge">in Kürze</span>
+          </div>
+          ${profile.role === 'admin' ? `
+          <div class="section-card">
+            <h3>Trainer-Dashboard</h3>
+            <p>Überblick über alle Kunden, Aktivität und Zugriffsverwaltung.</p>
+            <span class="badge">in Kürze</span>
+          </div>` : ''}
+        </div>
+      `;
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>
