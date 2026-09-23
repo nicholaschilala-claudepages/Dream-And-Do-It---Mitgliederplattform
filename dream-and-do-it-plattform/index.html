@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dream And Do It – Kundenplattform</title>
+  <meta name="description" content="Login und Registrierung für die Dream And Do It Kundenplattform" />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#053446" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+  <div class="page">
+    <div class="topbar">
+      <div class="brand">
+        <img src="icons/icon-192.png" alt="Dream And Do It Logo" onerror="this.style.display='none'" />
+        DREAM AND DO IT
+      </div>
+      <button class="icon-btn" id="theme-toggle" type="button">Hell/Dunkel</button>
+    </div>
+
+    <div class="container">
+      <div class="card">
+        <h1 class="center-text" style="font-size:1.3rem;">Kundenplattform</h1>
+        <p class="center-text" style="color:var(--color-text-muted); font-size:0.9rem; margin-top:0;">
+          Training · Ernährung · Coaching
+        </p>
+
+        <div id="config-warning" class="msg error hidden">
+          Die Plattform ist noch nicht mit der Datenbank verbunden (Supabase-Zugangsdaten fehlen in js/config.js).
+        </div>
+
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="login" type="button">Anmelden</button>
+          <button class="tab-btn" data-tab="register" type="button">Registrieren</button>
+        </div>
+
+        <div id="msg" class="msg hidden"></div>
+
+        <!-- Login -->
+        <form id="login-form" class="tab-panel">
+          <div class="field">
+            <label for="login-email">E-Mail</label>
+            <input type="email" id="login-email" required autocomplete="email" />
+          </div>
+          <div class="field">
+            <label for="login-password">Passwort</label>
+            <input type="password" id="login-password" required autocomplete="current-password" />
+          </div>
+          <button type="submit" class="btn" id="login-submit">Anmelden</button>
+          <button type="button" class="btn link" id="forgot-password">Passwort vergessen?</button>
+        </form>
+
+        <!-- Registrierung -->
+        <form id="register-form" class="tab-panel" style="display:none;">
+          <div class="field">
+            <label for="register-name">Vor- und Nachname</label>
+            <input type="text" id="register-name" required autocomplete="name" />
+          </div>
+          <div class="field">
+            <label for="register-email">E-Mail</label>
+            <input type="email" id="register-email" required autocomplete="email" />
+          </div>
+          <div class="field">
+            <label for="register-password">Passwort (mind. 8 Zeichen)</label>
+            <input type="password" id="register-password" required minlength="8" autocomplete="new-password" />
+          </div>
+          <button type="submit" class="btn" id="register-submit">Konto erstellen</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="footer-note">
+      Fragen? <a href="mailto:info@dreamanddoit.de">info@dreamanddoit.de</a> · dreamanddoit.de
+    </div>
+  </div>
+
+  <script type="module">
+    import { isConfigured } from './js/supabase-client.js';
+    import { signIn, signUp, requestPasswordReset, getCurrentSession, initTheme, toggleTheme } from './js/auth.js';
+
+    initTheme();
+    document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+
+    if (!isConfigured()) {
+      document.getElementById('config-warning').classList.remove('hidden');
+    }
+
+    // Bereits eingeloggt? -> direkt zum Dashboard
+    getCurrentSession().then((session) => {
+      if (session) window.location.href = 'dashboard.html';
+    });
+
+    // Tabs
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const loginForm = document.getElementById('login-form');
+    const registerForm = document.getElementById('register-form');
+    tabBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        tabBtns.forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        const isLogin = btn.dataset.tab === 'login';
+        loginForm.style.display = isLogin ? 'block' : 'none';
+        registerForm.style.display = isLogin ? 'none' : 'block';
+        hideMsg();
+      });
+    });
+
+    const msgBox = document.getElementById('msg');
+    function showMsg(text, type = 'error') {
+      msgBox.textContent = text;
+      msgBox.className = 'msg ' + type;
+    }
+    function hideMsg() {
+      msgBox.className = 'msg hidden';
+    }
+
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideMsg();
+      const email = document.getElementById('login-email').value.trim();
+      const password = document.getElementById('login-password').value;
+      const submitBtn = document.getElementById('login-submit');
+      submitBtn.disabled = true;
+      const { error } = await signIn(email, password);
+      submitBtn.disabled = false;
+      if (error) {
+        showMsg(uebersetzeFehler(error.message));
+        return;
+      }
+      window.location.href = 'dashboard.html';
+    });
+
+    document.getElementById('register-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideMsg();
+      const name = document.getElementById('register-name').value.trim();
+      const email = document.getElementById('register-email').value.trim();
+      const password = document.getElementById('register-password').value;
+      const submitBtn = document.getElementById('register-submit');
+      submitBtn.disabled = true;
+      const { error } = await signUp(email, password, name);
+      submitBtn.disabled = false;
+      if (error) {
+        showMsg(uebersetzeFehler(error.message));
+        return;
+      }
+      showMsg('Konto erstellt! Bitte bestätige deine E-Mail-Adresse über den Link, den wir dir geschickt haben, und melde dich anschließend an.', 'success');
+      document.getElementById('register-form').reset();
+    });
+
+    document.getElementById('forgot-password').addEventListener('click', async () => {
+      const email = document.getElementById('login-email').value.trim();
+      if (!email) {
+        showMsg('Bitte gib zuerst deine E-Mail-Adresse oben ein.');
+        return;
+      }
+      const { error } = await requestPasswordReset(email);
+      if (error) {
+        showMsg(uebersetzeFehler(error.message));
+        return;
+      }
+      showMsg('Falls ein Konto mit dieser E-Mail existiert, wurde ein Link zum Zurücksetzen des Passworts verschickt.', 'success');
+    });
+
+    function uebersetzeFehler(message) {
+      const bekannt = {
+        'Invalid login credentials': 'E-Mail oder Passwort ist falsch.',
+        'User already registered': 'Für diese E-Mail existiert bereits ein Konto.',
+        'Email not confirmed': 'Bitte bestätige zuerst deine E-Mail-Adresse.',
+      };
+      return bekannt[message] || message;
+    }
+
+    // Service Worker registrieren (PWA / Offline-Grundgerüst)
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,290 @@
+/* ==========================================================================
+   Dream And Do It – Kundenplattform
+   Corporate Design: Navy #053446, Gold #C87C00 / #FAC233
+   Headings: Cinzel (Web-Ersatz für Trajan Pro) · Body: Source Serif 4
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap');
+
+:root {
+  --color-navy: #053446;
+  --color-navy-light: #0a4a63;
+  --color-gold: #C87C00;
+  --color-gold-light: #FAC233;
+
+  --color-bg: #FAFAF8;
+  --color-surface: #FFFFFF;
+  --color-text: #0f2530;
+  --color-text-muted: #4a6472;
+  --color-border: #e2e4e0;
+  --color-danger: #b3261e;
+  --color-success: #2f6f4f;
+
+  --font-heading: 'Cinzel', 'Trajan Pro', serif;
+  --font-body: 'Source Serif 4', Georgia, serif;
+
+  --radius: 10px;
+  --shadow: 0 2px 10px rgba(5, 52, 70, 0.08);
+}
+
+:root[data-theme="dark"] {
+  --color-bg: #071b24;
+  --color-surface: #0e2a37;
+  --color-text: #f2efe9;
+  --color-text-muted: #b7c6cc;
+  --color-border: #17404f;
+  --shadow: 0 2px 14px rgba(0, 0, 0, 0.35);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg: #071b24;
+    --color-surface: #0e2a37;
+    --color-text: #f2efe9;
+    --color-text-muted: #b7c6cc;
+    --color-border: #17404f;
+    --shadow: 0 2px 14px rgba(0, 0, 0, 0.35);
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.55;
+  min-height: 100%;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-heading);
+  color: var(--color-navy);
+  letter-spacing: 0.02em;
+  margin: 0 0 0.5em 0;
+}
+
+:root[data-theme="dark"] h1,
+:root[data-theme="dark"] h2,
+:root[data-theme="dark"] h3,
+:root[data-theme="dark"] h4 {
+  color: var(--color-gold-light);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) h1,
+  :root:not([data-theme="light"]) h2,
+  :root:not([data-theme="light"]) h3,
+  :root:not([data-theme="light"]) h4 {
+    color: var(--color-gold-light);
+  }
+}
+
+a { color: var(--color-gold); }
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: var(--color-navy);
+  color: #fff;
+}
+
+.topbar .brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-heading);
+  font-size: 1.1rem;
+  color: var(--color-gold-light);
+}
+
+.topbar .brand img {
+  height: 32px;
+  width: auto;
+}
+
+.icon-btn {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.35);
+  color: #fff;
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.icon-btn:hover { border-color: var(--color-gold-light); }
+
+.container {
+  flex: 1;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 32px 20px 60px;
+}
+
+.container.wide { max-width: 860px; }
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 28px 24px;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 22px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tab-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  padding: 10px 6px;
+  font-family: var(--font-heading);
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.tab-btn.active {
+  color: var(--color-navy);
+  border-bottom-color: var(--color-gold);
+}
+
+:root[data-theme="dark"] .tab-btn.active { color: var(--color-gold-light); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tab-btn.active { color: var(--color-gold-light); }
+}
+
+.field { margin-bottom: 16px; }
+
+.field label {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  margin-bottom: 5px;
+}
+
+.field input, .field select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 1rem;
+}
+
+.field input:focus, .field select:focus {
+  outline: none;
+  border-color: var(--color-gold);
+}
+
+.btn {
+  display: inline-block;
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: none;
+  background: var(--color-navy);
+  color: #fff;
+  font-family: var(--font-heading);
+  font-size: 0.9rem;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  text-align: center;
+}
+.btn:hover { background: var(--color-navy-light); }
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.btn.secondary {
+  background: transparent;
+  color: var(--color-navy);
+  border: 1px solid var(--color-navy);
+}
+:root[data-theme="dark"] .btn.secondary,
+:root[data-theme="dark"] .btn.secondary { color: var(--color-gold-light); border-color: var(--color-gold-light); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .btn.secondary { color: var(--color-gold-light); border-color: var(--color-gold-light); }
+}
+
+.btn.link {
+  background: none;
+  color: var(--color-gold);
+  border: none;
+  width: auto;
+  padding: 4px 0;
+  text-decoration: underline;
+}
+
+.msg {
+  margin: 14px 0;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+}
+.msg.error { background: rgba(179,38,30,0.1); color: var(--color-danger); }
+.msg.success { background: rgba(47,111,79,0.1); color: var(--color-success); }
+.msg.hidden { display: none; }
+
+.lock-screen {
+  text-align: center;
+  padding: 40px 20px;
+}
+.lock-screen .icon { font-size: 2.4rem; margin-bottom: 10px; }
+
+.section-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.section-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+
+.section-card h3 { font-size: 1rem; margin-bottom: 6px; }
+.section-card p { color: var(--color-text-muted); font-size: 0.88rem; margin: 0; }
+.section-card .badge {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  border-radius: 20px;
+  background: rgba(200,124,0,0.12);
+  color: var(--color-gold);
+}
+
+.footer-note {
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  padding: 20px;
+}
+
+.center-text { text-align: center; }
+.mt-16 { margin-top: 16px; }
+.mt-24 { margin-top: 24px; }
