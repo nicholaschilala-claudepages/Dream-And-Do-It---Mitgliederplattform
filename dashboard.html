@@ -33,8 +33,7 @@
   </div>
 
   <script type="module">
-    import { supabaseClient } from './js/supabase-client.js';
-    import { signOut, getCurrentSession, initTheme, toggleTheme } from './js/auth.js';
+    import { requireAuth, signOut, initTheme, toggleTheme } from './js/auth.js';
 
     initTheme();
     document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
@@ -45,45 +44,15 @@
 
     const container = document.getElementById('app-container');
 
-    async function loadProfile() {
-      const session = await getCurrentSession();
-      if (!session) {
-        window.location.href = 'index.html';
-        return;
-      }
+    requireAuth().then((profile) => {
+      if (!profile) return; // requireAuth leitet bereits zum Login um
 
-      const { data, error } = await supabaseClient
-        .from('profiles')
-        .select('id, full_name, role, access_locked, created_at')
-        .eq('id', session.user.id)
-        .maybeSingle();
-
-      if (error) {
-        renderError('Fehlercode: ' + error.code + ' – ' + error.message);
-        return;
-      }
-      if (!data) {
-        renderError('Es wurde noch kein Profil zu deinem Konto gefunden. Das kann direkt nach der Registrierung kurz vorkommen – lade die Seite in ein paar Sekunden neu.');
-        return;
-      }
-      if (data.access_locked) {
+      if (profile.access_locked) {
         renderLocked();
         return;
       }
-      renderDashboard(data);
-    }
-
-    function renderError(message) {
-      container.innerHTML = `
-        <div class="card lock-screen">
-          <div class="icon">⚠️</div>
-          <h2>Profil konnte nicht geladen werden</h2>
-          <p style="color:var(--color-text-muted);">${escapeHtml(message)}</p>
-          <button class="btn mt-16" style="display:inline-block; width:auto; padding:12px 24px;" id="retry-btn" type="button">Erneut versuchen</button>
-        </div>
-      `;
-      document.getElementById('retry-btn').addEventListener('click', () => location.reload());
-    }
+      renderDashboard(profile);
+    });
 
     function renderLocked() {
       container.innerHTML = `
@@ -109,11 +78,11 @@
         </div>
 
         <div class="section-grid">
-          <div class="section-card">
+          <a class="section-card" href="training.html" style="text-decoration:none; color:inherit; display:block;">
             <h3>Training</h3>
-            <p>Übungen, dein Trainingsplan und dein Trainingstagebuch.</p>
-            <span class="badge">in Kürze</span>
-          </div>
+            <p>${profile.role === 'admin' ? 'Übungsbibliothek pflegen und Trainingspläne zuweisen.' : 'Dein Trainingsplan, Übungen und dein Trainingstagebuch.'}</p>
+            <span class="status-pill active" style="display:inline-block; margin-top:10px; font-size:0.72rem; padding:3px 8px; border-radius:12px; background:rgba(47,111,79,0.15); color:var(--color-success);">verfügbar</span>
+          </a>
           <div class="section-card">
             <h3>Ernährung</h3>
             <p>Rezepte, PAL-Rechner und dein Körperfett-Verlauf (Navy-Methode).</p>
@@ -144,8 +113,6 @@
       div.textContent = str;
       return div.innerHTML;
     }
-
-    loadProfile();
 
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

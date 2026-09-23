@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Training – Dream And Do It</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#053446" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <style>
+    .plan-card { margin-bottom: 20px; }
+    .exercise-row {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--color-border);
+    }
+    .exercise-row:last-child { border-bottom: none; }
+    .exercise-row img { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
+    .exercise-meta { flex: 1; }
+    .exercise-meta h4 { margin: 0 0 2px 0; font-family: var(--font-body); font-weight: 600; font-size: 0.98rem; }
+    .exercise-meta .target { font-size: 0.82rem; color: var(--color-text-muted); }
+    .log-form { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+    .log-form input { width: 70px; padding: 7px 8px; border-radius: 6px; border: 1px solid var(--color-border); background: var(--color-bg); color: var(--color-text); }
+    .log-form button { padding: 7px 12px; font-size: 0.8rem; }
+    table.log-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    table.log-table th, table.log-table td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--color-border); }
+    .subtabs { display: flex; gap: 8px; margin: 20px 0 12px; flex-wrap: wrap; }
+    .subtabs button { padding: 7px 14px; border-radius: 20px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); font-size: 0.82rem; cursor: pointer; }
+    .subtabs button.active { background: var(--color-navy); color: #fff; border-color: var(--color-navy); }
+    .exercise-builder-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto; gap: 8px; margin-bottom: 8px; align-items: center; }
+    .exercise-builder-row select, .exercise-builder-row input { padding: 8px; border-radius: 6px; border: 1px solid var(--color-border); background: var(--color-bg); color: var(--color-text); width: 100%; }
+    .small-btn { padding: 6px 10px; font-size: 0.78rem; width: auto; }
+    .status-pill { font-size: 0.72rem; padding: 2px 8px; border-radius: 12px; }
+    .status-pill.active { background: rgba(47,111,79,0.15); color: var(--color-success); }
+    .status-pill.inactive { background: rgba(0,0,0,0.08); color: var(--color-text-muted); }
+    .offline-banner {
+      background: rgba(200,124,0,0.15); color: var(--color-gold);
+      padding: 8px 14px; border-radius: 8px; font-size: 0.82rem; margin-bottom: 14px; display:none;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="topbar">
+      <div class="brand">
+        <img src="icons/icon-192.png" alt="Dream And Do It Logo" onerror="this.style.display='none'" />
+        DREAM AND DO IT
+      </div>
+      <div style="display:flex; gap:8px;">
+        <a class="icon-btn" href="dashboard.html" style="text-decoration:none;">Zum Dashboard</a>
+        <button class="icon-btn" id="theme-toggle" type="button">Hell/Dunkel</button>
+      </div>
+    </div>
+
+    <div class="container wide" id="app-container">
+      <p class="center-text">Lade …</p>
+    </div>
+  </div>
+
+  <script type="module">
+    import { supabaseClient } from './js/supabase-client.js';
+    import { getCurrentSession, initTheme, toggleTheme } from './js/auth.js';
+    import {
+      listExercises, createExercise, deleteExercise,
+      listClients, listMyActivePlans, listPlansForAdmin, createPlan, setPlanActive,
+      insertTrainingLog, listMyTrainingLogs,
+    } from './js/training.js';
+    import { queueTrainingLog, syncQueuedLogs } from './js/offline-queue.js';
+
+    initTheme();
+    document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+
+    const container = document.getElementById('app-container');
+    let currentProfile = null;
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str == null ? '' : String(str);
+      return div.innerHTML;
+    }
+
+    function formatDate(iso) {
+      const d = new Date(iso);
+      return d.toLocaleDateString('de-DE') + ' ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    async function init() {
+      const session = await getCurrentSession();
+      if (!session) { window.location.href = 'index.html'; return; }
+
+      const { data: profile, error } = await supabaseClient
+        .from('profiles')
+        .select('id, full_name, role, access_locked')
+        .eq('id', session.user.id)
+        .maybeSingle();
+
+      if (error || !profile) {
+        container.innerHTML = `<div class="card lock-screen"><div class="icon">⚠️</div><h2>Profil konnte nicht geladen werden</h2><p style="color:var(--color-text-muted);">${escapeHtml(error ? error.message : 'Unbekannter Fehler')}</p></div>`;
+        return;
+      }
+      if (profile.access_locked) {
+        container.innerHTML = `<div class="card lock-screen"><div class="icon">🔒</div><h2>Zugang derzeit gesperrt</h2><p style="color:var(--color-text-muted);">Bitte wende dich an uns, um deinen Zugang zu klären.</p></div>`;
+        return;
+      }
+
+      currentProfile = profile;
+
+      if (profile.role === 'admin') {
+        await renderAdminView();
+      } else {
+        await renderClientView(profile);
+      }
+
+      // Offline-Warteschlange bei Gelegenheit synchronisieren
+      trySyncOfflineLogs();
+      window.addEventListener('online', trySyncOfflineLogs);
+    }
+
+    async function trySyncOfflineLogs() {
+      const synced = await syncQueuedLogs((entry) => insertTrainingLog(entry));
+      if (synced > 0 && currentProfile && currentProfile.role !== 'admin') {
+        renderClientView(currentProfile);
+      }
+    }
+
+    // =========================================================================
+    // KUNDEN-ANSICHT
+    // =========================================================================
+
+    async function renderClientView(profile) {
+      container.innerHTML = `<p class="center-text">Lade deinen Trainingsplan …</p>`;
+
+      const [{ data: plans, error: plansError }, { data: logs, error: logsError }, queuedCount] = await Promise.all([
+        listMyActivePlans(profile.id),
+        listMyTrainingLogs(profile.id),
+        (async () => (await (await import('./js/offline-queue.js')).getQueuedLogs()).length)(),
+      ]);
+
+      if (plansError) {
+        container.innerHTML = `<div class="msg error">Trainingsplan konnte nicht geladen werden: ${escapeHtml(plansError.message)}</div>`;
+        return;
+      }
+
+      let html = '';
+
+      if (!navigator.onLine || queuedCount > 0) {
+        html += `<div class="offline-banner" style="display:block;">
+          ${!navigator.onLine ? 'Du bist offline – neue Einträge werden lokal gespeichert und synchronisiert, sobald wieder Internet da ist.' : ''}
+          ${queuedCount > 0 ? ` ${queuedCount} Eintrag/Einträge warten noch auf Synchronisierung.` : ''}
+        </div>`;
+      }
+
+      if (!plans || plans.length === 0) {
+        html += `<div class="card"><h2 style="font-size:1.1rem;">Noch kein Trainingsplan zugewiesen</h2><p style="color:var(--color-text-muted);">Dein Coach hat dir noch keinen aktiven Trainingsplan zugewiesen. Melde dich gerne, falls du Fragen dazu hast.</p></div>`;
+      }
+
+      for (const plan of plans || []) {
+        const exercises = (plan.plan_exercises || []).sort((a, b) => a.sort_order - b.sort_order);
+        html += `<div class="card plan-card">
+          <h2 style="font-size:1.1rem;">${escapeHtml(plan.title)}</h2>
+          ${plan.notes ? `<p style="color:var(--color-text-muted); margin-top:-8px;">${escapeHtml(plan.notes)}</p>` : ''}
+          <div>
+            ${exercises.map((pe) => renderExerciseRow(pe)).join('')}
+          </div>
+        </div>`;
+      }
+
+      html += `<div class="card mt-24">
+        <h2 style="font-size:1.05rem;">Mein Trainingstagebuch</h2>
+        ${!logs || logs.length === 0
+          ? '<p style="color:var(--color-text-muted);">Noch keine Einträge vorhanden.</p>'
+          : `<table class="log-table"><thead><tr><th>Datum</th><th>Übung</th><th>Satz</th><th>Wdh.</th><th>Gewicht</th></tr></thead><tbody>
+              ${logs.map((l) => `<tr>
+                <td>${formatDate(l.performed_at)}</td>
+                <td>${escapeHtml(l.exercises ? l.exercises.name : '–')}</td>
+                <td>${l.set_number ?? '–'}</td>
+                <td>${l.reps ?? '–'}</td>
+                <td>${l.weight_kg != null ? l.weight_kg + ' kg' : '–'}</td>
+              </tr>`).join('')}
+            </tbody></table>`
+        }
+      </div>`;
+
+      container.innerHTML = html;
+
+      container.querySelectorAll('.log-form').forEach((form) => {
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const exerciseId = form.dataset.exerciseId;
+          const planExerciseId = form.dataset.planExerciseId;
+          const setNumber = parseInt(form.querySelector('.f-set').value, 10) || null;
+          const reps = parseInt(form.querySelector('.f-reps').value, 10) || null;
+          const weight = form.querySelector('.f-weight').value ? parseFloat(form.querySelector('.f-weight').value) : null;
+
+          const entry = {
+            client_id: profile.id,
+            exercise_id: exerciseId,
+            plan_exercise_id: planExerciseId || null,
+            performed_at: new Date().toISOString(),
+            set_number: setNumber,
+            reps,
+            weight_kg: weight,
+          };
+
+          const submitBtn = form.querySelector('button');
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Speichert …';
+
+          let ok = false;
+          if (navigator.onLine) {
+            const { error } = await insertTrainingLog(entry);
+            ok = !error;
+            if (error) await queueTrainingLog(entry);
+          } else {
+            ok = await queueTrainingLog(entry);
+          }
+
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Eintragen';
+
+          if (ok) {
+            form.reset();
+            renderClientView(profile);
+          } else {
+            alert('Der Eintrag konnte weder gespeichert noch in die Offline-Warteschlange gelegt werden.');
+          }
+        });
+      });
+    }
+
+    function renderExerciseRow(pe) {
+      const ex = pe.exercises;
+      const target = [
+        pe.target_sets ? `${pe.target_sets} Sätze` : null,
+        pe.target_reps ? `${pe.target_reps} Wdh.` : null,
+        pe.target_weight_hint ? pe.target_weight_hint : null,
+      ].filter(Boolean).join(' · ');
+
+      return `<div class="exercise-row">
+        ${ex.image_url ? `<img src="${escapeHtml(ex.image_url)}" alt="" onerror="this.style.display='none'" />` : ''}
+        <div class="exercise-meta">
+          <h4>${escapeHtml(ex.name)}</h4>
+          ${target ? `<div class="target">${escapeHtml(target)}</div>` : ''}
+          ${ex.description ? `<p style="margin:4px 0 0; font-size:0.85rem; color:var(--color-text-muted);">${escapeHtml(ex.description)}</p>` : ''}
+          ${pe.notes ? `<p style="margin:4px 0 0; font-size:0.82rem; color:var(--color-gold);">Hinweis vom Coach: ${escapeHtml(pe.notes)}</p>` : ''}
+          <form class="log-form" data-exercise-id="${ex.id}" data-plan-exercise-id="${pe.id}">
+            <input class="f-set" type="number" min="1" placeholder="Satz Nr." required />
+            <input class="f-reps" type="number" min="0" placeholder="Wdh." required />
+            <input class="f-weight" type="number" min="0" step="0.5" placeholder="kg" />
+            <button class="btn secondary small-btn" type="submit">Eintragen</button>
+          </form>
+        </div>
+      </div>`;
+    }
+
+    // =========================================================================
+    // ADMIN-ANSICHT
+    // =========================================================================
+
+    async function renderAdminView() {
+      container.innerHTML = `
+        <div class="subtabs">
+          <button class="admin-tab active" data-tab="plans">Trainingsplan erstellen</button>
+          <button class="admin-tab" data-tab="library">Übungsbibliothek</button>
+          <button class="admin-tab" data-tab="existing">Bestehende Pläne</button>
+        </div>
+        <div id="admin-content"><p class="center-text">Lade …</p></div>
+      `;
+
+      container.querySelectorAll('.admin-tab').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          container.querySelectorAll('.admin-tab').forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          renderAdminTab(btn.dataset.tab);
+        });
+      });
+
+      renderAdminTab('plans');
+    }
+
+    async function renderAdminTab(tab) {
+      const content = document.getElementById('admin-content');
+      content.innerHTML = '<p class="center-text">Lade …</p>';
+
+      if (tab === 'library') return renderLibraryTab(content);
+      if (tab === 'existing') return renderExistingPlansTab(content);
+      return renderPlanBuilderTab(content);
+    }
+
+    async function renderLibraryTab(content) {
+      const { data: exercises, error } = await listExercises();
+      if (error) {
+        content.innerHTML = `<div class="msg error">${escapeHtml(error.message)}</div>`;
+        return;
+      }
+
+      content.innerHTML = `
+        <div class="card">
+          <h2 style="font-size:1.05rem;">Neue Übung anlegen</h2>
+          <form id="new-exercise-form">
+            <div class="field"><label>Name</label><input type="text" id="ex-name" required /></div>
+            <div class="field"><label>Beschreibung</label><input type="text" id="ex-desc" /></div>
+            <div class="field"><label>Muskelgruppe</label><input type="text" id="ex-muscle" /></div>
+            <div class="field"><label>Bild-URL (optional)</label><input type="url" id="ex-image" placeholder="https://..." /></div>
+            <button class="btn" type="submit">Übung speichern</button>
+          </form>
+        </div>
+        <div class="card mt-24">
+          <h2 style="font-size:1.05rem;">Vorhandene Übungen (${exercises.length})</h2>
+          ${exercises.map((ex) => `
+            <div class="exercise-row">
+              ${ex.image_url ? `<img src="${escapeHtml(ex.image_url)}" alt="" onerror="this.style.display='none'" />` : ''}
+              <div class="exercise-meta">
+                <h4>${escapeHtml(ex.name)}</h4>
+                ${ex.muscle_group ? `<div class="target">${escapeHtml(ex.muscle_group)}</div>` : ''}
+                ${ex.description ? `<p style="margin:4px 0 0; font-size:0.85rem; color:var(--color-text-muted);">${escapeHtml(ex.description)}</p>` : ''}
+              </div>
+              <button class="btn secondary small-btn" data-delete-id="${ex.id}" type="button">Löschen</button>
+            </div>
+          `).join('') || '<p style="color:var(--color-text-muted);">Noch keine Übungen angelegt.</p>'}
+        </div>
+      `;
+
+      document.getElementById('new-exercise-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const { error } = await createExercise({
+          name: document.getElementById('ex-name').value.trim(),
+          description: document.getElementById('ex-desc').value.trim(),
+          muscleGroup: document.getElementById('ex-muscle').value.trim(),
+          imageUrl: document.getElementById('ex-image').value.trim(),
+        });
+        if (error) { alert('Fehler: ' + error.message); return; }
+        renderLibraryTab(content);
+      });
+
+      content.querySelectorAll('[data-delete-id]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Diese Übung wirklich löschen?')) return;
+          const { error } = await deleteExercise(btn.dataset.deleteId);
+          if (error) { alert('Fehler: ' + error.message); return; }
+          renderLibraryTab(content);
+        });
+      });
+    }
+
+    async function renderPlanBuilderTab(content) {
+      const [{ data: clients, error: clientsError }, { data: exercises, error: exercisesError }] = await Promise.all([
+        listClients(), listExercises(),
+      ]);
+
+      if (clientsError || exercisesError) {
+        content.innerHTML = `<div class="msg error">${escapeHtml((clientsError || exercisesError).message)}</div>`;
+        return;
+      }
+
+      if (!exercises || exercises.length === 0) {
+        content.innerHTML = `<div class="card"><p>Lege zuerst mindestens eine Übung in der Übungsbibliothek an, bevor du einen Plan erstellst.</p></div>`;
+        return;
+      }
+
+      const exerciseOptions = exercises.map((ex) => `<option value="${ex.id}">${escapeHtml(ex.name)}</option>`).join('');
+      const clientOptions = (clients || []).map((c) => `<option value="${c.id}">${escapeHtml(c.full_name || c.email)}${c.access_locked ? ' (gesperrt)' : ''}</option>`).join('');
+
+      content.innerHTML = `
+        <div class="card">
+          <h2 style="font-size:1.05rem;">Neuen Trainingsplan erstellen</h2>
+          ${!clients || clients.length === 0 ? '<p style="color:var(--color-text-muted);">Noch keine Kunden-Accounts vorhanden.</p>' : `
+          <form id="plan-form">
+            <div class="field"><label>Kunde</label><select id="plan-client" required>${clientOptions}</select></div>
+            <div class="field"><label>Titel des Plans</label><input type="text" id="plan-title" required placeholder="z.B. Trainingsplan Oktober" /></div>
+            <div class="field"><label>Notiz (optional)</label><input type="text" id="plan-notes" /></div>
+
+            <label style="display:block; font-size:0.82rem; color:var(--color-text-muted); margin-bottom:6px;">Übungen im Plan</label>
+            <div id="exercise-rows"></div>
+            <button class="btn secondary small-btn mt-16" type="button" id="add-row-btn">+ Übung hinzufügen</button>
+
+            <button class="btn mt-24" type="submit">Plan speichern</button>
+          </form>
+          `}
+        </div>
+      `;
+
+      if (!clients || clients.length === 0) return;
+
+      const rowsContainer = document.getElementById('exercise-rows');
+
+      function addExerciseRow() {
+        const row = document.createElement('div');
+        row.className = 'exercise-builder-row';
+        row.innerHTML = `
+          <select class="row-exercise">${exerciseOptions}</select>
+          <input class="row-sets" type="number" min="1" placeholder="Sätze" />
+          <input class="row-reps" type="text" placeholder="Wdh. (z.B. 8-12)" />
+          <input class="row-weight" type="text" placeholder="Gewicht/Hinweis" />
+          <button class="btn secondary small-btn" type="button">✕</button>
+        `;
+        row.querySelector('button').addEventListener('click', () => row.remove());
+        rowsContainer.appendChild(row);
+      }
+      addExerciseRow();
+
+      document.getElementById('add-row-btn').addEventListener('click', addExerciseRow);
+
+      document.getElementById('plan-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const rows = Array.from(rowsContainer.querySelectorAll('.exercise-builder-row')).map((row) => ({
+          exerciseId: row.querySelector('.row-exercise').value,
+          targetSets: row.querySelector('.row-sets').value,
+          targetReps: row.querySelector('.row-reps').value,
+          targetWeightHint: row.querySelector('.row-weight').value,
+        }));
+
+        if (rows.length === 0) { alert('Bitte mindestens eine Übung hinzufügen.'); return; }
+
+        const { error } = await createPlan({
+          clientId: document.getElementById('plan-client').value,
+          title: document.getElementById('plan-title').value.trim(),
+          notes: document.getElementById('plan-notes').value.trim(),
+          exercises: rows,
+        });
+
+        if (error) { alert('Fehler: ' + error.message); return; }
+        alert('Trainingsplan gespeichert.');
+        renderAdminTab('existing');
+        container.querySelectorAll('.admin-tab').forEach((b) => b.classList.remove('active'));
+        container.querySelector('[data-tab="existing"]').classList.add('active');
+      });
+    }
+
+    async function renderExistingPlansTab(content) {
+      const { data: plans, error } = await listPlansForAdmin();
+      if (error) {
+        content.innerHTML = `<div class="msg error">${escapeHtml(error.message)}</div>`;
+        return;
+      }
+
+      content.innerHTML = `
+        <div class="card">
+          <h2 style="font-size:1.05rem;">Alle Trainingspläne</h2>
+          ${!plans || plans.length === 0 ? '<p style="color:var(--color-text-muted);">Noch keine Pläne erstellt.</p>' : plans.map((p) => `
+            <div class="exercise-row">
+              <div class="exercise-meta">
+                <h4>${escapeHtml(p.title)}</h4>
+                <div class="target">${escapeHtml(p.profiles ? (p.profiles.full_name || p.profiles.email) : 'Unbekannter Kunde')} · ${formatDate(p.created_at)}</div>
+              </div>
+              <span class="status-pill ${p.is_active ? 'active' : 'inactive'}">${p.is_active ? 'aktiv' : 'inaktiv'}</span>
+              <button class="btn secondary small-btn" data-toggle-id="${p.id}" data-active="${p.is_active}" type="button">
+                ${p.is_active ? 'Deaktivieren' : 'Aktivieren'}
+              </button>
+            </div>
+          `).join('')}
+        </div>
+      `;
+
+      content.querySelectorAll('[data-toggle-id]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const newState = btn.dataset.active !== 'true';
+          const { error } = await setPlanActive(btn.dataset.toggleId, newState);
+          if (error) { alert('Fehler: ' + error.message); return; }
+          renderExistingPlansTab(content);
+        });
+      });
+    }
+
+    init();
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>
