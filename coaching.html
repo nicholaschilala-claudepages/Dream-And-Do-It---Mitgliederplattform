@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Coaching – Dream And Do It</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#053446" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <style>
+    .subtabs { display: flex; gap: 8px; margin: 0 0 16px; flex-wrap: wrap; }
+    .subtabs button { padding: 7px 14px; border-radius: 20px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); font-size: 0.82rem; cursor: pointer; }
+    .subtabs button.active { background: var(--color-navy); color: #fff; border-color: var(--color-navy); }
+    .result-box {
+      background: rgba(200,124,0,0.08); border: 1px solid rgba(200,124,0,0.25);
+      border-radius: 10px; padding: 16px; margin-top: 16px;
+    }
+    .result-box .big { font-family: var(--font-heading); font-size: 1.5rem; color: var(--color-navy); }
+    :root[data-theme="dark"] .result-box .big { color: var(--color-gold-light); }
+    @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .result-box .big { color: var(--color-gold-light); } }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 520px) { .grid-2 { grid-template-columns: 1fr; } }
+    table.simple-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    table.simple-table th, table.simple-table td { text-align: left; padding: 7px 6px; border-bottom: 1px solid var(--color-border); }
+    .content-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--color-border); }
+    .content-row:last-child { border-bottom: none; }
+    .q-item { padding: 14px 0; border-bottom: 1px solid var(--color-border); }
+    .q-item:last-child { border-bottom: none; }
+    .q-item p.q-text { margin: 0 0 10px; font-size: 0.92rem; }
+    .q-scale { display: flex; gap: 14px; flex-wrap: wrap; }
+    .q-scale label { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; color: var(--color-text-muted); cursor: pointer; }
+    .goal-list-item {
+      display: block; width: 100%; text-align: left; background: var(--color-surface);
+      border: 1px solid var(--color-border); border-radius: 10px; padding: 14px 16px;
+      margin-bottom: 10px; cursor: pointer; color: inherit; font: inherit;
+    }
+    .goal-list-item:hover { border-color: var(--color-gold); }
+    .goal-list-item .goal-title { font-weight: 600; }
+    .goal-list-item .goal-meta { font-size: 0.78rem; color: var(--color-text-muted); margin-top: 4px; }
+    .grow-section { margin-top: 20px; }
+    .grow-section h3 { font-size: 0.95rem; margin-bottom: 6px; }
+    .grow-letter {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 22px; height: 22px; border-radius: 50%; background: var(--color-navy); color: #fff;
+      font-size: 0.72rem; font-weight: 700; margin-right: 8px; flex-shrink: 0;
+    }
+    .option-card {
+      background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 10px;
+      padding: 12px 14px; margin-bottom: 10px;
+    }
+    .option-card .option-meta { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 0.72rem; color: var(--color-text-muted); margin-bottom: 6px; }
+    .option-card .coach-comment {
+      margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: rgba(5,52,70,0.06);
+      font-size: 0.85rem;
+    }
+    :root[data-theme="dark"] .option-card .coach-comment { background: rgba(250,194,51,0.08); }
+    @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .option-card .coach-comment { background: rgba(250,194,51,0.08); } }
+    .action-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--color-border); }
+    .action-row:last-child { border-bottom: none; }
+    .action-row.done .action-desc { text-decoration: line-through; color: var(--color-text-muted); }
+    .action-desc { flex: 1; font-size: 0.88rem; }
+    .action-date { font-size: 0.75rem; color: var(--color-text-muted); }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="topbar">
+      <div class="brand">
+        <img src="icons/icon-192.png" alt="Dream And Do It Logo" onerror="this.style.display='none'" />
+        DREAM AND DO IT
+      </div>
+      <div style="display:flex; gap:8px;">
+        <a class="icon-btn" href="dashboard.html" style="text-decoration:none;">Zum Dashboard</a>
+        <button class="icon-btn" id="theme-toggle" type="button">Hell/Dunkel</button>
+      </div>
+    </div>
+
+    <div class="container wide" id="app-container">
+      <p class="center-text">Lade …</p>
+    </div>
+  </div>
+
+  <script type="module">
+    import { supabaseClient } from './js/supabase-client.js';
+    import { getCurrentSession, initTheme, toggleTheme } from './js/auth.js';
+    import {
+      listCoachingContent, createCoachingContent, deleteCoachingContent,
+      QUESTIONNAIRES, getQuestionnaire, scoreQuestionnaire,
+      insertQuestionnaireResponse, listMyQuestionnaireResponses, listAllQuestionnaireResponses, deleteQuestionnaireResponse,
+      listMyGoals, listGoalsForAdmin, createGoal, updateGoal, deleteGoal, getGoalDetail,
+      insertGoalOption, updateGoalOption, deleteGoalOption,
+      insertWillAction, updateWillActionStatus, deleteWillAction,
+    } from './js/coaching.js';
+
+    initTheme();
+    document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+
+    const container = document.getElementById('app-container');
+    let currentProfile = null;
+    let selectedGoalId = null;
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str == null ? '' : String(str);
+      return div.innerHTML;
+    }
+
+    function fmtDate(d) {
+      if (!d) return '–';
+      return new Date(d).toLocaleDateString('de-DE');
+    }
+
+    async function init() {
+      const session = await getCurrentSession();
+      if (!session) { window.location.href = 'index.html'; return; }
+
+      const { data: profile, error } = await supabaseClient
+        .from('profiles')
+        .select('id, full_name, role, access_locked')
+        .eq('id', session.user.id)
+        .maybeSingle();
+
+      if (error || !profile) {
+        container.innerHTML = `<div class="card lock-screen"><div class="icon">⚠️</div><h2>Profil konnte nicht geladen werden</h2><p style="color:var(--color-text-muted);">${escapeHtml(error ? error.message : 'Unbekannter Fehler')}</p></div>`;
+        return;
+      }
+      if (profile.access_locked) {
+        container.innerHTML = `<div class="card lock-screen"><div class="icon">🔒</div><h2>Zugang derzeit gesperrt</h2><p style="color:var(--color-text-muted);">Bitte wende dich an uns, um deinen Zugang zu klären.</p></div>`;
+        return;
+      }
+
+      currentProfile = profile;
+      renderShell();
+    }
+
+    function renderShell() {
+      const isAdmin = currentProfile.role === 'admin';
+      container.innerHTML = `
+        <div class="subtabs">
+          <button class="ctab active" data-tab="content">Content</button>
+          ${isAdmin ? '<button class="ctab" data-tab="content-admin">Content verwalten</button>' : ''}
+          <button class="ctab" data-tab="fragebogen">Fragebögen</button>
+          <button class="ctab" data-tab="ziele">Ziele (GROW)</button>
+        </div>
+        <div id="tab-content"></div>
+      `;
+      container.querySelectorAll('.ctab').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          container.querySelectorAll('.ctab').forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          selectedGoalId = null;
+          renderTab(btn.dataset.tab);
+        });
+      });
+      renderTab('content');
+    }
+
+    function renderTab(tab) {
+      const content = document.getElementById('tab-content');
+      if (tab === 'content') return renderContentTab(content, false);
+      if (tab === 'content-admin') return renderContentTab(content, true);
+      if (tab === 'fragebogen') return renderFragebogenTab(content);
+      if (tab === 'ziele') return renderZieleTab(content);
+    }
+
+    // =========================================================================
+    // CONTENT (PDF-Downloads Persönlichkeitsentwicklung/Coaching)
+    // =========================================================================
+
+    async function renderContentTab(content, adminMode) {
+      content.innerHTML = '<p class="center-text">Lade …</p>';
+      const { data: items, error } = await listCoachingContent();
+      if (error) {
+        content.innerHTML = `<div class="msg error">${escapeHtml(error.message)}</div>`;
+        return;
+      }
+
+      let html = '';
+
+      if (adminMode) {
+        html += `
+          <div class="card">
+            <h2 style="font-size:1.05rem;">Neuen Content hinzufügen</h2>
+            <form id="new-content-form">
+              <div class="field"><label>Titel</label><input type="text" id="content-title" required /></div>
+              <div class="field"><label>Kategorie (z.B. Mindset, Gewohnheiten, Stressbewältigung)</label><input type="text" id="content-category" /></div>
+              <div class="field"><label>Kurzbeschreibung</label><input type="text" id="content-desc" /></div>
+              <div class="field"><label>Link zur PDF-Datei</label><input type="url" id="content-pdf" required placeholder="https://..." /></div>
+              <button class="btn" type="submit">Content speichern</button>
+            </form>
+          </div>
+        `;
+      }
+
+      html += `
+        <div class="card mt-24">
+          <h2 style="font-size:1.05rem;">${adminMode ? 'Aller Content' : 'Content zum Download'}</h2>
+          ${!items || items.length === 0 ? '<p style="color:var(--color-text-muted);">Noch keine Inhalte hinterlegt.</p>' : items.map((r) => `
+            <div class="content-row">
+              <div>
+                <h4 style="margin:0 0 2px;">${escapeHtml(r.title)}</h4>
+                ${r.category ? `<div style="font-size:0.78rem; color:var(--color-gold);">${escapeHtml(r.category)}</div>` : ''}
+                ${r.description ? `<p style="margin:4px 0 0; font-size:0.85rem; color:var(--color-text-muted);">${escapeHtml(r.description)}</p>` : ''}
+              </div>
+              <div style="display:flex; gap:8px; flex-shrink:0;">
+                <a class="btn secondary" style="width:auto; padding:8px 14px; font-size:0.82rem; text-decoration:none;" href="${escapeHtml(r.pdf_url)}" target="_blank" rel="noopener">PDF öffnen</a>
+                ${adminMode ? `<button class="btn secondary" style="width:auto; padding:8px 12px; font-size:0.82rem;" data-delete-content="${r.id}">Löschen</button>` : ''}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+
+      content.innerHTML = html;
+
+      if (adminMode) {
+        document.getElementById('new-content-form').addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const { error } = await createCoachingContent({
+            title: document.getElementById('content-title').value.trim(),
+            category: document.getElementById('content-category').value.trim(),
+            description: document.getElementById('content-desc').value.trim(),
+            pdfUrl: document.getElementById('content-pdf').value.trim(),
+          });
+          if (error) { alert('Fehler: ' + error.message); return; }
+          renderContentTab(content, true);
+        });
+
+        content.querySelectorAll('[data-delete-content]').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            if (!confirm('Diesen Inhalt wirklich löschen?')) return;
+            await deleteCoachingContent(btn.dataset.deleteContent);
+            renderContentTab(content, true);
+          });
+        });
+      }
+    }
+
+    // =========================================================================
+    // FRAGEBÖGEN
+    // =========================================================================
+
+    let fragebogenView = 'list'; // 'list' | 'fill'
+    let fillingKey = null;
+
+    async function renderFragebogenTab(content) {
+      const isAdmin = currentProfile.role === 'admin';
+
+      if (isAdmin) {
+        content.innerHTML = '<p class="center-text">Lade …</p>';
+        const { data: responses, error } = await listAllQuestionnaireResponses();
+        if (error) { content.innerHTML = `<div class="msg error">${escapeHtml(error.message)}</div>`; return; }
+        content.innerHTML = `
+          <div class="card">
+            <h2 style="font-size:1.05rem;">Ausgefüllte Fragebögen aller Kunden</h2>
+            ${!responses || responses.length === 0 ? '<p style="color:var(--color-text-muted);">Noch keine Fragebögen ausgefüllt.</p>' : `
+            <table class="simple-table mt-16">
+              <thead><tr><th>Kunde</th><th>Fragebogen</th><th>Ergebnis</th><th>Datum</th><th></th></tr></thead>
+              <tbody>
+                ${responses.map((r) => {
+                  const q = getQuestionnaire(r.questionnaire_key);
+                  const name = r.profiles ? (r.profiles.full_name || r.profiles.email) : '–';
+                  return `
+                    <tr>
+                      <td>${escapeHtml(name)}</td>
+                      <td>${escapeHtml(q ? q.title : r.questionnaire_key)}</td>
+                      <td>${r.score} / ${r.max_score}</td>
+                      <td>${fmtDate(r.completed_at)}</td>
+                      <td><button class="btn secondary" style="width:auto; padding:4px 10px; font-size:0.75rem;" data-delete-response="${r.id}">Löschen</button></td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>`}
+          </div>
+        `;
+        content.querySelectorAll('[data-delete-response]').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            if (!confirm('Dieses Ergebnis wirklich löschen?')) return;
+            await deleteQuestionnaireResponse(btn.dataset.deleteResponse);
+            renderFragebogenTab(content);
+          });
+        });
+        return;
+      }
+
+      // Client-Ansicht
+      if (fragebogenView === 'fill' && fillingKey) {
+        return renderFragebogenFill(content, fillingKey);
+      }
+
+      content.innerHTML = '<p class="center-text">Lade …</p>';
+      const { data: myResponses, error } = await listMyQuestionnaireResponses(currentProfile.id);
+      if (error) { content.innerHTML = `<div class="msg error">${escapeHtml(error.message)}</div>`; return; }
+
+      content.innerHTML = `
+        <div class="card">
+          <h2 style="font-size:1.05rem;">Verfügbare Fragebögen</h2>
+          <p style="color:var(--color-text-muted); font-size:0.85rem;">
+            Validierte, wissenschaftlich anerkannte Skalen zur Selbstreflexion – kein Ersatz für eine psychologische Diagnostik.
+          </p>
+          ${QUESTIONNAIRES.map((q) => `
+            <div class="content-row">
+              <div>
+                <h4 style="margin:0 0 2px;">${escapeHtml(q.title)}</h4>
+                <div style="font-size:0.78rem; color:var(--color-text-muted);">Quelle: ${escapeHtml(q.source)}</div>
+              </div>
+              <button class="btn" style="width:auto; padding:8px 16px; font-size:0.82rem;" data-fill="${q.key}">Ausfüllen</button>
+            </div>
+          `).join('')}
+        </div>
+
+        ${myResponses && myResponses.length > 0 ? `
+        <div class="card mt-24">
+          <h2 style="font-size:1.05rem;">Deine bisherigen Ergebnisse</h2>
+          <table class="simple-table mt-16">
+            <thead><tr><th>Fragebogen</th><th>Ergebnis</th><th>Datum</th><th></th></tr></thead>
+            <tbody>
+              ${myResponses.map((r) => {
+                const q = getQuestionnaire(r.questionnaire_key);
+                return `
+                  <tr>
+                    <td>${escapeHtml(q ? q.title : r.questionnaire_key)}</td>
+                    <td>${r.score} / ${r.max_score}</td>
+                    <td>${fmtDate(r.completed_at)}</td>
+                    <td><button class="btn secondary" style="width:auto; padding:4px 10px; font-size:0.75rem;" data-delete-response="${r.id}">Löschen</button></td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>` : ''}
+      `;
+
+      content.querySelectorAll('[data-fill]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          fragebogenView = 'fill';
+          fillingKey = btn.dataset.fill;
+          renderFragebogenTab(content);
+        });
+      });
+      content.querySelectorAll('[data-delete-response]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Dieses Ergebnis wirklich löschen?')) return;
+          await deleteQuestionnaireResponse(btn.dataset.deleteResponse);
+          renderFragebogenTab(content);
+        });
+      });
+    }
+
+    function renderFragebogenFill(content, key) {
+      const q = getQuestionnaire(key);
+      if (!q) { fragebogenView = 'list'; return renderFragebogenTab(content); }
+
+      content.innerHTML = `
+        <div class="card">
+          <button class="icon-btn" id="q-back" type="button" style="margin-bottom:14px;">← Zurück</button>
+          <h2 style="font-size:1.05rem;">${escapeHtml(q.title)}</h2>
+          <p style="color:var(--color-text-muted); font-size:0.85rem;">${escapeHtml(q.intro)}</p>
+          <form id="q-form">
+            ${q.items.map((text, i) => `
+              <div class="q-item">
+                <p class="q-text">${i + 1}. ${escapeHtml(text)}</p>
+                <div class="q-scale">
+                  ${q.scaleLabels.map((s) => `
+                    <label><input type="radio" name="q-${i}" value="${s.value}" required /> ${escapeHtml(s.label)}</label>
+                  `).join('')}
+                </div>
+              </div>
+            `).join('')}
+            <button class="btn mt-16" type="submit">Auswerten &amp; speichern</button>
+          </form>
+          <div id="q-result"></div>
+        </div>
+      `;
+
+      document.getElementById('q-back').addEventListener('click', () => {
+        fragebogenView = 'list'; fillingKey = null;
+        renderFragebogenTab(content);
+      });
+
+      document.getElementById('q-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const answers = q.items.map((_, i) => {
+          const checked = document.querySelector(`input[name="q-${i}"]:checked`);
+          return checked ? parseFloat(checked.value) : null;
+        });
+        if (answers.some((a) => a == null)) {
+          document.getElementById('q-result').innerHTML = '<div class="msg error">Bitte alle Fragen beantworten.</div>';
+          return;
+        }
+        const { score, maxScore, interpretation } = scoreQuestionnaire(q, answers);
+        const { error } = await insertQuestionnaireResponse({
+          clientId: currentProfile.id,
+          questionnaireKey: q.key,
+          answers,
+          score, maxScore, interpretation,
+        });
+        if (error) {
+          document.getElementById('q-result').innerHTML = `<div class="msg error">${escapeHtml(error.message)}</div>`;
+          return;
+        }
+        document.getElementById('q-result').innerHTML = `
+          <div class="result-box">
+            <div class="big">${score} / ${maxScore}</div>
+            <div class="caveat" style="margin-top:6px;">${escapeHtml(interpretation)}</div>
+          </div>
+        `;
+        fragebogenView = 'list'; fillingKey = null;
+      });
+    }
+
+    // =========================================================================
+    // ZIELE (GROW-MODELL)
+    // =========================================================================
+
+    let showNewGoalForm = false;
+
+    async function renderZieleTab(content) {
+      if (selectedGoalId) return renderGoalDetail(content, selectedGoalId);
+
+      const isAdmin = currentProfile.role === 'admin';
+      content.innerHTML = '<p class="center-text">Lade …</p>';
+
+      const { data: goals, error } = isAdmin ? await listGoalsForAdmin() : await listMyGoals(currentProfile.id);
+      if (error) { content.innerHTML = `<div class="msg error">${escapeHtml(error.message)}</div>`; return; }
+
+      const statusLabel = { active: 'aktiv', achieved: 'erreicht', archived: 'archiviert' };
+
+      content.innerHTML = `
+        ${!isAdmin ? `
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h2 style="font-size:1.05rem; margin:0;">Deine Ziele</h2>
+            <button class="btn secondary" id="toggle-new-goal" style="width:auto; padding:8px 14px; font-size:0.82rem;">${showNewGoalForm ? 'Abbrechen' : '+ Neues Ziel'}</button>
+          </div>
+          ${showNewGoalForm ? `
+            <form id="new-goal-form" class="mt-16">
+              <div class="field"><label>Titel (kurz)</label><input type="text" id="goal-title" required placeholder="z.B. Mehr Energie im Alltag" /></div>
+              <div class="field"><label>Goal – was genau willst du erreichen?</label><textarea id="goal-text" rows="2" required></textarea></div>
+              <div class="field"><label>Reality – wie ist der Ist-Stand, was hält dich bisher davon ab?</label><textarea id="goal-reality" rows="2"></textarea></div>
+              <div class="field"><label>Zieldatum (optional)</label><input type="date" id="goal-date" /></div>
+              <button class="btn" type="submit">Ziel anlegen</button>
+            </form>
+          ` : ''}
+        </div>` : ''}
+
+        <div class="card mt-24">
+          <h2 style="font-size:1.05rem;">${isAdmin ? 'Ziele aller Kunden' : 'Übersicht'}</h2>
+          ${!goals || goals.length === 0 ? '<p style="color:var(--color-text-muted);">Noch keine Ziele angelegt.</p>' : goals.map((g) => `
+            <button class="goal-list-item" data-open-goal="${g.id}">
+              <div class="goal-title">${escapeHtml(g.title)}</div>
+              <div class="goal-meta">
+                ${isAdmin && g.profiles ? escapeHtml(g.profiles.full_name || g.profiles.email) + ' · ' : ''}
+                Status: ${statusLabel[g.status] || g.status}${g.target_date ? ' · Ziel bis ' + fmtDate(g.target_date) : ''}
+              </div>
+            </button>
+          `).join('')}
+        </div>
+      `;
+
+      if (!isAdmin) {
+        document.getElementById('toggle-new-goal').addEventListener('click', () => {
+          showNewGoalForm = !showNewGoalForm;
+          renderZieleTab(content);
+        });
+        const form = document.getElementById('new-goal-form');
+        if (form) {
+          form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const { error } = await createGoal({
+              clientId: currentProfile.id,
+              title: document.getElementById('goal-title').value.trim(),
+              goalText: document.getElementById('goal-text').value.trim(),
+              realityText: document.getElementById('goal-reality').value.trim(),
+              targetDate: document.getElementById('goal-date').value || null,
+            });
+            if (error) { alert('Fehler: ' + error.message); return; }
+            showNewGoalForm = false;
+            renderZieleTab(content);
+          });
+        }
+      }
+
+      content.querySelectorAll('[data-open-goal]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          selectedGoalId = btn.dataset.openGoal;
+          renderZieleTab(content);
+        });
+      });
+    }
+
+    async function renderGoalDetail(content, goalId) {
+      const isAdmin = currentProfile.role === 'admin';
+      content.innerHTML = '<p class="center-text">Lade …</p>';
+
+      const { data: goal, error } = await getGoalDetail(goalId);
+      if (error || !goal) {
+        content.innerHTML = `<div class="msg error">${escapeHtml(error ? error.message : 'Ziel nicht gefunden.')}</div>`;
+        return;
+      }
+
+      const options = (goal.goal_options || []).slice().sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      const actions = (goal.goal_will_actions || []).slice().sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      const selectedOptions = options.filter((o) => o.is_selected);
+      const statusLabel = { active: 'aktiv', achieved: 'erreicht', archived: 'archiviert' };
+
+      content.innerHTML = `
+        <button class="icon-btn" id="goal-back" type="button" style="margin-bottom:14px;">← Zurück zur Übersicht</button>
+
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
+            <h2 style="font-size:1.1rem; margin:0;">${escapeHtml(goal.title)}</h2>
+            <span class="status-pill active" style="font-size:0.72rem; padding:3px 10px; border-radius:12px; background:rgba(47,111,79,0.15); color:var(--color-success);">${statusLabel[goal.status] || goal.status}</span>
+          </div>
+          ${goal.target_date ? `<p style="color:var(--color-text-muted); font-size:0.82rem; margin-top:4px;">Zieldatum: ${fmtDate(goal.target_date)}</p>` : ''}
+
+          <div class="grow-section">
+            <h3><span class="grow-letter">G</span>Goal – Ziel</h3>
+            <p>${escapeHtml(goal.goal_text)}</p>
+          </div>
+          <div class="grow-section">
+            <h3><span class="grow-letter">R</span>Reality – Ist-Stand</h3>
+            <p style="color:var(--color-text-muted);">${goal.reality_text ? escapeHtml(goal.reality_text) : 'Noch nicht beschrieben.'}</p>
+          </div>
+
+          <button class="icon-btn" id="edit-goal-toggle" type="button" style="margin-top:6px;">Goal/Reality/Status bearbeiten</button>
+          <form id="edit-goal-form" class="hidden mt-16">
+            <div class="field"><label>Goal</label><textarea id="edit-goal-text" rows="2">${escapeHtml(goal.goal_text)}</textarea></div>
+            <div class="field"><label>Reality</label><textarea id="edit-goal-reality" rows="2">${escapeHtml(goal.reality_text || '')}</textarea></div>
+            <div class="grid-2">
+              <div class="field"><label>Status</label>
+                <select id="edit-goal-status">
+                  <option value="active" ${goal.status === 'active' ? 'selected' : ''}>aktiv</option>
+                  <option value="achieved" ${goal.status === 'achieved' ? 'selected' : ''}>erreicht</option>
+                  <option value="archived" ${goal.status === 'archived' ? 'selected' : ''}>archiviert</option>
+                </select>
+              </div>
+              <div class="field"><label>Zieldatum</label><input type="date" id="edit-goal-date" value="${goal.target_date || ''}" /></div>
+            </div>
+            <button class="btn" type="submit">Speichern</button>
+          </form>
+        </div>
+
+        <div class="card mt-24">
+          <h3 style="font-size:0.95rem;"><span class="grow-letter">O</span>Options – Möglichkeiten sammeln</h3>
+          <p style="color:var(--color-text-muted); font-size:0.85rem;">
+            Je mehr Optionen hier zusammenkommen, desto besser lässt sich die realistischste und beste auswählen.
+            ${isAdmin ? 'Kommentiere Optionen und markiere die besten für die Will-Phase.' : 'Trag hier ruhig auch unfertige oder ungewöhnliche Ideen ein – dein Coach kommentiert sie.'}
+          </p>
+
+          ${options.length === 0 ? '<p style="color:var(--color-text-muted);">Noch keine Optionen gesammelt.</p>' : options.map((o) => `
+            <div class="option-card">
+              <div class="option-meta">
+                <span>${o.author_role === 'coach' ? '👤 Coach' : '🙋 Kunde'} · ${fmtDate(o.created_at)}</span>
+                ${o.is_selected ? '<span style="color:var(--color-success); font-weight:600;">✓ ausgewählt</span>' : ''}
+              </div>
+              <div>${escapeHtml(o.option_text)}</div>
+              ${o.coach_comment ? `<div class="coach-comment"><strong>Kommentar Coach:</strong> ${escapeHtml(o.coach_comment)}</div>` : ''}
+              ${isAdmin ? `
+                <div class="mt-16">
+                  <div class="field"><label style="font-size:0.75rem;">Kommentar</label><textarea rows="2" data-comment-for="${o.id}">${escapeHtml(o.coach_comment || '')}</textarea></div>
+                  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <button class="btn secondary" style="width:auto; padding:6px 12px; font-size:0.78rem;" data-save-comment="${o.id}">Kommentar speichern</button>
+                    <button class="btn secondary" style="width:auto; padding:6px 12px; font-size:0.78rem;" data-toggle-selected="${o.id}" data-current="${o.is_selected}">${o.is_selected ? 'Auswahl aufheben' : 'Als ausgewählt markieren'}</button>
+                    <button class="btn secondary" style="width:auto; padding:6px 12px; font-size:0.78rem;" data-delete-option="${o.id}">Löschen</button>
+                  </div>
+                </div>
+              ` : (o.author_role === 'client' && !o.is_selected ? `
+                <button class="btn secondary mt-16" style="width:auto; padding:6px 12px; font-size:0.78rem;" data-delete-option="${o.id}">Löschen</button>
+              ` : '')}
+            </div>
+          `).join('')}
+
+          <form id="new-option-form" class="mt-16">
+            <div class="field"><label>Neue Option</label><textarea id="option-text" rows="2" required placeholder="${isAdmin ? 'Option als Coach ergänzen …' : 'Eine mögliche Option, um dein Ziel zu erreichen …'}"></textarea></div>
+            <button class="btn" type="submit">Option hinzufügen</button>
+          </form>
+        </div>
+
+        <div class="card mt-24">
+          <h3 style="font-size:0.95rem;"><span class="grow-letter">W</span>Will – konkrete Maßnahmen</h3>
+          <p style="color:var(--color-text-muted); font-size:0.85rem;">
+            Aus den ausgewählten Optionen werden hier konkrete, terminierte Schritte.
+          </p>
+
+          ${actions.length === 0 ? '<p style="color:var(--color-text-muted);">Noch keine Maßnahmen festgelegt.</p>' : actions.map((a) => `
+            <div class="action-row ${a.status === 'done' ? 'done' : ''}">
+              <input type="checkbox" data-toggle-action="${a.id}" ${a.status === 'done' ? 'checked' : ''} />
+              <span class="action-desc">${escapeHtml(a.description)}</span>
+              <span class="action-date">${a.due_date ? 'bis ' + fmtDate(a.due_date) : ''}</span>
+              <button class="btn secondary" style="width:auto; padding:4px 10px; font-size:0.72rem;" data-delete-action="${a.id}">✕</button>
+            </div>
+          `).join('')}
+
+          <form id="new-action-form" class="mt-16">
+            <div class="field"><label>Maßnahme</label><input type="text" id="action-desc" required placeholder="z.B. 3x pro Woche 20 Min. spazieren gehen" /></div>
+            <div class="grid-2">
+              <div class="field"><label>Bis wann (optional)</label><input type="date" id="action-date" /></div>
+              ${selectedOptions.length > 0 ? `
+              <div class="field"><label>Bezug zu Option (optional)</label>
+                <select id="action-option">
+                  <option value="">– keine Zuordnung –</option>
+                  ${selectedOptions.map((o) => `<option value="${o.id}">${escapeHtml(o.option_text.slice(0, 60))}</option>`).join('')}
+                </select>
+              </div>` : ''}
+            </div>
+            <button class="btn" type="submit">Maßnahme hinzufügen</button>
+          </form>
+        </div>
+      `;
+
+      document.getElementById('goal-back').addEventListener('click', () => {
+        selectedGoalId = null;
+        renderZieleTab(content);
+      });
+
+      document.getElementById('edit-goal-toggle').addEventListener('click', () => {
+        document.getElementById('edit-goal-form').classList.toggle('hidden');
+      });
+      document.getElementById('edit-goal-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await updateGoal(goal.id, {
+          goal_text: document.getElementById('edit-goal-text').value.trim(),
+          reality_text: document.getElementById('edit-goal-reality').value.trim(),
+          status: document.getElementById('edit-goal-status').value,
+          target_date: document.getElementById('edit-goal-date').value || null,
+        });
+        renderGoalDetail(content, goalId);
+      });
+
+      document.getElementById('new-option-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const { error } = await insertGoalOption({
+          goalId: goal.id,
+          authorRole: isAdmin ? 'coach' : 'client',
+          optionText: document.getElementById('option-text').value.trim(),
+        });
+        if (error) { alert('Fehler: ' + error.message); return; }
+        renderGoalDetail(content, goalId);
+      });
+
+      content.querySelectorAll('[data-save-comment]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const id = btn.dataset.saveComment;
+          const text = content.querySelector(`[data-comment-for="${id}"]`).value.trim();
+          await updateGoalOption(id, { coach_comment: text || null });
+          renderGoalDetail(content, goalId);
+        });
+      });
+      content.querySelectorAll('[data-toggle-selected]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const current = btn.dataset.current === 'true';
+          await updateGoalOption(btn.dataset.toggleSelected, { is_selected: !current });
+          renderGoalDetail(content, goalId);
+        });
+      });
+      content.querySelectorAll('[data-delete-option]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Diese Option wirklich löschen?')) return;
+          await deleteGoalOption(btn.dataset.deleteOption);
+          renderGoalDetail(content, goalId);
+        });
+      });
+
+      document.getElementById('new-action-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const optionSelect = document.getElementById('action-option');
+        const { error } = await insertWillAction({
+          goalId: goal.id,
+          optionId: optionSelect ? (optionSelect.value || null) : null,
+          description: document.getElementById('action-desc').value.trim(),
+          dueDate: document.getElementById('action-date').value || null,
+        });
+        if (error) { alert('Fehler: ' + error.message); return; }
+        renderGoalDetail(content, goalId);
+      });
+      content.querySelectorAll('[data-toggle-action]').forEach((cb) => {
+        cb.addEventListener('change', async () => {
+          await updateWillActionStatus(cb.dataset.toggleAction, cb.checked ? 'done' : 'open');
+          renderGoalDetail(content, goalId);
+        });
+      });
+      content.querySelectorAll('[data-delete-action]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Diese Maßnahme wirklich löschen?')) return;
+          await deleteWillAction(btn.dataset.deleteAction);
+          renderGoalDetail(content, goalId);
+        });
+      });
+    }
+
+    init();
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>
