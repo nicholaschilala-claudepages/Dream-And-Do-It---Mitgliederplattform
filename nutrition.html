@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ernährung – Dream And Do It</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#053446" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <style>
+    .subtabs { display: flex; gap: 8px; margin: 0 0 16px; flex-wrap: wrap; }
+    .subtabs button { padding: 7px 14px; border-radius: 20px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); font-size: 0.82rem; cursor: pointer; }
+    .subtabs button.active { background: var(--color-navy); color: #fff; border-color: var(--color-navy); }
+    .result-box {
+      background: rgba(200,124,0,0.08); border: 1px solid rgba(200,124,0,0.25);
+      border-radius: 10px; padding: 16px; margin-top: 16px;
+    }
+    .result-box .big { font-family: var(--font-heading); font-size: 1.6rem; color: var(--color-navy); }
+    :root[data-theme="dark"] .result-box .big { color: var(--color-gold-light); }
+    @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .result-box .big { color: var(--color-gold-light); } }
+    .result-box .caveat { font-size: 0.78rem; color: var(--color-text-muted); margin-top: 6px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 520px) { .grid-2 { grid-template-columns: 1fr; } }
+    table.simple-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    table.simple-table th, table.simple-table td { text-align: left; padding: 7px 6px; border-bottom: 1px solid var(--color-border); }
+    .chart-tooltip {
+      position: absolute; background: var(--color-navy); color: #fff; font-size: 0.75rem;
+      padding: 4px 8px; border-radius: 6px; pointer-events: none; opacity: 0; transition: opacity 0.1s;
+      white-space: nowrap; transform: translate(-50%, -130%);
+    }
+    .recipe-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--color-border); }
+    .recipe-row:last-child { border-bottom: none; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="topbar">
+      <div class="brand">
+        <img src="icons/icon-192.png" alt="Dream And Do It Logo" onerror="this.style.display='none'" />
+        DREAM AND DO IT
+      </div>
+      <div style="display:flex; gap:8px;">
+        <a class="icon-btn" href="dashboard.html" style="text-decoration:none;">Zum Dashboard</a>
+        <button class="icon-btn" id="theme-toggle" type="button">Hell/Dunkel</button>
+      </div>
+    </div>
+
+    <div class="container wide" id="app-container">
+      <p class="center-text">Lade …</p>
+    </div>
+  </div>
+
+  <script type="module">
+    import { supabaseClient } from './js/supabase-client.js';
+    import { getCurrentSession, initTheme, toggleTheme } from './js/auth.js';
+    import {
+      PAL_LEVELS, calculateBmr, calculateTee,
+      calculateFatFreeMass, calculateBmrKatchMcArdle,
+      calculateNavyBodyFat, calculateWaistToHip,
+      insertBodyMeasurement, listMyBodyMeasurements, deleteBodyMeasurement,
+      listRecipes, createRecipe, deleteRecipe,
+    } from './js/nutrition.js';
+
+    initTheme();
+    document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+
+    const container = document.getElementById('app-container');
+    let currentProfile = null;
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str == null ? '' : String(str);
+      return div.innerHTML;
+    }
+
+    async function init() {
+      const session = await getCurrentSession();
+      if (!session) { window.location.href = 'index.html'; return; }
+
+      const { data: profile, error } = await supabaseClient
+        .from('profiles')
+        .select('id, full_name, role, access_locked')
+        .eq('id', session.user.id)
+        .maybeSingle();
+
+      if (error || !profile) {
+        container.innerHTML = `<div class="card lock-screen"><div class="icon">⚠️</div><h2>Profil konnte nicht geladen werden</h2><p style="color:var(--color-text-muted);">${escapeHtml(error ? error.message : 'Unbekannter Fehler')}</p></div>`;
+        return;
+      }
+      if (profile.access_locked) {
+        container.innerHTML = `<div class="card lock-screen"><div class="icon">🔒</div><h2>Zugang derzeit gesperrt</h2><p style="color:var(--color-text-muted);">Bitte wende dich an uns, um deinen Zugang zu klären.</p></div>`;
+        return;
+      }
+
+      currentProfile = profile;
+      renderShell();
+    }
+
+    function renderShell() {
+      const isAdmin = currentProfile.role === 'admin';
+      container.innerHTML = `
+        <div class="subtabs">
+          <button class="ntab active" data-tab="pal">PAL-Rechner</button>
+          <button class="ntab" data-tab="bodyfat">Körperfett-Verlauf</button>
+          <button class="ntab" data-tab="recipes">Rezepte</button>
+          ${isAdmin ? '<button class="ntab" data-tab="recipes-admin">Rezepte verwalten</button>' : ''}
+        </div>
+        <div id="tab-content"></div>
+      `;
+      container.querySelectorAll('.ntab').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          container.querySelectorAll('.ntab').forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          renderTab(btn.dataset.tab);
+        });
+      });
+      renderTab('pal');
+    }
+
+    function renderTab(tab) {
+      const content = document.getElementById('tab-content');
+      if (tab === 'pal') return renderPalTab(content);
+      if (tab === 'bodyfat') return renderBodyfatTab(content);
+      if (tab === 'recipes') return renderRecipesTab(content, false);
+      if (tab === 'recipes-admin') return renderRecipesTab(content, true);
+    }
+
+    // =========================================================================
+    // PAL-RECHNER
+    // =========================================================================
+
+    async function renderPalTab(content) {
+      content.innerHTML = '<p class="center-text">Lade …</p>';
+
+      const { data: measurements } = await listMyBodyMeasurements(currentProfile.id);
+      const usable = (measurements || []).filter((m) => m.weight_kg != null && m.body_fat_percent != null);
+      const latestBf = usable.length ? usable[usable.length - 1] : null;
+
+      content.innerHTML = `
+        <div class="card">
+          <h2 style="font-size:1.05rem;">Kalorienbedarf berechnen (PAL-Methode)</h2>
+          <p style="color:var(--color-text-muted); font-size:0.88rem;">
+            Grundumsatz nach Mifflin-St Jeor (1990) × Aktivitätsfaktor (PAL). Referenzwerte orientiert an DGE.
+          </p>
+          ${latestBf ? `
+          <div class="msg info" style="font-size:0.85rem; margin-bottom:14px;">
+            Präzisions-Modus aktiv: Da ein Körperfett-Wert vorliegt (${latestBf.body_fat_percent.toFixed(1)} %,
+            Messung vom ${new Date(latestBf.measured_at).toLocaleDateString('de-DE')}), berechnen wir zusätzlich
+            eine Schätzung über deine fettfreie Masse (Katch-McArdle-Formel) – das berücksichtigt deine
+            Körperzusammensetzung statt nur Gewicht/Größe/Alter.
+          </div>` : `
+          <div class="msg info" style="font-size:0.85rem; margin-bottom:14px;">
+            💡 Trage einmal unter „Körperfett-Verlauf" deine Maße ein – dann bezieht der Rechner deinen
+            Körperfettanteil mit ein und wird dadurch präziser.
+          </div>`}
+          <form id="pal-form">
+            <div class="grid-2">
+              <div class="field">
+                <label>Geschlecht</label>
+                <select id="pal-sex">
+                  <option value="male" ${latestBf && latestBf.sex === 'male' ? 'selected' : ''}>Männlich</option>
+                  <option value="female" ${latestBf && latestBf.sex === 'female' ? 'selected' : ''}>Weiblich</option>
+                </select>
+              </div>
+              <div class="field"><label>Alter (Jahre)</label><input type="number" id="pal-age" min="10" max="100" required /></div>
+              <div class="field"><label>Größe (cm)</label><input type="number" id="pal-height" min="100" max="230" step="0.1" value="${latestBf ? latestBf.height_cm : ''}" required /></div>
+              <div class="field"><label>Gewicht (kg)</label><input type="number" id="pal-weight" min="30" max="300" step="0.1" value="${latestBf ? latestBf.weight_kg : ''}" required /></div>
+            </div>
+            <div class="field">
+              <label>Aktivitätslevel (PAL)</label>
+              <select id="pal-level">
+                ${PAL_LEVELS.map((p) => `<option value="${p.value}">${escapeHtml(p.label)} (PAL ${p.value})</option>`).join('')}
+              </select>
+            </div>
+            <button class="btn" type="submit">Berechnen</button>
+          </form>
+          <div id="pal-result"></div>
+        </div>
+      `;
+
+      document.getElementById('pal-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const sex = document.getElementById('pal-sex').value;
+        const age = parseFloat(document.getElementById('pal-age').value);
+        const heightCm = parseFloat(document.getElementById('pal-height').value);
+        const weightKg = parseFloat(document.getElementById('pal-weight').value);
+        const pal = parseFloat(document.getElementById('pal-level').value);
+
+        const bmrStandard = calculateBmr({ sex, weightKg, heightCm, age });
+        const teeStandard = calculateTee(bmrStandard, pal);
+
+        let precisionBox = '';
+        if (latestBf) {
+          const ffm = calculateFatFreeMass(weightKg, latestBf.body_fat_percent);
+          const bmrPrecise = calculateBmrKatchMcArdle(ffm);
+          const teePrecise = calculateTee(bmrPrecise, pal);
+          precisionBox = `
+            <div class="result-box">
+              <div style="font-size:0.78rem; color:var(--color-gold); font-weight:600; text-transform:uppercase; letter-spacing:0.02em;">Präzisions-Schätzung (Katch-McArdle)</div>
+              <div style="margin-top:4px;">Grundumsatz (BMR): <strong>${Math.round(bmrPrecise)} kcal/Tag</strong></div>
+              <div class="big">${Math.round(teePrecise)} kcal/Tag</div>
+              <div style="color:var(--color-text-muted); font-size:0.85rem;">geschätzter Gesamtenergieumsatz bei PAL ${pal}</div>
+              <div class="caveat">
+                Berechnet über deine fettfreie Masse, basierend auf dem Körperfettanteil aus deiner Messung vom
+                ${new Date(latestBf.measured_at).toLocaleDateString('de-DE')} (${latestBf.body_fat_percent.toFixed(1)} %).
+                Referenz: Katch &amp; McArdle (1996). In der Regel genauer als reine Gewichts-/Größenformeln,
+                besonders bei über- oder unterdurchschnittlicher Muskelmasse – da hier direkt mit der tatsächlichen
+                Körperzusammensetzung statt mit Bevölkerungsdurchschnitten gerechnet wird. Die Fehlerspanne der
+                Navy-Methode (ca. ±3-4 Prozentpunkte) wirkt sich anteilig auch auf diesen Wert aus, daher am besten
+                bei wiederholten, konsistent gemessenen Werten vertrauen.
+              </div>
+            </div>
+            <div class="result-box" style="margin-top:10px; opacity:0.8;">
+              <div style="font-size:0.78rem; color:var(--color-text-muted); font-weight:600; text-transform:uppercase; letter-spacing:0.02em;">Standard-Schätzung (Mifflin-St Jeor)</div>
+              <div style="margin-top:4px;">Grundumsatz (BMR): <strong>${Math.round(bmrStandard)} kcal/Tag</strong></div>
+              <div class="big" style="font-size:1.3rem;">${Math.round(teeStandard)} kcal/Tag</div>
+              <div class="caveat">Nur zum Vergleich – schätzt allein über Gewicht, Größe, Alter und Geschlecht, ohne Körperzusammensetzung.</div>
+            </div>
+          `;
+        } else {
+          precisionBox = `
+            <div class="result-box">
+              <div>Grundumsatz (BMR): <strong>${Math.round(bmrStandard)} kcal/Tag</strong></div>
+              <div class="big">${Math.round(teeStandard)} kcal/Tag</div>
+              <div style="color:var(--color-text-muted); font-size:0.85rem;">geschätzter Gesamtenergieumsatz bei PAL ${pal}</div>
+              <div class="caveat">Richtwert zur Orientierung, kein individueller Ernährungsplan. Tatsächlicher Bedarf kann je nach Stoffwechsel und Alltag abweichen – am besten im Coaching-Gespräch einordnen lassen.</div>
+            </div>
+          `;
+        }
+
+        document.getElementById('pal-result').innerHTML = precisionBox;
+      });
+    }
+
+    // =========================================================================
+    // KÖRPERFETT-VERLAUF (NAVY-METHODE)
+    // =========================================================================
+
+    async function renderBodyfatTab(content) {
+      content.innerHTML = '<p class="center-text">Lade …</p>';
+      const { data: measurements, error } = await listMyBodyMeasurements(currentProfile.id);
+      if (error) {
+        content.innerHTML = `<div class="msg error">${escapeHtml(error.message)}</div>`;
+        return;
+      }
+
+      const latest = measurements && measurements.length ? measurements[measurements.length - 1] : null;
+      const previous = measurements && measurements.length > 1 ? measurements[measurements.length - 2] : null;
+
+      content.innerHTML = `
+        <div class="card">
+          <h2 style="font-size:1.05rem;">Neue Messung erfassen (Navy-Methode)</h2>
+          <p style="color:var(--color-text-muted); font-size:0.85rem;">
+            Miss möglichst zur gleichen Tageszeit, nüchtern, mit demselben Maßband. Für eine stabilere Aussage
+            jede Stelle 2-3× messen und den Mittelwert eintragen.
+          </p>
+          <form id="bf-form">
+            <div class="grid-2">
+              <div class="field">
+                <label>Geschlecht</label>
+                <select id="bf-sex"><option value="male">Männlich</option><option value="female">Weiblich</option></select>
+              </div>
+              <div class="field"><label>Datum</label><input type="date" id="bf-date" required /></div>
+              <div class="field"><label>Größe (cm)</label><input type="number" id="bf-height" step="0.1" required /></div>
+              <div class="field"><label>Gewicht (kg, optional)</label><input type="number" id="bf-weight" step="0.1" /></div>
+              <div class="field"><label>Hals-Umfang (cm)</label><input type="number" id="bf-neck" step="0.1" required /></div>
+              <div class="field"><label>Taillen-Umfang (cm)</label><input type="number" id="bf-waist" step="0.1" required /></div>
+              <div class="field"><label>Hüft-Umfang (cm, bei Frauen nötig)</label><input type="number" id="bf-hip" step="0.1" /></div>
+            </div>
+            <button class="btn" type="submit">Speichern</button>
+          </form>
+          <div id="bf-result"></div>
+        </div>
+
+        ${measurements && measurements.length > 0 ? `
+        <div class="card mt-24">
+          <h2 style="font-size:1.05rem;">Verlauf</h2>
+          ${latest ? `
+            <div class="grid-2 mt-16">
+              <div class="result-box">
+                <div style="color:var(--color-text-muted); font-size:0.82rem;">Aktueller Körperfettanteil</div>
+                <div class="big">${latest.body_fat_percent != null ? latest.body_fat_percent.toFixed(1) + ' %' : '–'}</div>
+                ${previous && previous.body_fat_percent != null && latest.body_fat_percent != null
+                  ? `<div style="font-size:0.82rem; color:var(--color-text-muted);">${(latest.body_fat_percent - previous.body_fat_percent >= 0 ? '+' : '')}${(latest.body_fat_percent - previous.body_fat_percent).toFixed(1)} Prozentpunkte seit letzter Messung</div>`
+                  : ''}
+                <div class="caveat">Navy-Methode, Schätzfehler ca. ±3-4 Prozentpunkte ggü. DEXA. Trend über mehrere Messungen aussagekräftiger als der Einzelwert.</div>
+              </div>
+              <div class="result-box">
+                <div style="color:var(--color-text-muted); font-size:0.82rem;">Waist-to-Hip-Ratio (WHR)</div>
+                <div class="big">${latest.waist_to_hip_ratio != null ? latest.waist_to_hip_ratio.toFixed(2) : '–'}</div>
+                <div class="caveat">Taillenumfang ÷ Hüftumfang – ergänzender Marker, unabhängig vom Körperfettanteil.</div>
+              </div>
+            </div>
+          ` : ''}
+          <div id="bf-chart" class="mt-24" style="position:relative;"></div>
+          <table class="simple-table mt-24">
+            <thead><tr><th>Datum</th><th>Körperfett %</th><th>WHR</th><th>Gewicht</th><th></th></tr></thead>
+            <tbody>
+              ${measurements.slice().reverse().map((m) => `
+                <tr>
+                  <td>${new Date(m.measured_at).toLocaleDateString('de-DE')}</td>
+                  <td>${m.body_fat_percent != null ? m.body_fat_percent.toFixed(1) + ' %' : '–'}</td>
+                  <td>${m.waist_to_hip_ratio != null ? m.waist_to_hip_ratio.toFixed(2) : '–'}</td>
+                  <td>${m.weight_kg != null ? m.weight_kg + ' kg' : '–'}</td>
+                  <td><button class="btn secondary" style="width:auto; padding:4px 10px; font-size:0.75rem;" data-delete-measurement="${m.id}">Löschen</button></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>` : ''}
+      `;
+
+      document.getElementById('bf-date').value = new Date().toISOString().slice(0, 10);
+
+      if (measurements && measurements.length >= 2) {
+        renderTrendChart(document.getElementById('bf-chart'), measurements);
+      }
+
+      document.getElementById('bf-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const sex = document.getElementById('bf-sex').value;
+        const heightCm = parseFloat(document.getElementById('bf-height').value);
+        const neckCm = parseFloat(document.getElementById('bf-neck').value);
+        const waistCm = parseFloat(document.getElementById('bf-waist').value);
+        const hipCm = document.getElementById('bf-hip').value ? parseFloat(document.getElementById('bf-hip').value) : null;
+        const weightKg = document.getElementById('bf-weight').value ? parseFloat(document.getElementById('bf-weight').value) : null;
+        const measuredAt = document.getElementById('bf-date').value;
+
+        if (sex === 'female' && !hipCm) {
+          document.getElementById('bf-result').innerHTML = '<div class="msg error">Für Frauen wird zusätzlich der Hüftumfang benötigt.</div>';
+          return;
+        }
+
+        const bodyFat = calculateNavyBodyFat({ sex, heightCm, neckCm, waistCm, hipCm });
+        const whr = calculateWaistToHip(waistCm, hipCm);
+
+        const { error } = await insertBodyMeasurement({
+          client_id: currentProfile.id,
+          measured_at: measuredAt,
+          sex, height_cm: heightCm, neck_cm: neckCm, waist_cm: waistCm, hip_cm: hipCm,
+          weight_kg: weightKg,
+          body_fat_percent: bodyFat,
+          waist_to_hip_ratio: whr,
+        });
+
+        if (error) {
+          document.getElementById('bf-result').innerHTML = `<div class="msg error">${escapeHtml(error.message)}</div>`;
+          return;
+        }
+        renderBodyfatTab(content);
+      });
+
+      content.querySelectorAll('[data-delete-measurement]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Diese Messung wirklich löschen?')) return;
+          await deleteBodyMeasurement(btn.dataset.deleteMeasurement);
+          renderBodyfatTab(content);
+        });
+      });
+    }
+
+    /**
+     * Schlanker, selbst gezeichneter Liniendiagramm (kein externes Chart-Framework
+     * nötig für eine einzelne Kennzahl). Folgt den Grundprinzipien: dünne Linie,
+     * abgerundete Enden, deutliche Marker, Hover-Tooltip, Markenfarbe.
+     */
+    function renderTrendChart(el, measurements) {
+      const values = measurements.map((m) => m.body_fat_percent).filter((v) => v != null);
+      if (values.length < 2) { el.innerHTML = ''; return; }
+
+      const width = 640, height = 200, padding = 32;
+      const minV = Math.min(...values), maxV = Math.max(...values);
+      const range = maxV - minV || 1;
+
+      const points = measurements
+        .filter((m) => m.body_fat_percent != null)
+        .map((m, i, arr) => {
+          const x = padding + (i / (arr.length - 1 || 1)) * (width - padding * 2);
+          const y = height - padding - ((m.body_fat_percent - minV) / range) * (height - padding * 2);
+          return { x, y, date: m.measured_at, value: m.body_fat_percent };
+        });
+
+      const pathD = points.map((p, i) => (i === 0 ? 'M' : 'L') + p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' ');
+      const lineColor = 'var(--color-gold)';
+
+      el.innerHTML = `
+        <svg viewBox="0 0 ${width} ${height}" style="width:100%; height:auto; overflow:visible;">
+          <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="var(--color-border)" stroke-width="1" />
+          <path d="${pathD}" fill="none" stroke="${lineColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          ${points.map((p) => `<circle cx="${p.x}" cy="${p.y}" r="4" fill="${lineColor}" class="chart-point" data-date="${p.date}" data-value="${p.value.toFixed(1)}" style="cursor:pointer;" />`).join('')}
+        </svg>
+        <div class="chart-tooltip" id="chart-tooltip"></div>
+      `;
+
+      const tooltip = el.querySelector('#chart-tooltip');
+      el.querySelectorAll('.chart-point').forEach((pt) => {
+        pt.addEventListener('mouseenter', (e) => {
+          const rect = el.getBoundingClientRect();
+          tooltip.textContent = `${new Date(pt.dataset.date).toLocaleDateString('de-DE')}: ${pt.dataset.value} %`;
+          tooltip.style.left = (e.clientX - rect.left) + 'px';
+          tooltip.style.top = (e.clientY - rect.top) + 'px';
+          tooltip.style.opacity = '1';
+        });
+        pt.addEventListener('mouseleave', () => { tooltip.style.opacity = '0'; });
+      });
+    }
+
+    // =========================================================================
+    // REZEPTE
+    // =========================================================================
+
+    async function renderRecipesTab(content, adminMode) {
+      content.innerHTML = '<p class="center-text">Lade …</p>';
+      const { data: recipes, error } = await listRecipes();
+      if (error) {
+        content.innerHTML = `<div class="msg error">${escapeHtml(error.message)}</div>`;
+        return;
+      }
+
+      let html = '';
+
+      if (adminMode) {
+        html += `
+          <div class="card">
+            <h2 style="font-size:1.05rem;">Neues Rezept hinzufügen</h2>
+            <form id="new-recipe-form">
+              <div class="field"><label>Titel</label><input type="text" id="recipe-title" required /></div>
+              <div class="field"><label>Kategorie (z.B. Frühstück, Mittagessen)</label><input type="text" id="recipe-category" /></div>
+              <div class="field"><label>Kurzbeschreibung</label><input type="text" id="recipe-desc" /></div>
+              <div class="field"><label>Link zur PDF-Datei</label><input type="url" id="recipe-pdf" required placeholder="https://..." /></div>
+              <button class="btn" type="submit">Rezept speichern</button>
+            </form>
+          </div>
+        `;
+      }
+
+      html += `
+        <div class="card mt-24">
+          <h2 style="font-size:1.05rem;">${adminMode ? 'Alle Rezepte' : 'Rezepte zum Download'}</h2>
+          ${!recipes || recipes.length === 0 ? '<p style="color:var(--color-text-muted);">Noch keine Rezepte hinterlegt.</p>' : recipes.map((r) => `
+            <div class="recipe-row">
+              <div>
+                <h4 style="margin:0 0 2px;">${escapeHtml(r.title)}</h4>
+                ${r.category ? `<div style="font-size:0.78rem; color:var(--color-gold);">${escapeHtml(r.category)}</div>` : ''}
+                ${r.description ? `<p style="margin:4px 0 0; font-size:0.85rem; color:var(--color-text-muted);">${escapeHtml(r.description)}</p>` : ''}
+              </div>
+              <div style="display:flex; gap:8px; flex-shrink:0;">
+                <a class="btn secondary" style="width:auto; padding:8px 14px; font-size:0.82rem; text-decoration:none;" href="${escapeHtml(r.pdf_url)}" target="_blank" rel="noopener">PDF öffnen</a>
+                ${adminMode ? `<button class="btn secondary" style="width:auto; padding:8px 12px; font-size:0.82rem;" data-delete-recipe="${r.id}">Löschen</button>` : ''}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+
+      content.innerHTML = html;
+
+      if (adminMode) {
+        document.getElementById('new-recipe-form').addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const { error } = await createRecipe({
+            title: document.getElementById('recipe-title').value.trim(),
+            category: document.getElementById('recipe-category').value.trim(),
+            description: document.getElementById('recipe-desc').value.trim(),
+            pdfUrl: document.getElementById('recipe-pdf').value.trim(),
+          });
+          if (error) { alert('Fehler: ' + error.message); return; }
+          renderRecipesTab(content, true);
+        });
+
+        content.querySelectorAll('[data-delete-recipe]').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            if (!confirm('Dieses Rezept wirklich löschen?')) return;
+            await deleteRecipe(btn.dataset.deleteRecipe);
+            renderRecipesTab(content, true);
+          });
+        });
+      }
+    }
+
+    init();
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>
