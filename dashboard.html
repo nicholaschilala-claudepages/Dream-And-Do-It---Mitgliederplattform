@@ -33,7 +33,8 @@
   </div>
 
   <script type="module">
-    import { requireAuth, signOut, initTheme, toggleTheme } from './js/auth.js';
+    import { supabaseClient } from './js/supabase-client.js';
+    import { signOut, getCurrentSession, initTheme, toggleTheme } from './js/auth.js';
 
     initTheme();
     document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
@@ -44,15 +45,45 @@
 
     const container = document.getElementById('app-container');
 
-    requireAuth().then((profile) => {
-      if (!profile) return; // requireAuth leitet bereits zum Login um
+    async function loadProfile() {
+      const session = await getCurrentSession();
+      if (!session) {
+        window.location.href = 'index.html';
+        return;
+      }
 
-      if (profile.access_locked) {
+      const { data, error } = await supabaseClient
+        .from('profiles')
+        .select('id, full_name, role, access_locked, created_at')
+        .eq('id', session.user.id)
+        .maybeSingle();
+
+      if (error) {
+        renderError('Fehlercode: ' + error.code + ' – ' + error.message);
+        return;
+      }
+      if (!data) {
+        renderError('Es wurde noch kein Profil zu deinem Konto gefunden. Das kann direkt nach der Registrierung kurz vorkommen – lade die Seite in ein paar Sekunden neu.');
+        return;
+      }
+      if (data.access_locked) {
         renderLocked();
         return;
       }
-      renderDashboard(profile);
-    });
+      renderDashboard(data);
+    }
+
+    function renderError(message) {
+      container.innerHTML = `
+        <div class="card lock-screen">
+          <div class="icon">⚠️</div>
+          <h2>Profil konnte nicht geladen werden</h2>
+          <p style="color:var(--color-text-muted);">${escapeHtml(message)}</p>
+          <button class="btn mt-16" style="display:inline-block; width:auto; padding:12px 24px;" id="retry-btn" type="button">Erneut versuchen</button>
+        </div>
+      `;
+      document.getElementById('retry-btn').addEventListener('click', () => location.reload());
+    }
 
     function renderLocked() {
       container.innerHTML = `
@@ -113,6 +144,8 @@
       div.textContent = str;
       return div.innerHTML;
     }
+
+    loadProfile();
 
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
