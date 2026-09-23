@@ -243,6 +243,7 @@ a { color: var(--color-gold); }
 }
 .msg.error { background: rgba(179,38,30,0.1); color: var(--color-danger); }
 .msg.success { background: rgba(47,111,79,0.1); color: var(--color-success); }
+.msg.info { background: rgba(200,124,0,0.08); color: var(--color-text); border: 1px solid rgba(200,124,0,0.25); }
 .msg.hidden { display: none; }
 
 .lock-screen {
