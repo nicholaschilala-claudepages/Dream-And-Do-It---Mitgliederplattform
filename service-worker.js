@@ -1,11 +1,8 @@
 // ============================================================================
 // Service Worker – Grundgerüst für Offline-/Installierbarkeit der PWA
-// Cached nur die statische App-Hülle (HTML/CSS/JS/Icons), keine Live-Daten.
-// Bei jeder inhaltlichen Änderung CACHE_NAME hochzählen, damit Nutzer die
-// neue Version bekommen.
 // ============================================================================
 
-const CACHE_NAME = 'dadi-plattform-v1';
+const CACHE_NAME = 'dadi-plattform-v2';
 const APP_SHELL = [
   './',
   'index.html',
@@ -37,8 +34,6 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Supabase-Anfragen (Auth/Daten) NIE aus dem Cache bedienen – die müssen
-  // immer live gehen, sonst arbeitet man mit veralteten Daten.
   if (url.hostname.endsWith('.supabase.co')) {
     return;
   }
