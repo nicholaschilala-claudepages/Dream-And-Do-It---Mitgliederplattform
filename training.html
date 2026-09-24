@@ -11,33 +11,38 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <style>
     .plan-card { margin-bottom: 20px; }
-    .exercise-row {
-      display: flex; justify-content: space-between; align-items: flex-start;
-      gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--color-border);
-    }
+    .day-block { margin-bottom: 18px; }
+    .day-block h3 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-gold); margin: 0 0 8px; }
+    .exercise-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--color-border); flex-wrap: wrap; }
     .exercise-row:last-child { border-bottom: none; }
     .exercise-row img { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
-    .exercise-meta { flex: 1; }
+    .exercise-meta { flex: 1; min-width: 220px; }
     .exercise-meta h4 { margin: 0 0 2px 0; font-family: var(--font-body); font-weight: 600; font-size: 0.98rem; }
     .exercise-meta .target { font-size: 0.82rem; color: var(--color-text-muted); }
+    .exercise-meta .muscle { font-size: 0.76rem; color: var(--color-text-muted); font-style: italic; }
     .log-form { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
-    .log-form input { width: 70px; padding: 7px 8px; border-radius: 6px; border: 1px solid var(--color-border); background: var(--color-bg); color: var(--color-text); }
+    .log-form input { width: 78px; padding: 7px 8px; border-radius: 6px; border: 1px solid var(--color-border); background: var(--color-bg); color: var(--color-text); }
     .log-form button { padding: 7px 12px; font-size: 0.8rem; }
     table.log-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
     table.log-table th, table.log-table td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--color-border); }
     .subtabs { display: flex; gap: 8px; margin: 20px 0 12px; flex-wrap: wrap; }
     .subtabs button { padding: 7px 14px; border-radius: 20px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); font-size: 0.82rem; cursor: pointer; }
     .subtabs button.active { background: var(--color-navy); color: #fff; border-color: var(--color-navy); }
-    .exercise-builder-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto; gap: 8px; margin-bottom: 8px; align-items: center; }
+    .exercise-builder-row { display: grid; grid-template-columns: 2fr 0.7fr 0.9fr 1fr 0.9fr auto; gap: 8px; margin-bottom: 8px; align-items: center; }
     .exercise-builder-row select, .exercise-builder-row input { padding: 8px; border-radius: 6px; border: 1px solid var(--color-border); background: var(--color-bg); color: var(--color-text); width: 100%; }
     .small-btn { padding: 6px 10px; font-size: 0.78rem; width: auto; }
-    .status-pill { font-size: 0.72rem; padding: 2px 8px; border-radius: 12px; }
+    .status-pill { font-size: 0.72rem; padding: 2px 8px; border-radius: 12px; white-space: nowrap; }
     .status-pill.active { background: rgba(47,111,79,0.15); color: var(--color-success); }
     .status-pill.inactive { background: rgba(0,0,0,0.08); color: var(--color-text-muted); }
-    .offline-banner {
-      background: rgba(200,124,0,0.15); color: var(--color-gold);
-      padding: 8px 14px; border-radius: 8px; font-size: 0.82rem; margin-bottom: 14px; display:none;
-    }
+    .status-pill.ok { background: rgba(47,111,79,0.15); color: var(--color-success); }
+    .status-pill.over { background: rgba(180,120,0,0.15); color: var(--color-gold); }
+    .status-pill.under { background: rgba(180,40,40,0.12); color: #b42828; }
+    .offline-banner { background: rgba(200,124,0,0.15); color: var(--color-gold); padding: 8px 14px; border-radius: 8px; font-size: 0.82rem; margin-bottom: 14px; display:none; }
+    .day-builder { border: 1px solid var(--color-border); border-radius: 10px; padding: 14px; margin-bottom: 14px; }
+    .day-builder-header { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+    .day-builder-header input { flex: 1; padding: 8px; border-radius: 6px; border: 1px solid var(--color-border); background: var(--color-bg); color: var(--color-text); }
+    .template-card { border: 1px solid var(--color-border); border-radius: 10px; padding: 14px; margin-bottom: 14px; }
+    .template-card h3 { margin: 0 0 4px; font-size: 1.02rem; }
   </style>
 </head>
 <body>
@@ -63,8 +68,11 @@
     import { getCurrentSession, initTheme, toggleTheme } from './js/auth.js';
     import {
       listExercises, createExercise, deleteExercise,
-      listClients, listMyActivePlans, listPlansForAdmin, createPlan, setPlanActive,
-      insertTrainingLog, listMyTrainingLogs,
+      listClients,
+      listTemplates, getTemplate, createTemplate, deleteTemplate,
+      listMyActivePlans, listPlansForAdmin, getPlanForAdmin, createPlan, assignTemplateToClient,
+      addExerciseToPlan, removePlanExercise, setPlanActive,
+      insertTrainingLog, listMyTrainingLogs, listLogsForPlanExercises,
     } from './js/training.js';
     import { queueTrainingLog, syncQueuedLogs } from './js/offline-queue.js';
 
@@ -83,6 +91,33 @@
     function formatDate(iso) {
       const d = new Date(iso);
       return d.toLocaleDateString('de-DE') + ' ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function formatDuration(sec) {
+      if (sec == null) return '–';
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return m > 0 ? `${m} Min. ${s ? s + ' Sek.' : ''}`.trim() : `${s} Sek.`;
+    }
+
+    const CATEGORY_ORDER = ['Mobilisation', 'Kraft', 'Bodyweight', 'Cardio'];
+
+    function groupExercisesByCategory(exercises) {
+      const groups = {};
+      for (const ex of exercises) {
+        const cat = ex.category || 'Sonstige';
+        (groups[cat] = groups[cat] || []).push(ex);
+      }
+      return groups;
+    }
+
+    function exerciseOptionsHtml(exercises) {
+      const groups = groupExercisesByCategory(exercises);
+      const order = [...CATEGORY_ORDER, ...Object.keys(groups).filter((c) => !CATEGORY_ORDER.includes(c))];
+      return order
+        .filter((cat) => groups[cat] && groups[cat].length)
+        .map((cat) => `<optgroup label="${escapeHtml(cat)}">${groups[cat].map((ex) => `<option value="${ex.id}">${escapeHtml(ex.name)}</option>`).join('')}</optgroup>`)
+        .join('');
     }
 
     async function init() {
@@ -112,7 +147,6 @@
         await renderClientView(profile);
       }
 
-      // Offline-Warteschlange bei Gelegenheit synchronisieren
       trySyncOfflineLogs();
       window.addEventListener('online', trySyncOfflineLogs);
     }
@@ -128,18 +162,45 @@
     // KUNDEN-ANSICHT
     // =========================================================================
 
+    function computeStatus(pe, logsForThis) {
+      if (!logsForThis || logsForThis.length === 0) return null;
+      if (pe.target_duration_seconds) {
+        const withDuration = logsForThis.filter((l) => l.duration_seconds != null);
+        if (withDuration.length === 0) return null;
+        const last = withDuration[0];
+        const diff = last.duration_seconds - pe.target_duration_seconds;
+        if (diff === 0) return { label: 'genau nach Plan', cls: 'ok' };
+        if (diff > 0) return { label: `+${formatDuration(diff)} über Vorgabe`, cls: 'over' };
+        return { label: `${formatDuration(-diff)} unter Vorgabe`, cls: 'under' };
+      }
+      if (pe.target_sets) {
+        const done = logsForThis.length;
+        if (done === pe.target_sets) return { label: `${done}/${pe.target_sets} Sätze – nach Plan`, cls: 'ok' };
+        if (done > pe.target_sets) return { label: `${done}/${pe.target_sets} Sätze – mehr als Vorgabe`, cls: 'over' };
+        return { label: `${done}/${pe.target_sets} Sätze – weniger als Vorgabe`, cls: 'under' };
+      }
+      return null;
+    }
+
     async function renderClientView(profile) {
       container.innerHTML = `<p class="center-text">Lade deinen Trainingsplan …</p>`;
 
-      const [{ data: plans, error: plansError }, { data: logs, error: logsError }, queuedCount] = await Promise.all([
-        listMyActivePlans(profile.id),
+      const { data: plans, error: plansError } = await listMyActivePlans(profile.id);
+      if (plansError) {
+        container.innerHTML = `<div class="msg error">Trainingsplan konnte nicht geladen werden: ${escapeHtml(plansError.message)}</div>`;
+        return;
+      }
+
+      const allPlanExerciseIds = (plans || []).flatMap((p) => (p.plan_exercises || []).map((pe) => pe.id));
+      const [{ data: logsForStatus }, { data: recentLogs, error: logsError }, queuedCount] = await Promise.all([
+        listLogsForPlanExercises(profile.id, allPlanExerciseIds),
         listMyTrainingLogs(profile.id),
         (async () => (await (await import('./js/offline-queue.js')).getQueuedLogs()).length)(),
       ]);
 
-      if (plansError) {
-        container.innerHTML = `<div class="msg error">Trainingsplan konnte nicht geladen werden: ${escapeHtml(plansError.message)}</div>`;
-        return;
+      const logsByPlanExercise = {};
+      for (const log of logsForStatus || []) {
+        (logsByPlanExercise[log.plan_exercise_id] = logsByPlanExercise[log.plan_exercise_id] || []).push(log);
       }
 
       let html = '';
@@ -156,27 +217,40 @@
       }
 
       for (const plan of plans || []) {
-        const exercises = (plan.plan_exercises || []).sort((a, b) => a.sort_order - b.sort_order);
+        const days = (plan.training_plan_days || []).sort((a, b) => a.sort_order - b.sort_order);
+        const allExercises = (plan.plan_exercises || []).sort((a, b) => a.sort_order - b.sort_order);
+        const looseExercises = allExercises.filter((pe) => !pe.plan_day_id);
+
         html += `<div class="card plan-card">
           <h2 style="font-size:1.1rem;">${escapeHtml(plan.title)}</h2>
           ${plan.notes ? `<p style="color:var(--color-text-muted); margin-top:-8px;">${escapeHtml(plan.notes)}</p>` : ''}
-          <div>
-            ${exercises.map((pe) => renderExerciseRow(pe)).join('')}
-          </div>
+          ${days.map((day) => {
+            const dayExercises = allExercises.filter((pe) => pe.plan_day_id === day.id);
+            if (dayExercises.length === 0) return '';
+            return `<div class="day-block">
+              <h3>${escapeHtml(day.label)}</h3>
+              ${dayExercises.map((pe) => renderExerciseRow(pe, logsByPlanExercise[pe.id])).join('')}
+            </div>`;
+          }).join('')}
+          ${looseExercises.length > 0 ? `<div class="day-block">
+            ${days.length > 0 ? '<h3>Weitere Übungen</h3>' : ''}
+            ${looseExercises.map((pe) => renderExerciseRow(pe, logsByPlanExercise[pe.id])).join('')}
+          </div>` : ''}
         </div>`;
       }
 
       html += `<div class="card mt-24">
         <h2 style="font-size:1.05rem;">Mein Trainingstagebuch</h2>
-        ${!logs || logs.length === 0
+        ${!recentLogs || recentLogs.length === 0
           ? '<p style="color:var(--color-text-muted);">Noch keine Einträge vorhanden.</p>'
-          : `<table class="log-table"><thead><tr><th>Datum</th><th>Übung</th><th>Satz</th><th>Wdh.</th><th>Gewicht</th></tr></thead><tbody>
-              ${logs.map((l) => `<tr>
+          : `<table class="log-table"><thead><tr><th>Datum</th><th>Übung</th><th>Satz</th><th>Wdh.</th><th>Gewicht</th><th>Dauer</th></tr></thead><tbody>
+              ${recentLogs.map((l) => `<tr>
                 <td>${formatDate(l.performed_at)}</td>
                 <td>${escapeHtml(l.exercises ? l.exercises.name : '–')}</td>
                 <td>${l.set_number ?? '–'}</td>
                 <td>${l.reps ?? '–'}</td>
                 <td>${l.weight_kg != null ? l.weight_kg + ' kg' : '–'}</td>
+                <td>${l.duration_seconds != null ? formatDuration(l.duration_seconds) : '–'}</td>
               </tr>`).join('')}
             </tbody></table>`
         }
@@ -189,9 +263,12 @@
           e.preventDefault();
           const exerciseId = form.dataset.exerciseId;
           const planExerciseId = form.dataset.planExerciseId;
-          const setNumber = parseInt(form.querySelector('.f-set').value, 10) || null;
-          const reps = parseInt(form.querySelector('.f-reps').value, 10) || null;
-          const weight = form.querySelector('.f-weight').value ? parseFloat(form.querySelector('.f-weight').value) : null;
+          const setNumber = form.querySelector('.f-set') ? (parseInt(form.querySelector('.f-set').value, 10) || null) : null;
+          const reps = form.querySelector('.f-reps') ? (parseInt(form.querySelector('.f-reps').value, 10) || null) : null;
+          const weight = form.querySelector('.f-weight') && form.querySelector('.f-weight').value ? parseFloat(form.querySelector('.f-weight').value) : null;
+          const durationMin = form.querySelector('.f-duration-min') ? (parseFloat(form.querySelector('.f-duration-min').value) || 0) : 0;
+          const durationSec = form.querySelector('.f-duration-sec') ? (parseFloat(form.querySelector('.f-duration-sec').value) || 0) : 0;
+          const duration = (durationMin || durationSec) ? Math.round(durationMin * 60 + durationSec) : null;
 
           const entry = {
             client_id: profile.id,
@@ -201,6 +278,7 @@
             set_number: setNumber,
             reps,
             weight_kg: weight,
+            duration_seconds: duration,
           };
 
           const submitBtn = form.querySelector('button');
@@ -220,7 +298,6 @@
           submitBtn.textContent = 'Eintragen';
 
           if (ok) {
-            form.reset();
             renderClientView(profile);
           } else {
             alert('Der Eintrag konnte weder gespeichert noch in die Offline-Warteschlange gelegt werden.');
@@ -229,25 +306,35 @@
       });
     }
 
-    function renderExerciseRow(pe) {
+    function renderExerciseRow(pe, logsForThis) {
       const ex = pe.exercises;
+      const isDurationBased = !!pe.target_duration_seconds;
       const target = [
         pe.target_sets ? `${pe.target_sets} Sätze` : null,
         pe.target_reps ? `${pe.target_reps} Wdh.` : null,
         pe.target_weight_hint ? pe.target_weight_hint : null,
+        pe.target_duration_seconds ? `Ziel: ${formatDuration(pe.target_duration_seconds)}` : null,
       ].filter(Boolean).join(' · ');
+
+      const status = computeStatus(pe, logsForThis);
 
       return `<div class="exercise-row">
         ${ex.image_url ? `<img src="${escapeHtml(ex.image_url)}" alt="" onerror="this.style.display='none'" />` : ''}
         <div class="exercise-meta">
           <h4>${escapeHtml(ex.name)}</h4>
+          ${ex.muscle_group ? `<div class="muscle">Beanspruchte Muskulatur: ${escapeHtml(ex.muscle_group)}</div>` : ''}
           ${target ? `<div class="target">${escapeHtml(target)}</div>` : ''}
           ${ex.description ? `<p style="margin:4px 0 0; font-size:0.85rem; color:var(--color-text-muted);">${escapeHtml(ex.description)}</p>` : ''}
           ${pe.notes ? `<p style="margin:4px 0 0; font-size:0.82rem; color:var(--color-gold);">Hinweis vom Coach: ${escapeHtml(pe.notes)}</p>` : ''}
+          ${status ? `<div style="margin-top:6px;"><span class="status-pill ${status.cls}">${escapeHtml(status.label)}</span></div>` : ''}
           <form class="log-form" data-exercise-id="${ex.id}" data-plan-exercise-id="${pe.id}">
-            <input class="f-set" type="number" min="1" placeholder="Satz Nr." required />
-            <input class="f-reps" type="number" min="0" placeholder="Wdh." required />
-            <input class="f-weight" type="number" min="0" step="0.5" placeholder="kg" />
+            ${isDurationBased
+              ? `<input class="f-duration-min" type="number" min="0" placeholder="Min." style="width:64px;" />
+                 <input class="f-duration-sec" type="number" min="0" max="59" placeholder="Sek." style="width:64px;" />`
+              : `<input class="f-set" type="number" min="1" placeholder="Satz Nr." required />
+                 <input class="f-reps" type="number" min="0" placeholder="Wdh." required />
+                 <input class="f-weight" type="number" min="0" step="0.5" placeholder="kg" />`
+            }
             <button class="btn secondary small-btn" type="submit">Eintragen</button>
           </form>
         </div>
@@ -261,7 +348,9 @@
     async function renderAdminView() {
       container.innerHTML = `
         <div class="subtabs">
-          <button class="admin-tab active" data-tab="plans">Trainingsplan erstellen</button>
+          <button class="admin-tab active" data-tab="templates">Vorlagen bauen</button>
+          <button class="admin-tab" data-tab="assign">Vorlage zuweisen</button>
+          <button class="admin-tab" data-tab="plans">Einzelplan erstellen</button>
           <button class="admin-tab" data-tab="library">Übungsbibliothek</button>
           <button class="admin-tab" data-tab="existing">Bestehende Pläne</button>
         </div>
@@ -276,7 +365,7 @@
         });
       });
 
-      renderAdminTab('plans');
+      renderAdminTab('templates');
     }
 
     async function renderAdminTab(tab) {
@@ -285,8 +374,12 @@
 
       if (tab === 'library') return renderLibraryTab(content);
       if (tab === 'existing') return renderExistingPlansTab(content);
+      if (tab === 'templates') return renderTemplatesTab(content);
+      if (tab === 'assign') return renderAssignTab(content);
       return renderPlanBuilderTab(content);
     }
+
+    // --- Übungsbibliothek ---------------------------------------------------
 
     async function renderLibraryTab(content) {
       const { data: exercises, error } = await listExercises();
@@ -295,29 +388,43 @@
         return;
       }
 
+      const groups = groupExercisesByCategory(exercises || []);
+      const order = [...CATEGORY_ORDER, ...Object.keys(groups).filter((c) => !CATEGORY_ORDER.includes(c))];
+
       content.innerHTML = `
         <div class="card">
           <h2 style="font-size:1.05rem;">Neue Übung anlegen</h2>
           <form id="new-exercise-form">
             <div class="field"><label>Name</label><input type="text" id="ex-name" required /></div>
             <div class="field"><label>Beschreibung</label><input type="text" id="ex-desc" /></div>
-            <div class="field"><label>Muskelgruppe</label><input type="text" id="ex-muscle" /></div>
+            <div class="field"><label>Beanspruchte Muskulatur</label><input type="text" id="ex-muscle" placeholder="z.B. Beine, Gesäß" /></div>
+            <div class="field"><label>Kategorie</label>
+              <select id="ex-category">
+                <option value="Mobilisation">Mobilisation</option>
+                <option value="Kraft">Kraft</option>
+                <option value="Bodyweight">Bodyweight</option>
+                <option value="Cardio">Cardio</option>
+              </select>
+            </div>
             <div class="field"><label>Bild-URL (optional)</label><input type="url" id="ex-image" placeholder="https://..." /></div>
             <button class="btn" type="submit">Übung speichern</button>
           </form>
         </div>
         <div class="card mt-24">
-          <h2 style="font-size:1.05rem;">Vorhandene Übungen (${exercises.length})</h2>
-          ${exercises.map((ex) => `
-            <div class="exercise-row">
-              ${ex.image_url ? `<img src="${escapeHtml(ex.image_url)}" alt="" onerror="this.style.display='none'" />` : ''}
-              <div class="exercise-meta">
-                <h4>${escapeHtml(ex.name)}</h4>
-                ${ex.muscle_group ? `<div class="target">${escapeHtml(ex.muscle_group)}</div>` : ''}
-                ${ex.description ? `<p style="margin:4px 0 0; font-size:0.85rem; color:var(--color-text-muted);">${escapeHtml(ex.description)}</p>` : ''}
+          <h2 style="font-size:1.05rem;">Vorhandene Übungen (${(exercises || []).length})</h2>
+          ${order.filter((cat) => groups[cat] && groups[cat].length).map((cat) => `
+            <h3 style="font-size:0.9rem; text-transform:uppercase; letter-spacing:0.04em; color:var(--color-gold); margin:16px 0 6px;">${escapeHtml(cat)}</h3>
+            ${groups[cat].map((ex) => `
+              <div class="exercise-row">
+                ${ex.image_url ? `<img src="${escapeHtml(ex.image_url)}" alt="" onerror="this.style.display='none'" />` : ''}
+                <div class="exercise-meta">
+                  <h4>${escapeHtml(ex.name)}</h4>
+                  ${ex.muscle_group ? `<div class="muscle">Beanspruchte Muskulatur: ${escapeHtml(ex.muscle_group)}</div>` : ''}
+                  ${ex.description ? `<p style="margin:4px 0 0; font-size:0.85rem; color:var(--color-text-muted);">${escapeHtml(ex.description)}</p>` : ''}
+                </div>
+                <button class="btn secondary small-btn" data-delete-id="${ex.id}" type="button">Löschen</button>
               </div>
-              <button class="btn secondary small-btn" data-delete-id="${ex.id}" type="button">Löschen</button>
-            </div>
+            `).join('')}
           `).join('') || '<p style="color:var(--color-text-muted);">Noch keine Übungen angelegt.</p>'}
         </div>
       `;
@@ -328,6 +435,7 @@
           name: document.getElementById('ex-name').value.trim(),
           description: document.getElementById('ex-desc').value.trim(),
           muscleGroup: document.getElementById('ex-muscle').value.trim(),
+          category: document.getElementById('ex-category').value,
           imageUrl: document.getElementById('ex-image').value.trim(),
         });
         if (error) { alert('Fehler: ' + error.message); return; }
@@ -344,6 +452,187 @@
       });
     }
 
+    // --- Wiederverwendbarer Tage-Builder (für Vorlagen & Einzelpläne) -------
+
+    function createDayBuilder(rowsContainer, exerciseOptions, dayLabel) {
+      const dayEl = document.createElement('div');
+      dayEl.className = 'day-builder';
+      dayEl.innerHTML = `
+        <div class="day-builder-header">
+          <input class="day-label" type="text" placeholder="Bezeichnung des Trainingstags (z.B. Tag 1 – Oberkörper)" value="${escapeHtml(dayLabel || '')}" required />
+          <button class="btn secondary small-btn remove-day" type="button">Tag entfernen</button>
+        </div>
+        <div class="day-exercise-rows"></div>
+        <button class="btn secondary small-btn add-exercise-to-day" type="button">+ Übung zu diesem Tag hinzufügen</button>
+      `;
+      dayEl.querySelector('.remove-day').addEventListener('click', () => dayEl.remove());
+      const exRows = dayEl.querySelector('.day-exercise-rows');
+
+      function addExerciseRow() {
+        const row = document.createElement('div');
+        row.className = 'exercise-builder-row';
+        row.innerHTML = `
+          <select class="row-exercise">${exerciseOptions}</select>
+          <input class="row-sets" type="number" min="1" placeholder="Sätze" />
+          <input class="row-reps" type="text" placeholder="Wdh. (z.B. 8-12)" />
+          <input class="row-weight" type="text" placeholder="Gewicht/Hinweis" />
+          <input class="row-duration" type="number" min="0" placeholder="Dauer (Sek.)" />
+          <button class="btn secondary small-btn" type="button">✕</button>
+        `;
+        row.querySelector('button').addEventListener('click', () => row.remove());
+        exRows.appendChild(row);
+      }
+      dayEl.querySelector('.add-exercise-to-day').addEventListener('click', addExerciseRow);
+      addExerciseRow();
+
+      rowsContainer.appendChild(dayEl);
+      return dayEl;
+    }
+
+    function readDayBuilder(dayEl) {
+      const label = dayEl.querySelector('.day-label').value.trim();
+      const exercises = Array.from(dayEl.querySelectorAll('.exercise-builder-row')).map((row) => ({
+        exerciseId: row.querySelector('.row-exercise').value,
+        targetSets: row.querySelector('.row-sets').value,
+        targetReps: row.querySelector('.row-reps').value,
+        targetWeightHint: row.querySelector('.row-weight').value,
+        targetDurationSeconds: row.querySelector('.row-duration').value ? parseInt(row.querySelector('.row-duration').value, 10) : null,
+      }));
+      return { label, exercises };
+    }
+
+    // --- Vorlagen bauen -------------------------------------------------------
+
+    async function renderTemplatesTab(content) {
+      const [{ data: exercises, error: exercisesError }, { data: templates, error: templatesError }] = await Promise.all([
+        listExercises(), listTemplates(),
+      ]);
+      if (exercisesError || templatesError) {
+        content.innerHTML = `<div class="msg error">${escapeHtml((exercisesError || templatesError).message)}</div>`;
+        return;
+      }
+      if (!exercises || exercises.length === 0) {
+        content.innerHTML = `<div class="card"><p>Lege zuerst mindestens eine Übung in der Übungsbibliothek an, bevor du eine Vorlage baust.</p></div>`;
+        return;
+      }
+
+      const exerciseOptions = exerciseOptionsHtml(exercises);
+
+      content.innerHTML = `
+        <div class="card">
+          <h2 style="font-size:1.05rem;">Neue Trainingsplan-Vorlage bauen</h2>
+          <p style="color:var(--color-text-muted); font-size:0.85rem;">Eine Vorlage ist ein wiederverwendbarer Bauplan aus einem oder mehreren Trainingstagen. Sie wird später einem oder mehreren Kunden zugewiesen (als eigenständige Kopie im Reiter „Vorlage zuweisen“).</p>
+          <form id="template-form">
+            <div class="field"><label>Titel der Vorlage</label><input type="text" id="tpl-title" required placeholder="z.B. Ganzkörper-Grundprogramm 3er-Split" /></div>
+            <div class="field"><label>Beschreibung (optional)</label><input type="text" id="tpl-desc" /></div>
+            <label style="display:block; font-size:0.82rem; color:var(--color-text-muted); margin-bottom:6px;">Trainingstage</label>
+            <div id="tpl-days"></div>
+            <button class="btn secondary small-btn mt-16" type="button" id="add-day-btn">+ Trainingstag hinzufügen</button>
+            <button class="btn mt-24" type="submit">Vorlage speichern</button>
+          </form>
+        </div>
+        <div class="card mt-24">
+          <h2 style="font-size:1.05rem;">Vorhandene Vorlagen (${(templates || []).length})</h2>
+          ${(templates || []).length === 0 ? '<p style="color:var(--color-text-muted);">Noch keine Vorlagen erstellt.</p>' : (templates || []).map((tpl) => `
+            <div class="template-card">
+              <h3>${escapeHtml(tpl.title)}</h3>
+              ${tpl.description ? `<p style="color:var(--color-text-muted); font-size:0.85rem; margin-top:0;">${escapeHtml(tpl.description)}</p>` : ''}
+              ${(tpl.plan_template_days || []).sort((a,b) => a.sort_order - b.sort_order).map((day) => `
+                <div style="margin:8px 0;">
+                  <strong style="font-size:0.85rem;">${escapeHtml(day.label)}</strong>
+                  <div style="font-size:0.82rem; color:var(--color-text-muted);">
+                    ${(day.plan_template_exercises || []).sort((a,b) => a.sort_order - b.sort_order).map((ex) => escapeHtml(ex.exercises ? ex.exercises.name : '?')).join(', ') || '– keine Übungen –'}
+                  </div>
+                </div>
+              `).join('')}
+              <button class="btn secondary small-btn" data-delete-template="${tpl.id}" type="button">Vorlage löschen</button>
+            </div>
+          `).join('')}
+        </div>
+      `;
+
+      const daysContainer = document.getElementById('tpl-days');
+      document.getElementById('add-day-btn').addEventListener('click', () => createDayBuilder(daysContainer, exerciseOptions, `Tag ${daysContainer.children.length + 1}`));
+      createDayBuilder(daysContainer, exerciseOptions, 'Tag 1');
+
+      document.getElementById('template-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const days = Array.from(daysContainer.querySelectorAll('.day-builder')).map(readDayBuilder);
+        if (days.length === 0) { alert('Bitte mindestens einen Trainingstag hinzufügen.'); return; }
+        if (days.some((d) => d.exercises.length === 0)) { alert('Jeder Trainingstag braucht mindestens eine Übung.'); return; }
+
+        const { error } = await createTemplate({
+          title: document.getElementById('tpl-title').value.trim(),
+          description: document.getElementById('tpl-desc').value.trim(),
+          days,
+        });
+        if (error) { alert('Fehler: ' + error.message); return; }
+        alert('Vorlage gespeichert.');
+        renderTemplatesTab(content);
+      });
+
+      content.querySelectorAll('[data-delete-template]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Diese Vorlage wirklich löschen? Bereits zugewiesene Kundenpläne bleiben davon unberührt.')) return;
+          const { error } = await deleteTemplate(btn.dataset.deleteTemplate);
+          if (error) { alert('Fehler: ' + error.message); return; }
+          renderTemplatesTab(content);
+        });
+      });
+    }
+
+    // --- Vorlage zuweisen -------------------------------------------------------
+
+    async function renderAssignTab(content) {
+      const [{ data: clients, error: clientsError }, { data: templates, error: templatesError }] = await Promise.all([
+        listClients(), listTemplates(),
+      ]);
+      if (clientsError || templatesError) {
+        content.innerHTML = `<div class="msg error">${escapeHtml((clientsError || templatesError).message)}</div>`;
+        return;
+      }
+      if (!templates || templates.length === 0) {
+        content.innerHTML = `<div class="card"><p>Baue zuerst eine Vorlage im Reiter „Vorlagen bauen“, bevor du sie zuweist.</p></div>`;
+        return;
+      }
+      if (!clients || clients.length === 0) {
+        content.innerHTML = `<div class="card"><p>Noch keine Kunden-Accounts vorhanden.</p></div>`;
+        return;
+      }
+
+      const templateOptions = templates.map((t) => `<option value="${t.id}">${escapeHtml(t.title)}</option>`).join('');
+      const clientOptions = clients.map((c) => `<option value="${c.id}">${escapeHtml(c.full_name || c.email)}${c.access_locked ? ' (gesperrt)' : ''}</option>`).join('');
+
+      content.innerHTML = `
+        <div class="card">
+          <h2 style="font-size:1.05rem;">Vorlage einem Kunden zuweisen</h2>
+          <p style="color:var(--color-text-muted); font-size:0.85rem;">Die Vorlage wird als eigenständige Kopie in den Trainingsplan des Kunden übernommen. Spätere Änderungen an der Vorlage wirken sich nicht rückwirkend auf bereits zugewiesene Pläne aus.</p>
+          <form id="assign-form">
+            <div class="field"><label>Vorlage</label><select id="assign-template" required>${templateOptions}</select></div>
+            <div class="field"><label>Kunde</label><select id="assign-client" required>${clientOptions}</select></div>
+            <div class="field"><label>Titel im Kundenplan (optional, überschreibt Vorlagentitel)</label><input type="text" id="assign-title" /></div>
+            <button class="btn mt-16" type="submit">Vorlage zuweisen</button>
+          </form>
+        </div>
+      `;
+
+      document.getElementById('assign-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const { error } = await assignTemplateToClient({
+          templateId: document.getElementById('assign-template').value,
+          clientId: document.getElementById('assign-client').value,
+          title: document.getElementById('assign-title').value.trim(),
+        });
+        if (error) { alert('Fehler: ' + error.message); return; }
+        alert('Vorlage zugewiesen.');
+        renderAdminTab('existing');
+        container.querySelectorAll('.admin-tab').forEach((b) => b.classList.remove('active'));
+        container.querySelector('[data-tab="existing"]').classList.add('active');
+      });
+    }
+
+    // --- Einzelplan erstellen -------------------------------------------------------
+
     async function renderPlanBuilderTab(content) {
       const [{ data: clients, error: clientsError }, { data: exercises, error: exercisesError }] = await Promise.all([
         listClients(), listExercises(),
@@ -358,34 +647,41 @@
         content.innerHTML = `<div class="card"><p>Lege zuerst mindestens eine Übung in der Übungsbibliothek an, bevor du einen Plan erstellst.</p></div>`;
         return;
       }
+      if (!clients || clients.length === 0) {
+        content.innerHTML = `<div class="card"><p>Noch keine Kunden-Accounts vorhanden.</p></div>`;
+        return;
+      }
 
-      const exerciseOptions = exercises.map((ex) => `<option value="${ex.id}">${escapeHtml(ex.name)}</option>`).join('');
-      const clientOptions = (clients || []).map((c) => `<option value="${c.id}">${escapeHtml(c.full_name || c.email)}${c.access_locked ? ' (gesperrt)' : ''}</option>`).join('');
+      const exerciseOptions = exerciseOptionsHtml(exercises);
+      const clientOptions = clients.map((c) => `<option value="${c.id}">${escapeHtml(c.full_name || c.email)}${c.access_locked ? ' (gesperrt)' : ''}</option>`).join('');
 
       content.innerHTML = `
         <div class="card">
-          <h2 style="font-size:1.05rem;">Neuen Trainingsplan erstellen</h2>
-          ${!clients || clients.length === 0 ? '<p style="color:var(--color-text-muted);">Noch keine Kunden-Accounts vorhanden.</p>' : `
+          <h2 style="font-size:1.05rem;">Individuellen Trainingsplan erstellen</h2>
+          <p style="color:var(--color-text-muted); font-size:0.85rem;">Für einen maßgeschneiderten Plan ohne Vorlage – z.B. wenn du einem Kunden direkt einzelne Übungen zuweisen möchtest.</p>
           <form id="plan-form">
             <div class="field"><label>Kunde</label><select id="plan-client" required>${clientOptions}</select></div>
             <div class="field"><label>Titel des Plans</label><input type="text" id="plan-title" required placeholder="z.B. Trainingsplan Oktober" /></div>
             <div class="field"><label>Notiz (optional)</label><input type="text" id="plan-notes" /></div>
 
-            <label style="display:block; font-size:0.82rem; color:var(--color-text-muted); margin-bottom:6px;">Übungen im Plan</label>
-            <div id="exercise-rows"></div>
-            <button class="btn secondary small-btn mt-16" type="button" id="add-row-btn">+ Übung hinzufügen</button>
+            <label style="display:block; font-size:0.82rem; color:var(--color-text-muted); margin-bottom:6px;">Trainingstage (optional)</label>
+            <div id="plan-days"></div>
+            <button class="btn secondary small-btn" type="button" id="add-day-btn">+ Trainingstag hinzufügen</button>
+
+            <label style="display:block; font-size:0.82rem; color:var(--color-text-muted); margin:16px 0 6px;">Einzelübungen ohne festen Tag (optional)</label>
+            <div id="loose-rows"></div>
+            <button class="btn secondary small-btn" type="button" id="add-loose-btn">+ Einzelübung hinzufügen</button>
 
             <button class="btn mt-24" type="submit">Plan speichern</button>
           </form>
-          `}
         </div>
       `;
 
-      if (!clients || clients.length === 0) return;
+      const daysContainer = document.getElementById('plan-days');
+      document.getElementById('add-day-btn').addEventListener('click', () => createDayBuilder(daysContainer, exerciseOptions, `Tag ${daysContainer.children.length + 1}`));
 
-      const rowsContainer = document.getElementById('exercise-rows');
-
-      function addExerciseRow() {
+      const looseContainer = document.getElementById('loose-rows');
+      function addLooseRow() {
         const row = document.createElement('div');
         row.className = 'exercise-builder-row';
         row.innerHTML = `
@@ -393,31 +689,33 @@
           <input class="row-sets" type="number" min="1" placeholder="Sätze" />
           <input class="row-reps" type="text" placeholder="Wdh. (z.B. 8-12)" />
           <input class="row-weight" type="text" placeholder="Gewicht/Hinweis" />
+          <input class="row-duration" type="number" min="0" placeholder="Dauer (Sek.)" />
           <button class="btn secondary small-btn" type="button">✕</button>
         `;
         row.querySelector('button').addEventListener('click', () => row.remove());
-        rowsContainer.appendChild(row);
+        looseContainer.appendChild(row);
       }
-      addExerciseRow();
-
-      document.getElementById('add-row-btn').addEventListener('click', addExerciseRow);
+      document.getElementById('add-loose-btn').addEventListener('click', addLooseRow);
 
       document.getElementById('plan-form').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const rows = Array.from(rowsContainer.querySelectorAll('.exercise-builder-row')).map((row) => ({
+        const days = Array.from(daysContainer.querySelectorAll('.day-builder')).map(readDayBuilder).filter((d) => d.exercises.length > 0);
+        const topLevelExercises = Array.from(looseContainer.querySelectorAll('.exercise-builder-row')).map((row) => ({
           exerciseId: row.querySelector('.row-exercise').value,
           targetSets: row.querySelector('.row-sets').value,
           targetReps: row.querySelector('.row-reps').value,
           targetWeightHint: row.querySelector('.row-weight').value,
+          targetDurationSeconds: row.querySelector('.row-duration').value ? parseInt(row.querySelector('.row-duration').value, 10) : null,
         }));
 
-        if (rows.length === 0) { alert('Bitte mindestens eine Übung hinzufügen.'); return; }
+        if (days.length === 0 && topLevelExercises.length === 0) { alert('Bitte mindestens eine Übung hinzufügen (als Trainingstag oder Einzelübung).'); return; }
 
         const { error } = await createPlan({
           clientId: document.getElementById('plan-client').value,
           title: document.getElementById('plan-title').value.trim(),
           notes: document.getElementById('plan-notes').value.trim(),
-          exercises: rows,
+          days,
+          topLevelExercises,
         });
 
         if (error) { alert('Fehler: ' + error.message); return; }
@@ -427,6 +725,8 @@
         container.querySelector('[data-tab="existing"]').classList.add('active');
       });
     }
+
+    // --- Bestehende Pläne -------------------------------------------------------
 
     async function renderExistingPlansTab(content) {
       const { data: plans, error } = await listPlansForAdmin();
@@ -442,13 +742,15 @@
             <div class="exercise-row">
               <div class="exercise-meta">
                 <h4>${escapeHtml(p.title)}</h4>
-                <div class="target">${escapeHtml(p.profiles ? (p.profiles.full_name || p.profiles.email) : 'Unbekannter Kunde')} · ${formatDate(p.created_at)}</div>
+                <div class="target">${escapeHtml(p.profiles ? (p.profiles.full_name || p.profiles.email) : 'Unbekannter Kunde')} · ${formatDate(p.created_at)}${p.template_source_id ? ' · aus Vorlage' : ''}</div>
               </div>
               <span class="status-pill ${p.is_active ? 'active' : 'inactive'}">${p.is_active ? 'aktiv' : 'inaktiv'}</span>
               <button class="btn secondary small-btn" data-toggle-id="${p.id}" data-active="${p.is_active}" type="button">
                 ${p.is_active ? 'Deaktivieren' : 'Aktivieren'}
               </button>
+              <button class="btn secondary small-btn" data-expand-id="${p.id}" type="button">+ Übung hinzufügen</button>
             </div>
+            <div class="expand-area" id="expand-${p.id}" style="display:none; padding:0 0 14px 0;"></div>
           `).join('')}
         </div>
       `;
@@ -460,6 +762,61 @@
           if (error) { alert('Fehler: ' + error.message); return; }
           renderExistingPlansTab(content);
         });
+      });
+
+      content.querySelectorAll('[data-expand-id]').forEach((btn) => {
+        btn.addEventListener('click', () => toggleAddExerciseArea(btn.dataset.expandId));
+      });
+    }
+
+    async function toggleAddExerciseArea(planId) {
+      const area = document.getElementById(`expand-${planId}`);
+      const isOpen = area.style.display !== 'none';
+      if (isOpen) { area.style.display = 'none'; area.innerHTML = ''; return; }
+
+      area.style.display = 'block';
+      area.innerHTML = '<p class="center-text">Lade …</p>';
+
+      const [{ data: plan, error: planError }, { data: exercises, error: exercisesError }] = await Promise.all([
+        getPlanForAdmin(planId), listExercises(),
+      ]);
+      if (planError || exercisesError) {
+        area.innerHTML = `<div class="msg error">${escapeHtml((planError || exercisesError).message)}</div>`;
+        return;
+      }
+
+      const days = (plan.training_plan_days || []).sort((a, b) => a.sort_order - b.sort_order);
+      const dayOptions = `<option value="">– kein fester Tag –</option>` + days.map((d) => `<option value="${d.id}">${escapeHtml(d.label)}</option>`).join('');
+      const exerciseOptions = exerciseOptionsHtml(exercises || []);
+      const nextSort = (plan.plan_exercises || []).length;
+
+      area.innerHTML = `
+        <div class="exercise-builder-row" style="grid-template-columns: 1.3fr 1.7fr 0.7fr 0.9fr 1fr 0.9fr auto;">
+          <select class="add-ex-day">${dayOptions}</select>
+          <select class="add-ex-exercise">${exerciseOptions}</select>
+          <input class="add-ex-sets" type="number" min="1" placeholder="Sätze" />
+          <input class="add-ex-reps" type="text" placeholder="Wdh." />
+          <input class="add-ex-weight" type="text" placeholder="Gewicht/Hinweis" />
+          <input class="add-ex-duration" type="number" min="0" placeholder="Dauer (Sek.)" />
+          <button class="btn small-btn add-ex-submit" type="button">Hinzufügen</button>
+        </div>
+      `;
+
+      area.querySelector('.add-ex-submit').addEventListener('click', async () => {
+        const { error } = await addExerciseToPlan({
+          planId,
+          planDayId: area.querySelector('.add-ex-day').value || null,
+          exerciseId: area.querySelector('.add-ex-exercise').value,
+          targetSets: area.querySelector('.add-ex-sets').value,
+          targetReps: area.querySelector('.add-ex-reps').value,
+          targetWeightHint: area.querySelector('.add-ex-weight').value,
+          targetDurationSeconds: area.querySelector('.add-ex-duration').value ? parseInt(area.querySelector('.add-ex-duration').value, 10) : null,
+          sortOrder: nextSort,
+        });
+        if (error) { alert('Fehler: ' + error.message); return; }
+        alert('Übung hinzugefügt.');
+        area.style.display = 'none';
+        area.innerHTML = '';
       });
     }
 
