@@ -1,0 +1,127 @@
+// ============================================================================
+// Betreiber-Seite: Trainer-Frühwarnsystem, Zugriffsverwaltung, Wochenreport-Daten
+// ============================================================================
+
+import { supabaseClient } from './supabase-client.js';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// ---------------------------------------------------------------------------
+// Kundenübersicht mit letzter Aktivität + Zugriffssperre
+// ---------------------------------------------------------------------------
+
+export async function listClientOverview() {
+  const [clientsRes, activityRes] = await Promise.all([
+    supabaseClient
+      .from('profiles')
+      .select('id, full_name, email, access_locked, created_at')
+      .eq('role', 'client')
+      .order('full_name', { ascending: true }),
+    supabaseClient.from('client_last_activity').select('*'),
+  ]);
+
+  if (clientsRes.error) return { data: null, error: clientsRes.error };
+  if (activityRes.error) return { data: null, error: activityRes.error };
+
+  const activityMap = new Map((activityRes.data || []).map((a) => [a.client_id, a.last_activity_at]));
+  const now = Date.now();
+
+  const merged = (clientsRes.data || []).map((c) => {
+    const lastActivityAt = activityMap.get(c.id) || null;
+    const daysSinceActivity = lastActivityAt ? Math.floor((now - new Date(lastActivityAt).getTime()) / DAY_MS) : null;
+    return { ...c, last_activity_at: lastActivityAt, days_since_activity: daysSinceActivity };
+  });
+
+  // Nie aktiv gewesene und lange inaktive Kunden zuerst.
+  merged.sort((a, b) => {
+    if (a.days_since_activity == null && b.days_since_activity == null) return 0;
+    if (a.days_since_activity == null) return -1;
+    if (b.days_since_activity == null) return 1;
+    return b.days_since_activity - a.days_since_activity;
+  });
+
+  return { data: merged, error: null };
+}
+
+export async function setClientLock(clientId, locked) {
+  return supabaseClient.from('profiles').update({ access_locked: locked }).eq('id', clientId);
+}
+
+// ---------------------------------------------------------------------------
+// Datenbasis für den Wochenreport (wird clientseitig zu einem PDF zusammengebaut)
+// ---------------------------------------------------------------------------
+
+export async function getReportData(clientId, fromDate, toDate) {
+  const fromIso = new Date(fromDate + 'T00:00:00').toISOString();
+  const toIso = new Date(toDate + 'T23:59:59').toISOString();
+
+  const [profileRes, logsRes, measurementsRes, questionnairesRes, goalsRes] = await Promise.all([
+    supabaseClient.from('profiles').select('full_name, email').eq('id', clientId).maybeSingle(),
+    supabaseClient
+      .from('training_logs')
+      .select('*, exercises(name)')
+      .eq('client_id', clientId)
+      .gte('performed_at', fromIso)
+      .lte('performed_at', toIso)
+      .order('performed_at', { ascending: true }),
+    supabaseClient
+      .from('body_measurements')
+      .select('*')
+      .eq('client_id', clientId)
+      .gte('measured_at', fromDate)
+      .lte('measured_at', toDate)
+      .order('measured_at', { ascending: true }),
+    supabaseClient
+      .from('questionnaire_responses')
+      .select('*')
+      .eq('client_id', clientId)
+      .gte('completed_at', fromIso)
+      .lte('completed_at', toIso)
+      .order('completed_at', { ascending: true }),
+    supabaseClient
+      .from('coaching_goals')
+      .select('*, goal_will_actions(*)')
+      .eq('client_id', clientId)
+      .eq('status', 'active'),
+  ]);
+
+  const error = profileRes.error || logsRes.error || measurementsRes.error || questionnairesRes.error || goalsRes.error;
+  if (error) return { data: null, error };
+
+  // Trainingslogs je Übung zusammenfassen (Anzahl Sätze, Gesamtvolumen).
+  const exerciseMap = new Map();
+  (logsRes.data || []).forEach((log) => {
+    const name = log.exercises ? log.exercises.name : 'Unbekannte Übung';
+    if (!exerciseMap.has(name)) exerciseMap.set(name, { sets: 0, volumeKg: 0 });
+    const entry = exerciseMap.get(name);
+    entry.sets += 1;
+    if (log.weight_kg != null && log.reps != null) {
+      entry.volumeKg += log.weight_kg * log.reps;
+    }
+  });
+  const trainingSummary = Array.from(exerciseMap.entries()).map(([name, v]) => ({ name, ...v }));
+  const distinctTrainingDays = new Set((logsRes.data || []).map((l) => l.performed_at.slice(0, 10))).size;
+
+  // Offene und in der Woche erledigte Maßnahmen aus dem Ziel-Modul.
+  const openActions = [];
+  const doneActionsInRange = [];
+  (goalsRes.data || []).forEach((g) => {
+    (g.goal_will_actions || []).forEach((a) => {
+      if (a.status === 'open') openActions.push({ goalTitle: g.title, ...a });
+      else if (a.status === 'done') doneActionsInRange.push({ goalTitle: g.title, ...a });
+    });
+  });
+
+  return {
+    data: {
+      profile: profileRes.data,
+      trainingSummary,
+      distinctTrainingDays,
+      measurements: measurementsRes.data || [],
+      questionnaires: questionnairesRes.data || [],
+      activeGoals: goalsRes.data || [],
+      openActions,
+    },
+    error: null,
+  };
+}
