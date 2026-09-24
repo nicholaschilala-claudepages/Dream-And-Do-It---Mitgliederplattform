@@ -93,17 +93,17 @@
             <p>Content zu persönlicher Entwicklung, Fragebögen und dein Ziel-Modul.</p>
             <span class="status-pill active" style="display:inline-block; margin-top:10px; font-size:0.72rem; padding:3px 8px; border-radius:12px; background:rgba(47,111,79,0.15); color:var(--color-success);">verfügbar</span>
           </a>
-          <div class="section-card">
+          <a class="section-card" href="messages.html" style="text-decoration:none; color:inherit; display:block;">
             <h3>Nachrichten</h3>
-            <p>Direkter Austausch mit deinem Coach zu deinen Leistungen.</p>
-            <span class="badge">in Kürze</span>
-          </div>
+            <p>${profile.role === 'admin' ? 'Direkter Austausch mit deinen Kunden zu ihren Leistungen.' : 'Direkter Austausch mit deinem Coach zu deinen Leistungen.'}</p>
+            <span class="status-pill active" style="display:inline-block; margin-top:10px; font-size:0.72rem; padding:3px 8px; border-radius:12px; background:rgba(47,111,79,0.15); color:var(--color-success);">verfügbar</span>
+          </a>
           ${profile.role === 'admin' ? `
-          <div class="section-card">
+          <a class="section-card" href="betrieb.html" style="text-decoration:none; color:inherit; display:block;">
             <h3>Trainer-Dashboard</h3>
             <p>Überblick über alle Kunden, Aktivität und Zugriffsverwaltung.</p>
-            <span class="badge">in Kürze</span>
-          </div>` : ''}
+            <span class="status-pill active" style="display:inline-block; margin-top:10px; font-size:0.72rem; padding:3px 8px; border-radius:12px; background:rgba(47,111,79,0.15); color:var(--color-success);">verfügbar</span>
+          </a>` : ''}
         </div>
       `;
     }

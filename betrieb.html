@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trainer-Dashboard – Dream And Do It</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#053446" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <style>
+    .subtabs { display: flex; gap: 8px; margin: 0 0 16px; flex-wrap: wrap; }
+    .subtabs button { padding: 7px 14px; border-radius: 20px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); font-size: 0.82rem; cursor: pointer; }
+    .subtabs button.active { background: var(--color-navy); color: #fff; border-color: var(--color-navy); }
+    table.simple-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    table.simple-table th, table.simple-table td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--color-border); vertical-align: middle; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 520px) { .grid-2 { grid-template-columns: 1fr; } }
+    .activity-badge { font-size: 0.72rem; padding: 3px 9px; border-radius: 12px; font-weight: 600; white-space: nowrap; }
+    .activity-ok { background: rgba(47,111,79,0.15); color: var(--color-success); }
+    .activity-warn { background: rgba(200,124,0,0.18); color: var(--color-gold); }
+    .activity-critical { background: rgba(179,38,30,0.15); color: var(--color-danger); }
+    .lock-btn { width: auto; padding: 6px 12px; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="topbar">
+      <div class="brand">
+        <img src="icons/icon-192.png" alt="Dream And Do It Logo" onerror="this.style.display='none'" />
+        DREAM AND DO IT
+      </div>
+      <div style="display:flex; gap:8px;">
+        <a class="icon-btn" href="dashboard.html" style="text-decoration:none;">Zum Dashboard</a>
+        <button class="icon-btn" id="theme-toggle" type="button">Hell/Dunkel</button>
+      </div>
+    </div>
+
+    <div class="container wide" id="app-container">
+      <p class="center-text">Lade …</p>
+    </div>
+  </div>
+
+  <script type="module">
+    import { supabaseClient } from './js/supabase-client.js';
+    import { getCurrentSession, initTheme, toggleTheme } from './js/auth.js';
+    import { listClientOverview, setClientLock, getReportData } from './js/betrieb.js';
+
+    initTheme();
+    document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+
+    const container = document.getElementById('app-container');
+    let currentProfile = null;
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str == null ? '' : String(str);
+      return div.innerHTML;
+    }
+
+    function fmtDate(d) {
+      if (!d) return '–';
+      return new Date(d).toLocaleDateString('de-DE');
+    }
+
+    function todayIso() {
+      return new Date().toISOString().slice(0, 10);
+    }
+
+    function isoDaysAgo(n) {
+      const d = new Date();
+      d.setDate(d.getDate() - n);
+      return d.toISOString().slice(0, 10);
+    }
+
+    async function init() {
+      const session = await getCurrentSession();
+      if (!session) { window.location.href = 'index.html'; return; }
+
+      const { data: profile, error } = await supabaseClient
+        .from('profiles')
+        .select('id, full_name, role, access_locked')
+        .eq('id', session.user.id)
+        .maybeSingle();
+
+      if (error || !profile) {
+        container.innerHTML = `<div class="card lock-screen"><div class="icon">⚠️</div><h2>Profil konnte nicht geladen werden</h2><p style="color:var(--color-text-muted);">${escapeHtml(error ? error.message : 'Unbekannter Fehler')}</p></div>`;
+        return;
+      }
+      if (profile.role !== 'admin') {
+        container.innerHTML = `<div class="card lock-screen"><div class="icon">🔒</div><h2>Nur für den Coach</h2><p style="color:var(--color-text-muted);">Dieser Bereich ist der Betreiber-Ansicht vorbehalten.</p></div>`;
+        return;
+      }
+
+      currentProfile = profile;
+      renderShell();
+    }
+
+    function renderShell() {
+      container.innerHTML = `
+        <div class="subtabs">
+          <button class="btab active" data-tab="fruehwarn">Frühwarnsystem</button>
+          <button class="btab" data-tab="report">Wochenreport</button>
+        </div>
+        <div id="tab-content"></div>
+      `;
+      container.querySelectorAll('.btab').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          container.querySelectorAll('.btab').forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          renderTab(btn.dataset.tab);
+        });
+      });
+      renderTab('fruehwarn');
+    }
+
+    function renderTab(tab) {
+      const content = document.getElementById('tab-content');
+      if (tab === 'fruehwarn') return renderFruehwarnTab(content);
+      if (tab === 'report') return renderReportTab(content);
+    }
+
+    // =========================================================================
+    // FRÜHWARNSYSTEM + ZUGRIFFSVERWALTUNG
+    // =========================================================================
+
+    async function renderFruehwarnTab(content) {
+      content.innerHTML = '<p class="center-text">Lade …</p>';
+      const { data: clients, error } = await listClientOverview();
+      if (error) { content.innerHTML = `<div class="msg error">${escapeHtml(error.message)}</div>`; return; }
+
+      content.innerHTML = `
+        <div class="card">
+          <h2 style="font-size:1.05rem;">Kundenübersicht &amp; Aktivität</h2>
+          <p style="color:var(--color-text-muted); font-size:0.85rem;">
+            Letzte Aktivität = neuester Eintrag aus Training, Körperfett-Verlauf oder Fragebögen.
+            <span class="activity-badge activity-warn" style="margin:0 4px;">10+ Tage</span> und
+            <span class="activity-badge activity-critical" style="margin:0 4px;">21+ Tage</span> sind Hinweise, sich zu melden – kein Automatismus.
+          </p>
+          ${!clients || clients.length === 0 ? '<p style="color:var(--color-text-muted);">Noch keine Kunden angelegt.</p>' : `
+          <table class="simple-table mt-16">
+            <thead><tr><th>Kunde</th><th>Letzte Aktivität</th><th>Zugriff</th><th></th></tr></thead>
+            <tbody>
+              ${clients.map((c) => {
+                let badge;
+                if (c.days_since_activity == null) badge = '<span class="activity-badge activity-critical">nie aktiv</span>';
+                else if (c.days_since_activity >= 21) badge = `<span class="activity-badge activity-critical">${c.days_since_activity} Tage her</span>`;
+                else if (c.days_since_activity >= 10) badge = `<span class="activity-badge activity-warn">${c.days_since_activity} Tage her</span>`;
+                else badge = `<span class="activity-badge activity-ok">${c.days_since_activity === 0 ? 'heute' : c.days_since_activity + ' Tage her'}</span>`;
+                return `
+                  <tr>
+                    <td>${escapeHtml(c.full_name || c.email)}</td>
+                    <td>${badge}</td>
+                    <td>${c.access_locked ? '🔒 gesperrt' : '✓ aktiv'}</td>
+                    <td>
+                      <button class="btn secondary lock-btn" data-toggle-lock="${c.id}" data-current="${c.access_locked}">
+                        ${c.access_locked ? 'Entsperren' : 'Sperren'}
+                      </button>
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>`}
+        </div>
+      `;
+
+      content.querySelectorAll('[data-toggle-lock]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const current = btn.dataset.current === 'true';
+          const label = current ? 'entsperren' : 'sperren';
+          if (!confirm(`Zugriff für diesen Kunden wirklich ${label}?`)) return;
+          const { error } = await setClientLock(btn.dataset.toggleLock, !current);
+          if (error) { alert('Fehler: ' + error.message); return; }
+          renderFruehwarnTab(content);
+        });
+      });
+    }
+
+    // =========================================================================
+    // WOCHENREPORT (PDF, clientseitig erzeugt)
+    // =========================================================================
+
+    async function renderReportTab(content) {
+      const { data: clients, error } = await listClientOverview();
+      if (error) { content.innerHTML = `<div class="msg error">${escapeHtml(error.message)}</div>`; return; }
+
+      content.innerHTML = `
+        <div class="card">
+          <h2 style="font-size:1.05rem;">Wochenreport erstellen</h2>
+          <p style="color:var(--color-text-muted); font-size:0.85rem;">
+            Fasst Training, Körperfett-Verlauf, Fragebögen und offene Maßnahmen aus dem Ziel-Modul für den gewählten
+            Zeitraum zusammen und lädt das Ergebnis direkt als PDF herunter.
+          </p>
+          <form id="report-form">
+            <div class="field"><label>Kunde</label>
+              <select id="report-client" required>
+                <option value="">– bitte wählen –</option>
+                ${(clients || []).map((c) => `<option value="${c.id}">${escapeHtml(c.full_name || c.email)}</option>`).join('')}
+              </select>
+            </div>
+            <div class="grid-2">
+              <div class="field"><label>Von</label><input type="date" id="report-from" value="${isoDaysAgo(7)}" required /></div>
+              <div class="field"><label>Bis</label><input type="date" id="report-to" value="${todayIso()}" required /></div>
+            </div>
+            <button class="btn" type="submit">PDF erstellen &amp; herunterladen</button>
+          </form>
+          <div id="report-status"></div>
+        </div>
+      `;
+
+      document.getElementById('report-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const clientId = document.getElementById('report-client').value;
+        const from = document.getElementById('report-from').value;
+        const to = document.getElementById('report-to').value;
+        const statusEl = document.getElementById('report-status');
+        statusEl.innerHTML = '<p class="center-text">Erstelle Report …</p>';
+
+        const { data, error: reportError } = await getReportData(clientId, from, to);
+        if (reportError) { statusEl.innerHTML = `<div class="msg error">${escapeHtml(reportError.message)}</div>`; return; }
+
+        try {
+          buildReportPdf(data, from, to);
+          statusEl.innerHTML = '<div class="msg success">PDF wurde heruntergeladen.</div>';
+        } catch (err) {
+          statusEl.innerHTML = `<div class="msg error">Fehler beim Erstellen des PDFs: ${escapeHtml(err.message)}</div>`;
+        }
+      });
+    }
+
+    function buildReportPdf(data, from, to) {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+      const navy = [5, 52, 70];
+      const gold = [200, 124, 0];
+      const marginLeft = 18;
+      let y = 22;
+
+      doc.setFillColor(...navy);
+      doc.rect(0, 0, 210, 14, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(11);
+      doc.text('DREAM AND DO IT', marginLeft, 9.5);
+
+      doc.setTextColor(...navy);
+      doc.setFontSize(18);
+      doc.text('Wochenreport', marginLeft, y);
+      y += 8;
+      doc.setFontSize(11);
+      doc.setTextColor(60, 60, 60);
+      doc.text(`${data.profile ? (data.profile.full_name || data.profile.email) : ''}`, marginLeft, y);
+      y += 6;
+      doc.text(`Zeitraum: ${fmtDate(from)} – ${fmtDate(to)}`, marginLeft, y);
+      y += 10;
+
+      function sectionTitle(text) {
+        doc.setFontSize(13);
+        doc.setTextColor(...gold);
+        doc.text(text, marginLeft, y);
+        y += 7;
+        doc.setFontSize(10.5);
+        doc.setTextColor(30, 30, 30);
+      }
+
+      function ensureSpace(needed) {
+        if (y + needed > 280) { doc.addPage(); y = 20; }
+      }
+
+      // Training
+      sectionTitle('Training');
+      ensureSpace(10);
+      doc.text(`Trainingstage im Zeitraum: ${data.distinctTrainingDays}`, marginLeft, y);
+      y += 6;
+      if (data.trainingSummary.length === 0) {
+        doc.text('Keine erfassten Trainingseinheiten in diesem Zeitraum.', marginLeft, y);
+        y += 6;
+      } else {
+        data.trainingSummary.forEach((ex) => {
+          ensureSpace(6);
+          const volume = ex.volumeKg > 0 ? `, Volumen ca. ${Math.round(ex.volumeKg)} kg` : '';
+          doc.text(`• ${ex.name}: ${ex.sets} Sätze${volume}`, marginLeft, y);
+          y += 6;
+        });
+      }
+      y += 4;
+
+      // Körperfett-Verlauf
+      ensureSpace(14);
+      sectionTitle('Körperfett-Verlauf');
+      if (data.measurements.length === 0) {
+        doc.text('Keine neue Messung in diesem Zeitraum.', marginLeft, y);
+        y += 6;
+      } else {
+        data.measurements.forEach((m) => {
+          ensureSpace(6);
+          const bf = m.body_fat_percent != null ? m.body_fat_percent.toFixed(1) + ' %' : '–';
+          doc.text(`• ${fmtDate(m.measured_at)}: ${bf} Körperfett${m.weight_kg ? `, ${m.weight_kg} kg` : ''}`, marginLeft, y);
+          y += 6;
+        });
+      }
+      y += 4;
+
+      // Fragebögen
+      ensureSpace(14);
+      sectionTitle('Fragebögen');
+      if (data.questionnaires.length === 0) {
+        doc.text('Kein Fragebogen in diesem Zeitraum ausgefüllt.', marginLeft, y);
+        y += 6;
+      } else {
+        data.questionnaires.forEach((q) => {
+          ensureSpace(6);
+          doc.text(`• ${fmtDate(q.completed_at)}: ${q.questionnaire_key} – ${q.score} / ${q.max_score}`, marginLeft, y);
+          y += 6;
+        });
+      }
+      y += 4;
+
+      // Ziel-Modul: offene Maßnahmen
+      ensureSpace(14);
+      sectionTitle('Offene Maßnahmen (aktive Ziele)');
+      if (data.openActions.length === 0) {
+        doc.text('Keine offenen Maßnahmen.', marginLeft, y);
+        y += 6;
+      } else {
+        data.openActions.forEach((a) => {
+          ensureSpace(6);
+          const due = a.due_date ? ` (bis ${fmtDate(a.due_date)})` : '';
+          doc.text(`• [${a.goalTitle}] ${a.description}${due}`, marginLeft, y);
+          y += 6;
+        });
+      }
+
+      doc.setFontSize(8);
+      doc.setTextColor(140, 140, 140);
+      doc.text('Automatisch aus der Dream And Do It Kundenplattform erstellt.', marginLeft, 290);
+
+      const clientLabel = (data.profile ? (data.profile.full_name || data.profile.email) : 'kunde').replace(/[^a-z0-9]+/gi, '_');
+      doc.save(`Wochenreport_${clientLabel}_${from}_bis_${to}.pdf`);
+    }
+
+    init();
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>
