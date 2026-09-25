@@ -12,12 +12,12 @@ export async function listCoachingContent() {
   return supabaseClient.from('coaching_content').select('*').order('category', { ascending: true }).order('title', { ascending: true });
 }
 
-export async function createCoachingContent({ title, description, category, pdfUrl }) {
+export async function createCoachingContent({ title, description, category, pdfUrl, imageUrl }) {
   const session = await supabaseClient.auth.getSession();
   const userId = session.data.session?.user?.id;
   return supabaseClient.from('coaching_content').insert({
     title, description: description || null, category: category || null,
-    pdf_url: pdfUrl, created_by: userId,
+    pdf_url: pdfUrl, image_url: imageUrl || null, created_by: userId,
   });
 }
 
