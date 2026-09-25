@@ -110,7 +110,24 @@ a { color: var(--color-gold); }
 }
 
 .topbar .brand img {
-  height: 32px;
+  height: 40px;
+  width: auto;
+}
+
+.login-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: var(--color-navy);
+  border-radius: var(--radius);
+  padding: 28px 20px 22px;
+  margin-bottom: 18px;
+  box-shadow: var(--shadow);
+}
+
+.login-hero img {
+  height: 96px;
   width: auto;
 }
 
