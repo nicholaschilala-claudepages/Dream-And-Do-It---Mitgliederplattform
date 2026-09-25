@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -36,6 +36,11 @@
     .recipe-row img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
     .image-wrap { display: flex; flex-direction: column; align-items: center; gap: 2px; flex-shrink: 0; }
     .ai-image-note { font-size: 0.62rem; color: var(--color-text-muted); text-align: center; max-width: 64px; line-height: 1.15; }
+    /* Aktions-Buttons (u.a. "PDF öffnen") IMMER am rechten Rand der Zeile –
+       auch wenn die Zeile bei schmalen Bildschirmen umbricht und die Buttons
+       allein in einer eigenen Zeile landen (margin-left:auto verhindert,
+       dass sie dann nach links rutschen). */
+    .row-actions { display: flex; gap: 8px; flex-shrink: 0; margin-left: auto; }
 
     .stat-tiles { display: flex; gap: 12px; flex-wrap: wrap; margin: 4px 0 20px; }
     .stat-tile { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 10px; padding: 10px 16px; min-width: 140px; }
@@ -74,13 +79,10 @@
         DREAM AND DO IT
       </div>
       <div style="display:flex; gap:8px;">
-        <a class="icon-btn msg-btn" href="messages.html" style="text-decoration:none;">
-          Nachrichten<span class="msg-badge" id="msg-badge"></span>
-        </a>
-        <a class="icon-btn" href="dashboard.html" style="text-decoration:none;">Zum Dashboard</a>
         <button class="icon-btn" id="theme-toggle" type="button">Hell/Dunkel</button>
       </div>
     </div>
+    <div id="nav-tabs-slot"></div>
 
     <div class="container wide" id="app-container">
       <p class="center-text">Lade …</p>
@@ -102,6 +104,9 @@
     } from './js/nutrition.js';
     import { listClients, listSessions } from './js/training.js';
     import { getUnreadCount } from './js/messages.js';
+    import { getNewSignupCount } from './js/betrieb.js';
+    import { navTabsHtml } from './js/nav.js';
+    import { collapsibleHtml, initCollapsibles } from './js/collapsible.js';
     import { SECTION_INFO } from './js/section-info.js';
 
     initTheme();
@@ -138,7 +143,7 @@
 
       const { data: profile, error } = await supabaseClient
         .from('profiles')
-        .select('id, full_name, role, access_locked, nutrition_enabled')
+        .select('id, full_name, role, access_locked, training_enabled, nutrition_enabled, coaching_enabled')
         .eq('id', session.user.id)
         .maybeSingle();
 
@@ -152,7 +157,7 @@
       }
 
       currentProfile = profile;
-      mountMessageBadge(profile.id);
+      mountNavTabs(profile);
 
       if (profile.role !== 'admin' && !profile.nutrition_enabled) {
         renderLockedTeaser();
@@ -161,14 +166,20 @@
       renderShell();
     }
 
-    async function mountMessageBadge(userId) {
-      const count = await getUnreadCount(userId);
-      const el = document.getElementById('msg-badge');
-      if (!el) return;
-      if (count > 0) {
-        el.textContent = count > 9 ? '9+' : String(count);
-        el.style.display = 'inline-block';
-      }
+    // Etappe 19: gemeinsame Kopfzeilen-Reiterleiste (siehe js/nav.js) statt
+    // der früheren Einzel-Links "Nachrichten"/"Zum Dashboard".
+    async function mountNavTabs(profile) {
+      const slot = document.getElementById('nav-tabs-slot');
+      if (!slot) return;
+      const [unreadMessages, signupResult] = await Promise.all([
+        getUnreadCount(profile.id),
+        profile.role === 'admin' ? getNewSignupCount() : Promise.resolve({ count: 0 }),
+      ]);
+      slot.innerHTML = navTabsHtml(profile, {
+        currentPage: 'nutrition',
+        unreadMessages,
+        newSignups: signupResult.count || 0,
+      });
     }
 
     function renderLockedTeaser() {
@@ -179,7 +190,7 @@
           <div class="section-hero">
             <span class="kicker">${escapeHtml(info.title)}</span>
             <h2>${escapeHtml(info.heroLine)}</h2>
-            <p class="lead">${info.clientIntro}</p>
+            ${collapsibleHtml(`<p class="lead">${info.clientIntro}</p>`)}
           </div>
           <div class="benefit-grid">
             ${info.benefits.map((b) => `<div class="benefit-card"><h4>${escapeHtml(b.h)}</h4><p>${escapeHtml(b.t)}</p></div>`).join('')}
@@ -187,13 +198,14 @@
           ${plateVisualHtml()}
           <div class="science-box">
             <span class="kicker">Wissenschaftlicher Hintergrund</span>
-            <p>${info.scienceText}</p>
+            ${collapsibleHtml(`<p>${info.scienceText}</p>`, { fadeVar: 'var(--color-bg)' })}
           </div>
           <a class="btn mt-16" style="display:inline-block; width:auto; padding:12px 24px;" href="messages.html">
             Interesse? Jetzt nachfragen
           </a>
         </div>
       `;
+      initCollapsibles(container);
     }
 
     function plateVisualHtml() {
@@ -245,7 +257,7 @@
         <div class="section-hero">
           <span class="kicker">${escapeHtml(info.title)}</span>
           <h2>${escapeHtml(info.heroLine)}</h2>
-          <p class="lead">${isAdmin ? info.adminIntro : info.clientIntro}</p>
+          ${collapsibleHtml(`<p class="lead">${isAdmin ? info.adminIntro : info.clientIntro}</p>`)}
         </div>
         ${isAdmin ? '' : `
         <div class="benefit-grid">
@@ -254,7 +266,7 @@
         ${plateVisualHtml()}`}
         <div class="science-box">
           <span class="kicker">Wissenschaftlicher Hintergrund</span>
-          <p>${info.scienceText}</p>
+          ${collapsibleHtml(`<p>${info.scienceText}</p>`, { fadeVar: 'var(--color-bg)' })}
         </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:16px;">
           ${isAdmin ? `
@@ -272,6 +284,7 @@
       content.querySelectorAll('[data-goto]').forEach((btn) => {
         btn.addEventListener('click', () => goToTab(btn.dataset.goto));
       });
+      initCollapsibles(content);
     }
 
     function renderTab(tab) {
@@ -740,7 +753,7 @@
                 ${r.description ? `<p style="margin:4px 0 0; font-size:0.85rem; color:var(--color-text-muted);">${escapeHtml(r.description)}</p>` : ''}
                 ${r.kcal_per_portion != null ? `<p style="margin:4px 0 0; font-size:0.78rem; color:var(--color-text-muted);">Eiweiß: ${r.protein_g ?? '–'} g · Kohlenhydrate: ${r.carbs_g ?? '–'} g · Fett: ${r.fat_g ?? '–'} g · ${r.kcal_per_portion} kcal</p>` : ''}
               </div>
-              <div style="display:flex; gap:8px; flex-shrink:0;">
+              <div class="row-actions">
                 <a class="btn secondary" style="width:auto; padding:8px 14px; font-size:0.82rem; text-decoration:none;" href="${escapeHtml(r.pdf_url)}" target="_blank" rel="noopener">PDF öffnen</a>
                 ${adminMode ? `<button class="btn secondary" style="width:auto; padding:8px 12px; font-size:0.82rem;" data-delete-recipe="${r.id}">Löschen</button>` : ''}
               </div>

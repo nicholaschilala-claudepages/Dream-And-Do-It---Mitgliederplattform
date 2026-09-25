@@ -5,7 +5,7 @@
 // neue Version bekommen.
 // ============================================================================
 
-const CACHE_NAME = 'dadi-plattform-v12';
+const CACHE_NAME = 'dadi-plattform-v13';
 const APP_SHELL = [
   './',
   'index.html',
@@ -27,7 +27,12 @@ const APP_SHELL = [
   'js/betrieb.js',
   'js/messages.js',
   'js/section-info.js',
+  'js/nav.js',
+  'js/collapsible.js',
   'icons/nicholas-portrait.jpg',
+  'icons/logo-mark.png',
+  'icons/logo-full.png',
+  'icons/logo-full-darkbg.png',
   'manifest.json',
 ];
 

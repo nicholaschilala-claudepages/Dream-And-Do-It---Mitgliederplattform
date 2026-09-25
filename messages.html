@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -40,10 +40,10 @@
         DREAM AND DO IT
       </div>
       <div style="display:flex; gap:8px;">
-        <a class="icon-btn" href="dashboard.html" style="text-decoration:none;">Zum Dashboard</a>
         <button class="icon-btn" id="theme-toggle" type="button">Hell/Dunkel</button>
       </div>
     </div>
+    <div id="nav-tabs-slot"></div>
 
     <div class="container wide" id="app-container">
       <p class="center-text">Lade …</p>
@@ -53,7 +53,9 @@
   <script type="module">
     import { supabaseClient } from './js/supabase-client.js';
     import { getCurrentSession, initTheme, toggleTheme } from './js/auth.js';
-    import { getAdminId, listConversation, sendMessage, markConversationRead, listClientsWithMessageInfo } from './js/messages.js';
+    import { getAdminId, listConversation, sendMessage, markConversationRead, listClientsWithMessageInfo, getUnreadCount } from './js/messages.js';
+    import { getNewSignupCount } from './js/betrieb.js';
+    import { navTabsHtml } from './js/nav.js';
 
     initTheme();
     document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
@@ -80,7 +82,7 @@
 
       const { data: profile, error } = await supabaseClient
         .from('profiles')
-        .select('id, full_name, role, access_locked')
+        .select('id, full_name, role, access_locked, training_enabled, nutrition_enabled, coaching_enabled')
         .eq('id', session.user.id)
         .maybeSingle();
 
@@ -94,12 +96,27 @@
       }
 
       currentProfile = profile;
+      mountNavTabs(profile);
 
       if (profile.role === 'admin') {
         renderAdminView();
       } else {
         renderClientView();
       }
+    }
+
+    async function mountNavTabs(profile) {
+      const slot = document.getElementById('nav-tabs-slot');
+      if (!slot) return;
+      const [unreadMessages, signupResult] = await Promise.all([
+        getUnreadCount(profile.id),
+        profile.role === 'admin' ? getNewSignupCount() : Promise.resolve({ count: 0 }),
+      ]);
+      slot.innerHTML = navTabsHtml(profile, {
+        currentPage: 'messages',
+        unreadMessages,
+        newSignups: signupResult.count || 0,
+      });
     }
 
     // =========================================================================

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -18,13 +18,11 @@
         DREAM AND DO IT
       </div>
       <div style="display:flex; gap:8px;">
-        <a class="icon-btn msg-btn" href="messages.html" style="text-decoration:none;">
-          Nachrichten<span class="msg-badge" id="msg-badge"></span>
-        </a>
         <button class="icon-btn" id="theme-toggle" type="button">Hell/Dunkel</button>
         <button class="icon-btn" id="logout-btn" type="button">Abmelden</button>
       </div>
     </div>
+    <div id="nav-tabs-slot"></div>
 
     <div class="container wide" id="app-container">
       <p class="center-text">Lade dein Profil …</p>
@@ -38,7 +36,10 @@
   <script type="module">
     import { requireAuth, signOut, initTheme, toggleTheme } from './js/auth.js';
     import { getUnreadCount } from './js/messages.js';
+    import { getNewSignupCount } from './js/betrieb.js';
+    import { navTabsHtml } from './js/nav.js';
     import { SECTION_INFO, welcomeParagraphs } from './js/section-info.js';
+    import { collapsibleHtml, initCollapsibles } from './js/collapsible.js';
 
     initTheme();
     document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
@@ -52,7 +53,7 @@
     requireAuth().then((profile) => {
       if (!profile) return; // requireAuth leitet bereits zum Login um
 
-      mountMessageBadge(profile.id);
+      mountNavTabs(profile);
 
       if (profile.access_locked) {
         renderLocked();
@@ -61,14 +62,24 @@
       renderDashboard(profile);
     });
 
-    async function mountMessageBadge(userId) {
-      const count = await getUnreadCount(userId);
-      const el = document.getElementById('msg-badge');
-      if (!el) return;
-      if (count > 0) {
-        el.textContent = count > 9 ? '9+' : String(count);
-        el.style.display = 'inline-block';
-      }
+    // Etappe 19: eine einzige Kopfzeilen-Reiterleiste statt der bisherigen
+    // Einzel-Links ("Nachrichten"/"Zum Dashboard") UND der Kacheln im unteren
+    // .section-grid — siehe js/nav.js. Ungelesene Nachrichten sowie neue,
+    // noch nicht gesichtete Anmeldungen (nur Admin, siehe
+    // sql/023_neue_anmeldungen_badge.sql) werden als Badge auf dem
+    // jeweiligen Reiter angezeigt.
+    async function mountNavTabs(profile) {
+      const slot = document.getElementById('nav-tabs-slot');
+      if (!slot) return;
+      const [unreadMessages, signupResult] = await Promise.all([
+        getUnreadCount(profile.id),
+        profile.role === 'admin' ? getNewSignupCount() : Promise.resolve({ count: 0 }),
+      ]);
+      slot.innerHTML = navTabsHtml(profile, {
+        currentPage: 'dashboard',
+        unreadMessages,
+        newSignups: signupResult.count || 0,
+      });
     }
 
     function renderLocked() {
@@ -84,12 +95,6 @@
              href="mailto:info@dreamanddoit.de">Kontakt aufnehmen</a>
         </div>
       `;
-    }
-
-    function availPill(enabled) {
-      return enabled
-        ? '<span class="status-pill" style="display:inline-block; margin-top:10px; font-size:0.72rem; padding:3px 8px; border-radius:12px; background:rgba(47,111,79,0.15); color:var(--color-success);">verfügbar</span>'
-        : '<span class="status-pill" style="display:inline-block; margin-top:10px; font-size:0.72rem; padding:3px 8px; border-radius:12px; background:rgba(180,40,40,0.1); color:var(--color-danger);">auf Anfrage</span>';
     }
 
     function renderDashboard(profile) {
@@ -108,12 +113,14 @@
         <div class="section-hero">
           <span class="kicker">Trainer-Ansicht</span>
           <h2>Kundensoftware von Dream And Do It</h2>
-          <p class="lead">
-            Hallo ${escapeHtml(profile.full_name || '')}, du befindest dich in der Admin-/Coach-Ansicht der
-            Kundenplattform. Hier verwaltest du Inhalte und Pläne, siehst die Entwicklung deiner Kunden und
-            kommunizierst direkt mit ihnen. Kunden sehen eine eigene, vereinfachte Ansicht mit nur den Bereichen,
-            die du für sie freigeschaltet hast — deine eigenen Rechte und Zugriffe bleiben davon unberührt.
-          </p>
+          ${collapsibleHtml(`
+            <p class="lead">
+              Hallo ${escapeHtml(profile.full_name || '')}, du befindest dich in der Admin-/Coach-Ansicht der
+              Kundenplattform. Hier verwaltest du Inhalte und Pläne, siehst die Entwicklung deiner Kunden und
+              kommunizierst direkt mit ihnen. Kunden sehen eine eigene, vereinfachte Ansicht mit nur den Bereichen,
+              die du für sie freigeschaltet hast — deine eigenen Rechte und Zugriffe bleiben davon unberührt.
+            </p>
+          `)}
         </div>
 
         <div class="benefit-grid">
@@ -139,25 +146,11 @@
               Reiter-Freigabe je Kunde (Training/Ernährung/Coaching einzeln sperr-/freischaltbar).</p>
           </div>
         </div>
-
-        <div class="section-grid">
-          <a class="section-card" href="training.html" style="text-decoration:none; color:inherit; display:block;">
-            <h3>Training</h3><p>Übungsbibliothek, Vorlagen &amp; Kundenanalyse.</p>${availPill(true)}
-          </a>
-          <a class="section-card" href="nutrition.html" style="text-decoration:none; color:inherit; display:block;">
-            <h3>Ernährung</h3><p>Rezepte, Lebensmittel &amp; Ernährungsprotokolle.</p>${availPill(true)}
-          </a>
-          <a class="section-card" href="coaching.html" style="text-decoration:none; color:inherit; display:block;">
-            <h3>Coaching</h3><p>Content, Fragebögen &amp; GROW-Ziele.</p>${availPill(true)}
-          </a>
-          <a class="section-card" href="messages.html" style="text-decoration:none; color:inherit; display:block;">
-            <h3>Nachrichten</h3><p>Austausch mit deinen Kunden.</p>${availPill(true)}
-          </a>
-          <a class="section-card" href="betrieb.html" style="text-decoration:none; color:inherit; display:block;">
-            <h3>Trainer-Dashboard</h3><p>Kunden, Aktivität, Zugriff &amp; Reiter-Freigabe.</p>${availPill(true)}
-          </a>
-        </div>
       `;
+      // Hinweis: Die frühere Kachel-Navigation (.section-grid) direkt hier
+      // wurde entfernt — sie duplizierte nur die neue Kopfzeilen-Reiterleiste
+      // (siehe #nav-tabs-slot / js/nav.js), die jetzt auf jeder Seite verfügbar ist.
+      initCollapsibles(container);
     }
 
     // -------------------------------------------------------------------------
@@ -165,7 +158,10 @@
     // -------------------------------------------------------------------------
     function renderClientStart(profile) {
       const firstName = (profile.full_name || '').split(' ')[0];
-      const welcomeHtml = welcomeParagraphs(firstName).map((p) => `<p>${p}</p>`).join('');
+      const welcomeHtml = collapsibleHtml(
+        welcomeParagraphs(firstName).map((p) => `<p>${p}</p>`).join(''),
+        { fadeVar: 'var(--color-navy)' }
+      );
 
       const modules = [
         { key: 'training', href: 'training.html', enabled: profile.training_enabled },
@@ -201,22 +197,11 @@
             <p>Direkter Austausch mit mir zu deinen Leistungen — dieser Bereich ist für dich immer zugänglich, egal welche anderen Bereiche freigeschaltet sind.</p>
           </div>
         </div>
-
-        <div class="section-grid">
-          <a class="section-card" href="training.html" style="text-decoration:none; color:inherit; display:block;">
-            <h3>Training</h3><p>Dein Trainingsplan, Übungen und dein Trainingstagebuch.</p>${availPill(profile.training_enabled)}
-          </a>
-          <a class="section-card" href="nutrition.html" style="text-decoration:none; color:inherit; display:block;">
-            <h3>Ernährung</h3><p>Rezepte, PAL-Rechner und dein Körperfett-Verlauf.</p>${availPill(profile.nutrition_enabled)}
-          </a>
-          <a class="section-card" href="coaching.html" style="text-decoration:none; color:inherit; display:block;">
-            <h3>Coaching</h3><p>Content zu persönlicher Entwicklung, Fragebögen und dein Ziel-Modul.</p>${availPill(profile.coaching_enabled)}
-          </a>
-          <a class="section-card" href="messages.html" style="text-decoration:none; color:inherit; display:block;">
-            <h3>Nachrichten</h3><p>Direkter Austausch mit deinem Coach zu deinen Leistungen.</p>${availPill(true)}
-          </a>
-        </div>
       `;
+      // Hinweis: Die frühere Kachel-Navigation (.section-grid) direkt hier
+      // wurde entfernt — sie duplizierte nur die neue Kopfzeilen-Reiterleiste
+      // (siehe #nav-tabs-slot / js/nav.js), die jetzt auf jeder Seite verfügbar ist.
+      initCollapsibles(container);
     }
 
     function escapeHtml(str) {

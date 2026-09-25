@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -33,13 +33,10 @@
         DREAM AND DO IT
       </div>
       <div style="display:flex; gap:8px;">
-        <a class="icon-btn msg-btn" href="messages.html" style="text-decoration:none;">
-          Nachrichten<span class="msg-badge" id="msg-badge"></span>
-        </a>
-        <a class="icon-btn" href="dashboard.html" style="text-decoration:none;">Zum Dashboard</a>
         <button class="icon-btn" id="theme-toggle" type="button">Hell/Dunkel</button>
       </div>
     </div>
+    <div id="nav-tabs-slot"></div>
 
     <div class="container wide" id="app-container">
       <p class="center-text">Lade …</p>
@@ -48,9 +45,10 @@
 
   <script type="module">
     import { supabaseClient } from './js/supabase-client.js';
-    import { getCurrentSession, initTheme, toggleTheme } from './js/auth.js';
-    import { listClientOverview, setClientLock, setClientModuleAccess, getReportData, listClientDevices, deleteClientDevice, setClientMaxDevices } from './js/betrieb.js';
+    import { getCurrentSession, initTheme, toggleTheme, requestPasswordReset } from './js/auth.js';
+    import { listClientOverview, setClientLock, setClientModuleAccess, getReportData, listClientDevices, deleteClientDevice, setClientMaxDevices, markNewSignupsSeen } from './js/betrieb.js';
     import { getUnreadCount } from './js/messages.js';
+    import { navTabsHtml } from './js/nav.js';
 
     initTheme();
     document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
@@ -99,18 +97,25 @@
       }
 
       currentProfile = profile;
-      mountMessageBadge(profile.id);
+      mountNavTabs(profile);
       renderShell();
     }
 
-    async function mountMessageBadge(userId) {
-      const count = await getUnreadCount(userId);
-      const el = document.getElementById('msg-badge');
-      if (!el) return;
-      if (count > 0) {
-        el.textContent = count > 9 ? '9+' : String(count);
-        el.style.display = 'inline-block';
-      }
+    // Hinweis: Der "neue Anmeldungen"-Badge wird hier bewusst NICHT über
+    // getNewSignupCount() befüllt (immer 0): renderShell() ruft sofort
+    // renderTab('fruehwarn') auf, welches markNewSignupsSeen() ausführt und
+    // den Zähler damit zurücksetzt, bevor er hier sichtbar würde. Der
+    // aussagekräftige Badge sitzt stattdessen auf dashboard.html (der
+    // eigentlichen Landingpage nach dem Login) — siehe js/nav.js.
+    async function mountNavTabs(profile) {
+      const slot = document.getElementById('nav-tabs-slot');
+      if (!slot) return;
+      const unreadMessages = await getUnreadCount(profile.id);
+      slot.innerHTML = navTabsHtml(profile, {
+        currentPage: 'betrieb',
+        unreadMessages,
+        newSignups: 0,
+      });
     }
 
     function renderShell() {
@@ -241,12 +246,13 @@
           </p>
           ${!clients || clients.length === 0 ? '<p style="color:var(--color-text-muted);">Noch keine Kunden angelegt.</p>' : `
           <p style="color:var(--color-text-muted); font-size:0.82rem; margin-top:14px;">
-            Reiter-Freigabe: einzeln steuerbar, welche Bereiche ein Kunde nutzen darf (Standard: alle drei
-            aktiv). Ein gesperrter Reiter zeigt dem Kunden eine Vorteils-Übersicht statt der echten Inhalte —
-            Nachrichten sind davon nie betroffen.
+            Reiter-Freigabe: einzeln steuerbar, welche Bereiche ein Kunde nutzen darf (Standard für neue
+            Anmeldungen: alle drei gesperrt, bis du bewusst freischaltest — siehe unten). Ein gesperrter
+            Reiter zeigt dem Kunden eine Vorteils-Übersicht statt der echten Inhalte — Nachrichten sind davon
+            nie betroffen.
           </p>
           <table class="simple-table mt-16">
-            <thead><tr><th>Kunde</th><th>Letzte Aktivität</th><th>Zugriff</th><th>Reiter-Freigabe</th><th></th></tr></thead>
+            <thead><tr><th>Kunde</th><th>Letzte Aktivität</th><th>Zugriff</th><th>Reiter-Freigabe</th><th></th><th></th></tr></thead>
             <tbody>
               ${clients.map((c) => {
                 let badge;
@@ -259,9 +265,11 @@
                   { field: 'nutrition_enabled', label: 'Ernährung', on: c.nutrition_enabled },
                   { field: 'coaching_enabled', label: 'Coaching', on: c.coaching_enabled },
                 ];
+                const neuTag = !c.new_signup_seen
+                  ? '<span class="activity-badge activity-warn" style="margin-left:6px;">NEU</span>' : '';
                 return `
                   <tr>
-                    <td>${escapeHtml(c.full_name || c.email)}</td>
+                    <td>${escapeHtml(c.full_name || c.email)}${neuTag}</td>
                     <td>${badge}</td>
                     <td>${c.access_locked ? '🔒 gesperrt' : '✓ aktiv'}</td>
                     <td>
@@ -279,6 +287,11 @@
                         ${c.access_locked ? 'Entsperren' : 'Sperren'}
                       </button>
                     </td>
+                    <td>
+                      <button class="btn secondary lock-btn" data-reset-password="${c.id}" data-email="${escapeHtml(c.email || '')}">
+                        Passwort zurücksetzen
+                      </button>
+                    </td>
                   </tr>
                 `;
               }).join('')}
@@ -286,6 +299,13 @@
           </table>`}
         </div>
       `;
+
+      // Sobald die Kundenübersicht (mit den "NEU"-Markierungen oben) einmal
+      // angezeigt wurde, gelten die Anmeldungen als vom Admin gesichtet —
+      // Badge in der Kopfzeile entsprechend zurücksetzen.
+      if ((clients || []).some((c) => !c.new_signup_seen)) {
+        markNewSignupsSeen();
+      }
 
       content.querySelectorAll('[data-toggle-lock]').forEach((btn) => {
         btn.addEventListener('click', async () => {
@@ -295,6 +315,25 @@
           const { error } = await setClientLock(btn.dataset.toggleLock, !current);
           if (error) { alert('Fehler: ' + error.message); return; }
           renderFruehwarnTab(content);
+        });
+      });
+
+      // Admin löst für einen Kunden, der sein Passwort vergessen hat, die
+      // Standard-Passwort-Reset-Mail von Supabase aus (kein eigener
+      // Mail-Versand nötig) — Entscheidung aus der Rückfrage vom 26.09.2026.
+      content.querySelectorAll('[data-reset-password]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const email = btn.dataset.email;
+          if (!email) { alert('Für diesen Kunden ist keine E-Mail-Adresse hinterlegt.'); return; }
+          if (!confirm(`Passwort-Reset-Mail an ${email} senden?`)) return;
+          btn.disabled = true;
+          const originalText = btn.textContent;
+          btn.textContent = 'Sende …';
+          const { error } = await requestPasswordReset(email);
+          btn.disabled = false;
+          btn.textContent = originalText;
+          if (error) { alert('Fehler: ' + error.message); return; }
+          alert(`Passwort-Reset-Mail an ${email} gesendet.`);
         });
       });
 

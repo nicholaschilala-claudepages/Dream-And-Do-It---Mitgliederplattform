@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -99,13 +99,10 @@
         DREAM AND DO IT
       </div>
       <div style="display:flex; gap:8px;">
-        <a class="icon-btn msg-btn" href="messages.html" style="text-decoration:none;">
-          Nachrichten<span class="msg-badge" id="msg-badge"></span>
-        </a>
-        <a class="icon-btn" href="dashboard.html" style="text-decoration:none;">Zum Dashboard</a>
         <button class="icon-btn" id="theme-toggle" type="button">Hell/Dunkel</button>
       </div>
     </div>
+    <div id="nav-tabs-slot"></div>
 
     <div class="container wide" id="app-container">
       <p class="center-text">Lade …</p>
@@ -131,6 +128,9 @@
     } from './js/training.js';
     import { queueTrainingLog, syncQueuedLogs } from './js/offline-queue.js';
     import { getUnreadCount } from './js/messages.js';
+    import { getNewSignupCount } from './js/betrieb.js';
+    import { navTabsHtml } from './js/nav.js';
+    import { collapsibleHtml, initCollapsibles } from './js/collapsible.js';
     import { SECTION_INFO } from './js/section-info.js';
 
     initTheme();
@@ -208,7 +208,7 @@
 
       const { data: profile, error } = await supabaseClient
         .from('profiles')
-        .select('id, full_name, role, access_locked, training_enabled')
+        .select('id, full_name, role, access_locked, training_enabled, nutrition_enabled, coaching_enabled')
         .eq('id', session.user.id)
         .maybeSingle();
 
@@ -222,7 +222,7 @@
       }
 
       currentProfile = profile;
-      mountMessageBadge(profile.id);
+      mountNavTabs(profile);
 
       if (profile.role !== 'admin' && !profile.training_enabled) {
         renderLockedTeaser();
@@ -239,14 +239,20 @@
       window.addEventListener('online', trySyncOfflineLogs);
     }
 
-    async function mountMessageBadge(userId) {
-      const count = await getUnreadCount(userId);
-      const el = document.getElementById('msg-badge');
-      if (!el) return;
-      if (count > 0) {
-        el.textContent = count > 9 ? '9+' : String(count);
-        el.style.display = 'inline-block';
-      }
+    // Etappe 19: gemeinsame Kopfzeilen-Reiterleiste (siehe js/nav.js) statt
+    // der früheren Einzel-Links "Nachrichten"/"Zum Dashboard".
+    async function mountNavTabs(profile) {
+      const slot = document.getElementById('nav-tabs-slot');
+      if (!slot) return;
+      const [unreadMessages, signupResult] = await Promise.all([
+        getUnreadCount(profile.id),
+        profile.role === 'admin' ? getNewSignupCount() : Promise.resolve({ count: 0 }),
+      ]);
+      slot.innerHTML = navTabsHtml(profile, {
+        currentPage: 'training',
+        unreadMessages,
+        newSignups: signupResult.count || 0,
+      });
     }
 
     function renderLockedTeaser() {
@@ -257,20 +263,21 @@
           <div class="section-hero">
             <span class="kicker">${escapeHtml(info.title)}</span>
             <h2>${escapeHtml(info.heroLine)}</h2>
-            <p class="lead">${info.clientIntro}</p>
+            ${collapsibleHtml(`<p class="lead">${info.clientIntro}</p>`)}
           </div>
           <div class="benefit-grid">
             ${info.benefits.map((b) => `<div class="benefit-card"><h4>${escapeHtml(b.h)}</h4><p>${escapeHtml(b.t)}</p></div>`).join('')}
           </div>
           <div class="science-box">
             <span class="kicker">Wissenschaftlicher Hintergrund</span>
-            <p>${info.scienceText}</p>
+            ${collapsibleHtml(`<p>${info.scienceText}</p>`, { fadeVar: 'var(--color-bg)' })}
           </div>
           <a class="btn mt-16" style="display:inline-block; width:auto; padding:12px 24px;" href="messages.html">
             Interesse? Jetzt nachfragen
           </a>
         </div>
       `;
+      initCollapsibles(container);
     }
 
     async function trySyncOfflineLogs() {
@@ -317,7 +324,7 @@
         <div class="section-hero">
           <span class="kicker">${escapeHtml(info.title)}</span>
           <h2>${escapeHtml(info.heroLine)}</h2>
-          <p class="lead">${isAdmin ? info.adminIntro : info.clientIntro}</p>
+          ${collapsibleHtml(`<p class="lead">${isAdmin ? info.adminIntro : info.clientIntro}</p>`)}
         </div>
         ${isAdmin ? '' : `
         <div class="benefit-grid">
@@ -325,7 +332,7 @@
         </div>`}
         <div class="science-box">
           <span class="kicker">Wissenschaftlicher Hintergrund</span>
-          <p>${info.scienceText}</p>
+          ${collapsibleHtml(`<p>${info.scienceText}</p>`, { fadeVar: 'var(--color-bg)' })}
         </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:16px;">
           ${isAdmin ? `
@@ -341,6 +348,7 @@
       content.querySelectorAll('[data-goto]').forEach((btn) => {
         btn.addEventListener('click', () => goToTab(isAdmin ? 'admin-tab' : 'client-tab', btn.dataset.goto));
       });
+      initCollapsibles(content);
     }
 
     function computeStatus(pe, logsForThis) {
