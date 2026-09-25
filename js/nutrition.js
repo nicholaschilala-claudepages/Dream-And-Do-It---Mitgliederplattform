@@ -104,15 +104,96 @@ export async function listRecipes() {
   return supabaseClient.from('recipes').select('*').order('category', { ascending: true }).order('title', { ascending: true });
 }
 
-export async function createRecipe({ title, description, category, pdfUrl, imageUrl }) {
+export async function createRecipe({ title, description, category, pdfUrl, imageUrl, proteinG, carbsG, fatG, kcalPerPortion }) {
   const session = await supabaseClient.auth.getSession();
   const userId = session.data.session?.user?.id;
   return supabaseClient.from('recipes').insert({
     title, description: description || null, category: category || null,
     pdf_url: pdfUrl, image_url: imageUrl || null, created_by: userId,
+    protein_g: proteinG || null, carbs_g: carbsG || null, fat_g: fatG || null,
+    kcal_per_portion: kcalPerPortion || null,
   });
 }
 
 export async function deleteRecipe(id) {
   return supabaseClient.from('recipes').delete().eq('id', id);
+}
+
+// ---------------------------------------------------------------------------
+// Lebensmittel-Datenbank (Ernährungsprotokoll)
+// ---------------------------------------------------------------------------
+
+export async function listFoodItems() {
+  return supabaseClient.from('food_items').select('*').order('name', { ascending: true });
+}
+
+export async function createFoodItem({ name, kcalPer100g, proteinPer100g, carbsPer100g, fatPer100g }) {
+  const session = await supabaseClient.auth.getSession();
+  const userId = session.data.session?.user?.id;
+  return supabaseClient.from('food_items').insert({
+    name,
+    kcal_per_100g: kcalPer100g,
+    protein_per_100g: proteinPer100g || 0,
+    carbs_per_100g: carbsPer100g || 0,
+    fat_per_100g: fatPer100g || 0,
+    created_by: userId,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Ernährungsprotokoll
+// ---------------------------------------------------------------------------
+
+export async function createNutritionLog(entry) {
+  return supabaseClient.from('nutrition_logs').insert(entry).select().single();
+}
+
+export async function listNutritionLogs(clientId, { from, to } = {}) {
+  let query = supabaseClient
+    .from('nutrition_logs')
+    .select('*, food_items(name), recipes(title)')
+    .eq('client_id', clientId)
+    .order('logged_at', { ascending: false });
+  if (from) query = query.gte('logged_at', from);
+  if (to) query = query.lte('logged_at', to);
+  return query;
+}
+
+export async function deleteNutritionLog(id) {
+  return supabaseClient.from('nutrition_logs').delete().eq('id', id);
+}
+
+export async function setTrainerComment(logId, comment) {
+  const session = await supabaseClient.auth.getSession();
+  const userId = session.data.session?.user?.id;
+  return supabaseClient
+    .from('nutrition_logs')
+    .update({ trainer_comment: comment || null, trainer_comment_by: userId, trainer_comment_at: new Date().toISOString() })
+    .eq('id', logId);
+}
+
+// ---------------------------------------------------------------------------
+// Gespeicherter Kalorienbedarf (PAL-Rechner-Ergebnisse)
+// ---------------------------------------------------------------------------
+
+export async function insertEnergyTarget(entry) {
+  return supabaseClient.from('energy_targets').insert(entry);
+}
+
+export async function getLatestEnergyTarget(clientId) {
+  return supabaseClient
+    .from('energy_targets')
+    .select('*')
+    .eq('client_id', clientId)
+    .order('calculated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+}
+
+export async function listEnergyTargets(clientId) {
+  return supabaseClient
+    .from('energy_targets')
+    .select('*')
+    .eq('client_id', clientId)
+    .order('calculated_at', { ascending: true });
 }

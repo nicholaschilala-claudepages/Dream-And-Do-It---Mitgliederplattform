@@ -70,6 +70,59 @@ export async function getMyProfile() {
   return data;
 }
 
+// ----------------------------------------------------------------------------
+// Geräte-Limit (max. 2 Geräte je Kunde) – siehe sql/012_..., register_device()
+// ----------------------------------------------------------------------------
+const DEVICE_ID_KEY = 'dadi-device-id';
+
+function getOrCreateDeviceId() {
+  try {
+    let id = localStorage.getItem(DEVICE_ID_KEY);
+    if (!id) {
+      id = (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
+      localStorage.setItem(DEVICE_ID_KEY, id);
+    }
+    return id;
+  } catch (e) {
+    // localStorage evtl. nicht verfügbar (z.B. privater Modus) – dann pro
+    // Seitenaufruf ein neues Gerät, das Limit greift in diesem Fall nicht.
+    return `temp-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+}
+
+function deviceLabel() {
+  const ua = navigator.userAgent || '';
+  let browser = 'Browser';
+  if (/Edg\//.test(ua)) browser = 'Edge';
+  else if (/Chrome\//.test(ua)) browser = 'Chrome';
+  else if (/Firefox\//.test(ua)) browser = 'Firefox';
+  else if (/Safari\//.test(ua)) browser = 'Safari';
+  let os = '';
+  if (/Windows/.test(ua)) os = 'Windows';
+  else if (/Mac OS/.test(ua)) os = 'Mac';
+  else if (/Android/.test(ua)) os = 'Android';
+  else if (/iPhone|iPad/.test(ua)) os = 'iOS';
+  return `${browser}${os ? ' · ' + os : ''}`;
+}
+
+/**
+ * Registriert dieses Gerät beim Login (nur für Kunden, Admin ist nicht
+ * limitiert). Gibt { ok: true } zurück, oder { ok: false, error: 'device_limit_reached' }
+ * wenn das Geräte-Limit erreicht ist und dieses Gerät neu wäre.
+ */
+export async function ensureDeviceRegistered() {
+  const deviceId = getOrCreateDeviceId();
+  const { data, error } = await supabaseClient.rpc('register_device', {
+    p_device_id: deviceId,
+    p_label: deviceLabel(),
+  });
+  if (error) {
+    console.error('Geräte-Registrierung fehlgeschlagen:', error);
+    return { ok: true }; // Im Zweifel nicht aussperren, falls die Funktion (noch) fehlt
+  }
+  return data;
+}
+
 /**
  * Zentrale Zugangsprüfung für geschützte Seiten (z.B. dashboard.html).
  * Leitet nicht eingeloggte Nutzer zurück zum Login.
@@ -82,6 +135,14 @@ export async function requireAuth() {
     return null;
   }
   const profile = await getMyProfile();
+  if (profile && profile.role === 'client') {
+    const deviceResult = await ensureDeviceRegistered();
+    if (!deviceResult.ok && deviceResult.error === 'device_limit_reached') {
+      await signOut();
+      window.location.href = 'index.html?geraetelimit=1';
+      return null;
+    }
+  }
   return profile;
 }
 

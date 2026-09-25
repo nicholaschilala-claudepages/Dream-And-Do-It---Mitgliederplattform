@@ -14,7 +14,7 @@ export async function listClientOverview() {
   const [clientsRes, activityRes] = await Promise.all([
     supabaseClient
       .from('profiles')
-      .select('id, full_name, email, access_locked, created_at')
+      .select('id, full_name, email, access_locked, created_at, max_devices')
       .eq('role', 'client')
       .order('full_name', { ascending: true }),
     supabaseClient.from('client_last_activity').select('*'),
@@ -45,6 +45,26 @@ export async function listClientOverview() {
 
 export async function setClientLock(clientId, locked) {
   return supabaseClient.from('profiles').update({ access_locked: locked }).eq('id', clientId);
+}
+
+// ---------------------------------------------------------------------------
+// Geräte-Verwaltung (max. Geräte je Kunde, siehe sql/012_..., register_device())
+// ---------------------------------------------------------------------------
+
+export async function listClientDevices(clientId) {
+  return supabaseClient
+    .from('client_devices')
+    .select('*')
+    .eq('client_id', clientId)
+    .order('last_seen', { ascending: false });
+}
+
+export async function deleteClientDevice(id) {
+  return supabaseClient.from('client_devices').delete().eq('id', id);
+}
+
+export async function setClientMaxDevices(clientId, maxDevices) {
+  return supabaseClient.from('profiles').update({ max_devices: maxDevices }).eq('id', clientId);
 }
 
 // ---------------------------------------------------------------------------

@@ -320,14 +320,16 @@ export async function startSession({ clientId, planId, planDayId, notes }) {
     .single();
 }
 
-export async function endSession(sessionId) {
-  return supabaseClient.from('training_sessions').update({ ended_at: new Date().toISOString() }).eq('id', sessionId);
+export async function endSession(sessionId, { caloriesBurned } = {}) {
+  const patch = { ended_at: new Date().toISOString() };
+  if (caloriesBurned != null && caloriesBurned !== '') patch.calories_burned = caloriesBurned;
+  return supabaseClient.from('training_sessions').update(patch).eq('id', sessionId);
 }
 
 export async function listSessions(clientId, { from, to } = {}) {
   let query = supabaseClient
     .from('training_sessions')
-    .select('id, plan_id, plan_day_id, started_at, ended_at, notes')
+    .select('id, plan_id, plan_day_id, started_at, ended_at, notes, calories_burned')
     .eq('client_id', clientId)
     .order('started_at', { ascending: true });
   if (from) query = query.gte('started_at', from);
