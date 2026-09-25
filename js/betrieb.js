@@ -14,7 +14,7 @@ export async function listClientOverview() {
   const [clientsRes, activityRes] = await Promise.all([
     supabaseClient
       .from('profiles')
-      .select('id, full_name, email, access_locked, created_at, max_devices, training_enabled, nutrition_enabled, coaching_enabled')
+      .select('id, full_name, email, access_locked, created_at, max_devices, training_enabled, nutrition_enabled, coaching_enabled, new_signup_seen')
       .eq('role', 'client')
       .order('full_name', { ascending: true }),
     supabaseClient.from('client_last_activity').select('*'),
@@ -45,6 +45,28 @@ export async function listClientOverview() {
 
 export async function setClientLock(clientId, locked) {
   return supabaseClient.from('profiles').update({ access_locked: locked }).eq('id', clientId);
+}
+
+// ---------------------------------------------------------------------------
+// Badge für neue Anmeldungen (siehe sql/023_neue_anmeldungen_badge.sql).
+// ---------------------------------------------------------------------------
+
+export async function getNewSignupCount() {
+  const { count, error } = await supabaseClient
+    .from('profiles')
+    .select('id', { count: 'exact', head: true })
+    .eq('role', 'client')
+    .eq('new_signup_seen', false);
+  if (error) return { count: 0, error };
+  return { count: count || 0, error: null };
+}
+
+export async function markNewSignupsSeen() {
+  return supabaseClient
+    .from('profiles')
+    .update({ new_signup_seen: true })
+    .eq('role', 'client')
+    .eq('new_signup_seen', false);
 }
 
 // ---------------------------------------------------------------------------

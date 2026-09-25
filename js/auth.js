@@ -147,24 +147,32 @@ export async function requireAuth() {
 }
 
 // ----------------------------------------------------------------------------
-// Theme (Hell/Dunkel) – Speicherung nur lokal im Browser, rein für Komfort
+// Theme (Hell/Dunkel) – Speicherung nur lokal im Browser, rein für Komfort.
+//
+// Etappe 19: Die Plattform startet IMMER im Hellmodus, unabhängig von den
+// Systemeinstellungen des Geräts/Browsers (data-theme="light" steht dafür
+// bereits statisch im <html>-Tag jeder Seite). Dunkelmodus wird ausschließlich
+// bewusst über den Umschalter aktiviert und dann pro Browser gespeichert –
+// die Systemeinstellung (prefers-color-scheme) wird hierfür nicht mehr
+// herangezogen.
 // ----------------------------------------------------------------------------
 
 export function initTheme() {
   try {
     const saved = localStorage.getItem('dadi-theme');
-    if (saved) document.documentElement.setAttribute('data-theme', saved);
+    // Nur ein explizit gespeichertes "dark" schaltet in den Dunkelmodus –
+    // jeder andere Zustand (nichts gespeichert, "light", ungültiger Wert)
+    // bleibt/wird Hellmodus.
+    document.documentElement.setAttribute('data-theme', saved === 'dark' ? 'dark' : 'light');
   } catch (e) {
-    // localStorage evtl. nicht verfügbar – kein Problem, Standard greift
+    // localStorage evtl. nicht verfügbar – Standard (Hellmodus, s.o. im
+    // <html>-Tag) greift ohnehin.
   }
 }
 
 export function toggleTheme() {
   const current = document.documentElement.getAttribute('data-theme');
-  const isDark = current
-    ? current === 'dark'
-    : window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const next = isDark ? 'light' : 'dark';
+  const next = current === 'dark' ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', next);
   try {
     localStorage.setItem('dadi-theme', next);
