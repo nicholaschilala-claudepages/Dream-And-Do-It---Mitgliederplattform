@@ -279,7 +279,7 @@ export async function insertTrainingLog(entry) {
 export async function listMyTrainingLogs(clientId, limit = 30) {
   return supabaseClient
     .from('training_logs')
-    .select('id, performed_at, set_number, reps, weight_kg, duration_seconds, notes, plan_exercise_id, exercises(name)')
+    .select('id, performed_at, set_number, reps, weight_kg, duration_seconds, distance_meters, notes, plan_exercise_id, exercises(name)')
     .eq('client_id', clientId)
     .order('performed_at', { ascending: false })
     .limit(limit);
@@ -291,8 +291,63 @@ export async function listLogsForPlanExercises(clientId, planExerciseIds) {
   if (!planExerciseIds || planExerciseIds.length === 0) return { data: [], error: null };
   return supabaseClient
     .from('training_logs')
-    .select('id, performed_at, set_number, reps, weight_kg, duration_seconds, plan_exercise_id')
+    .select('id, performed_at, set_number, reps, weight_kg, duration_seconds, distance_meters, plan_exercise_id')
     .eq('client_id', clientId)
     .in('plan_exercise_id', planExerciseIds)
     .order('performed_at', { ascending: false });
+}
+
+// ---------------------------------------------------------------------------
+// Trainingseinheiten (Sessions) – expliziter Start/Ende
+// ---------------------------------------------------------------------------
+
+export async function getActiveSession(clientId) {
+  return supabaseClient
+    .from('training_sessions')
+    .select('id, plan_id, plan_day_id, started_at, notes')
+    .eq('client_id', clientId)
+    .is('ended_at', null)
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+}
+
+export async function startSession({ clientId, planId, planDayId, notes }) {
+  return supabaseClient
+    .from('training_sessions')
+    .insert({ client_id: clientId, plan_id: planId || null, plan_day_id: planDayId || null, notes: notes || null })
+    .select()
+    .single();
+}
+
+export async function endSession(sessionId) {
+  return supabaseClient.from('training_sessions').update({ ended_at: new Date().toISOString() }).eq('id', sessionId);
+}
+
+export async function listSessions(clientId, { from, to } = {}) {
+  let query = supabaseClient
+    .from('training_sessions')
+    .select('id, plan_id, plan_day_id, started_at, ended_at, notes')
+    .eq('client_id', clientId)
+    .order('started_at', { ascending: true });
+  if (from) query = query.gte('started_at', from);
+  if (to) query = query.lte('started_at', to);
+  return query;
+}
+
+// ---------------------------------------------------------------------------
+// Auswertung / Analytics (bewegte Kilos, Steigerung über Zeit, Dysbalance)
+// ---------------------------------------------------------------------------
+
+// Alle Trainingslogs eines Kunden in einem Zeitraum, inkl. Übungsdaten
+// (Kategorie, Muskelgruppe, Bewegungsmuster) für Auswertung/Charts.
+export async function listLogsForAnalytics(clientId, { from, to } = {}) {
+  let query = supabaseClient
+    .from('training_logs')
+    .select('id, performed_at, session_id, exercise_id, set_number, reps, weight_kg, duration_seconds, distance_meters, exercises(id, name, category, muscle_group, movement_pattern)')
+    .eq('client_id', clientId)
+    .order('performed_at', { ascending: true });
+  if (from) query = query.gte('performed_at', from);
+  if (to) query = query.lte('performed_at', to);
+  return query;
 }
