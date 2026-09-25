@@ -99,6 +99,9 @@
         DREAM AND DO IT
       </div>
       <div style="display:flex; gap:8px;">
+        <a class="icon-btn msg-btn" href="messages.html" style="text-decoration:none;">
+          Nachrichten<span class="msg-badge" id="msg-badge"></span>
+        </a>
         <a class="icon-btn" href="dashboard.html" style="text-decoration:none;">Zum Dashboard</a>
         <button class="icon-btn" id="theme-toggle" type="button">Hell/Dunkel</button>
       </div>
@@ -127,6 +130,8 @@
       getActiveSession, startSession, endSession, listLogsForAnalytics,
     } from './js/training.js';
     import { queueTrainingLog, syncQueuedLogs } from './js/offline-queue.js';
+    import { getUnreadCount } from './js/messages.js';
+    import { SECTION_INFO } from './js/section-info.js';
 
     initTheme();
     document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
@@ -203,7 +208,7 @@
 
       const { data: profile, error } = await supabaseClient
         .from('profiles')
-        .select('id, full_name, role, access_locked')
+        .select('id, full_name, role, access_locked, training_enabled')
         .eq('id', session.user.id)
         .maybeSingle();
 
@@ -217,6 +222,12 @@
       }
 
       currentProfile = profile;
+      mountMessageBadge(profile.id);
+
+      if (profile.role !== 'admin' && !profile.training_enabled) {
+        renderLockedTeaser();
+        return;
+      }
 
       if (profile.role === 'admin') {
         await renderAdminView();
@@ -226,6 +237,40 @@
 
       trySyncOfflineLogs();
       window.addEventListener('online', trySyncOfflineLogs);
+    }
+
+    async function mountMessageBadge(userId) {
+      const count = await getUnreadCount(userId);
+      const el = document.getElementById('msg-badge');
+      if (!el) return;
+      if (count > 0) {
+        el.textContent = count > 9 ? '9+' : String(count);
+        el.style.display = 'inline-block';
+      }
+    }
+
+    function renderLockedTeaser() {
+      const info = SECTION_INFO.training;
+      container.innerHTML = `
+        <div class="locked-teaser">
+          <span class="lock-badge">🔒 ${escapeHtml(info.lockedLead)}</span>
+          <div class="section-hero">
+            <span class="kicker">${escapeHtml(info.title)}</span>
+            <h2>${escapeHtml(info.heroLine)}</h2>
+            <p class="lead">${info.clientIntro}</p>
+          </div>
+          <div class="benefit-grid">
+            ${info.benefits.map((b) => `<div class="benefit-card"><h4>${escapeHtml(b.h)}</h4><p>${escapeHtml(b.t)}</p></div>`).join('')}
+          </div>
+          <div class="science-box">
+            <span class="kicker">Wissenschaftlicher Hintergrund</span>
+            <p>${info.scienceText}</p>
+          </div>
+          <a class="btn mt-16" style="display:inline-block; width:auto; padding:12px 24px;" href="messages.html">
+            Interesse? Jetzt nachfragen
+          </a>
+        </div>
+      `;
     }
 
     async function trySyncOfflineLogs() {
@@ -242,7 +287,8 @@
     async function renderClientRoot(profile) {
       container.innerHTML = `
         <div class="subtabs">
-          <button class="client-tab active" data-tab="plan">Mein Plan</button>
+          <button class="client-tab active" data-tab="start">Start</button>
+          <button class="client-tab" data-tab="plan">Mein Plan</button>
           <button class="client-tab" data-tab="progress">Meine Entwicklung</button>
         </div>
         <div id="client-content"><p class="center-text">Lade …</p></div>
@@ -253,10 +299,48 @@
           btn.classList.add('active');
           const content = document.getElementById('client-content');
           if (btn.dataset.tab === 'progress') renderAnalyticsView(content, profile.id, { isAdminView: false });
+          else if (btn.dataset.tab === 'start') renderStartTab(content, false);
           else renderClientView(content, profile);
         });
       });
-      renderClientView(document.getElementById('client-content'), profile);
+      renderStartTab(document.getElementById('client-content'), false);
+    }
+
+    function goToTab(tabClass, tabName) {
+      const btn = container.querySelector(`.${tabClass}[data-tab="${tabName}"]`);
+      if (btn) btn.click();
+    }
+
+    function renderStartTab(content, isAdmin) {
+      const info = SECTION_INFO.training;
+      content.innerHTML = `
+        <div class="section-hero">
+          <span class="kicker">${escapeHtml(info.title)}</span>
+          <h2>${escapeHtml(info.heroLine)}</h2>
+          <p class="lead">${isAdmin ? info.adminIntro : info.clientIntro}</p>
+        </div>
+        ${isAdmin ? '' : `
+        <div class="benefit-grid">
+          ${info.benefits.map((b) => `<div class="benefit-card"><h4>${escapeHtml(b.h)}</h4><p>${escapeHtml(b.t)}</p></div>`).join('')}
+        </div>`}
+        <div class="science-box">
+          <span class="kicker">Wissenschaftlicher Hintergrund</span>
+          <p>${info.scienceText}</p>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:16px;">
+          ${isAdmin ? `
+            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="templates">Zu den Vorlagen</button>
+            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="library">Zur Übungsbibliothek</button>
+            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="analysis">Zur Kundenanalyse</button>
+          ` : `
+            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="plan">Zu meinem Plan</button>
+            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="progress">Zu meiner Entwicklung</button>
+          `}
+        </div>
+      `;
+      content.querySelectorAll('[data-goto]').forEach((btn) => {
+        btn.addEventListener('click', () => goToTab(isAdmin ? 'admin-tab' : 'client-tab', btn.dataset.goto));
+      });
     }
 
     function computeStatus(pe, logsForThis) {
@@ -502,7 +586,8 @@
     async function renderAdminView() {
       container.innerHTML = `
         <div class="subtabs">
-          <button class="admin-tab active" data-tab="templates">Vorlagen bauen</button>
+          <button class="admin-tab active" data-tab="start">Start</button>
+          <button class="admin-tab" data-tab="templates">Vorlagen bauen</button>
           <button class="admin-tab" data-tab="assign">Vorlage zuweisen</button>
           <button class="admin-tab" data-tab="plans">Einzelplan erstellen</button>
           <button class="admin-tab" data-tab="library">Übungsbibliothek</button>
@@ -520,13 +605,14 @@
         });
       });
 
-      renderAdminTab('templates');
+      renderAdminTab('start');
     }
 
     async function renderAdminTab(tab) {
       const content = document.getElementById('admin-content');
       content.innerHTML = '<p class="center-text">Lade …</p>';
 
+      if (tab === 'start') return renderStartTab(content, true);
       if (tab === 'library') return renderLibraryTab(content);
       if (tab === 'existing') return renderExistingPlansTab(content);
       if (tab === 'templates') return renderTemplatesTab(content);

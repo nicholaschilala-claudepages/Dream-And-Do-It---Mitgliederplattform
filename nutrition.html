@@ -74,6 +74,9 @@
         DREAM AND DO IT
       </div>
       <div style="display:flex; gap:8px;">
+        <a class="icon-btn msg-btn" href="messages.html" style="text-decoration:none;">
+          Nachrichten<span class="msg-badge" id="msg-badge"></span>
+        </a>
         <a class="icon-btn" href="dashboard.html" style="text-decoration:none;">Zum Dashboard</a>
         <button class="icon-btn" id="theme-toggle" type="button">Hell/Dunkel</button>
       </div>
@@ -98,6 +101,8 @@
       insertEnergyTarget, getLatestEnergyTarget,
     } from './js/nutrition.js';
     import { listClients, listSessions } from './js/training.js';
+    import { getUnreadCount } from './js/messages.js';
+    import { SECTION_INFO } from './js/section-info.js';
 
     initTheme();
     document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
@@ -133,7 +138,7 @@
 
       const { data: profile, error } = await supabaseClient
         .from('profiles')
-        .select('id, full_name, role, access_locked')
+        .select('id, full_name, role, access_locked, nutrition_enabled')
         .eq('id', session.user.id)
         .maybeSingle();
 
@@ -147,14 +152,69 @@
       }
 
       currentProfile = profile;
+      mountMessageBadge(profile.id);
+
+      if (profile.role !== 'admin' && !profile.nutrition_enabled) {
+        renderLockedTeaser();
+        return;
+      }
       renderShell();
+    }
+
+    async function mountMessageBadge(userId) {
+      const count = await getUnreadCount(userId);
+      const el = document.getElementById('msg-badge');
+      if (!el) return;
+      if (count > 0) {
+        el.textContent = count > 9 ? '9+' : String(count);
+        el.style.display = 'inline-block';
+      }
+    }
+
+    function renderLockedTeaser() {
+      const info = SECTION_INFO.nutrition;
+      container.innerHTML = `
+        <div class="locked-teaser">
+          <span class="lock-badge">🔒 ${escapeHtml(info.lockedLead)}</span>
+          <div class="section-hero">
+            <span class="kicker">${escapeHtml(info.title)}</span>
+            <h2>${escapeHtml(info.heroLine)}</h2>
+            <p class="lead">${info.clientIntro}</p>
+          </div>
+          <div class="benefit-grid">
+            ${info.benefits.map((b) => `<div class="benefit-card"><h4>${escapeHtml(b.h)}</h4><p>${escapeHtml(b.t)}</p></div>`).join('')}
+          </div>
+          ${plateVisualHtml()}
+          <div class="science-box">
+            <span class="kicker">Wissenschaftlicher Hintergrund</span>
+            <p>${info.scienceText}</p>
+          </div>
+          <a class="btn mt-16" style="display:inline-block; width:auto; padding:12px 24px;" href="messages.html">
+            Interesse? Jetzt nachfragen
+          </a>
+        </div>
+      `;
+    }
+
+    function plateVisualHtml() {
+      return `
+        <div class="plate-visual">
+          <div class="plate-circle" title="Dream-And-Do-It-Teller: 50% Gemüse & Obst, 25% Protein, 25% Kohlenhydrate"></div>
+          <div class="plate-legend">
+            <span class="row"><i style="background:var(--color-gold-light);"></i><span class="pct">50%</span> Gemüse &amp; Obst</span>
+            <span class="row"><i style="background:var(--color-navy);"></i><span class="pct">25%</span> Protein</span>
+            <span class="row"><i style="background:var(--color-gold);"></i><span class="pct">25%</span> Vollwertige Kohlenhydrate</span>
+          </div>
+        </div>
+      `;
     }
 
     function renderShell() {
       const isAdmin = currentProfile.role === 'admin';
       container.innerHTML = `
         <div class="subtabs">
-          <button class="ntab active" data-tab="pal">PAL-Rechner</button>
+          <button class="ntab active" data-tab="start">Start</button>
+          <button class="ntab" data-tab="pal">PAL-Rechner</button>
           <button class="ntab" data-tab="bodyfat">Körperfett-Verlauf</button>
           <button class="ntab" data-tab="protokoll">Ernährungsprotokoll</button>
           <button class="ntab" data-tab="recipes">Rezepte</button>
@@ -170,11 +230,53 @@
           renderTab(btn.dataset.tab);
         });
       });
-      renderTab('pal');
+      renderTab('start');
+    }
+
+    function goToTab(tabName) {
+      const btn = container.querySelector(`.ntab[data-tab="${tabName}"]`);
+      if (btn) btn.click();
+    }
+
+    function renderStartTab(content) {
+      const isAdmin = currentProfile.role === 'admin';
+      const info = SECTION_INFO.nutrition;
+      content.innerHTML = `
+        <div class="section-hero">
+          <span class="kicker">${escapeHtml(info.title)}</span>
+          <h2>${escapeHtml(info.heroLine)}</h2>
+          <p class="lead">${isAdmin ? info.adminIntro : info.clientIntro}</p>
+        </div>
+        ${isAdmin ? '' : `
+        <div class="benefit-grid">
+          ${info.benefits.map((b) => `<div class="benefit-card"><h4>${escapeHtml(b.h)}</h4><p>${escapeHtml(b.t)}</p></div>`).join('')}
+        </div>
+        ${plateVisualHtml()}`}
+        <div class="science-box">
+          <span class="kicker">Wissenschaftlicher Hintergrund</span>
+          <p>${info.scienceText}</p>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:16px;">
+          ${isAdmin ? `
+            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="recipes-admin">Rezepte verwalten</button>
+            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="foods-admin">Lebensmittel verwalten</button>
+            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="protokoll">Ernährungsprotokolle</button>
+          ` : `
+            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="pal">Zum PAL-Rechner</button>
+            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="bodyfat">Zum Körperfett-Verlauf</button>
+            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="protokoll">Zum Ernährungsprotokoll</button>
+            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="recipes">Zu den Rezepten</button>
+          `}
+        </div>
+      `;
+      content.querySelectorAll('[data-goto]').forEach((btn) => {
+        btn.addEventListener('click', () => goToTab(btn.dataset.goto));
+      });
     }
 
     function renderTab(tab) {
       const content = document.getElementById('tab-content');
+      if (tab === 'start') return renderStartTab(content);
       if (tab === 'pal') return renderPalTab(content);
       if (tab === 'bodyfat') return renderBodyfatTab(content);
       if (tab === 'protokoll') return renderNutritionLogTab(content);

@@ -33,6 +33,9 @@
         DREAM AND DO IT
       </div>
       <div style="display:flex; gap:8px;">
+        <a class="icon-btn msg-btn" href="messages.html" style="text-decoration:none;">
+          Nachrichten<span class="msg-badge" id="msg-badge"></span>
+        </a>
         <a class="icon-btn" href="dashboard.html" style="text-decoration:none;">Zum Dashboard</a>
         <button class="icon-btn" id="theme-toggle" type="button">Hell/Dunkel</button>
       </div>
@@ -46,7 +49,8 @@
   <script type="module">
     import { supabaseClient } from './js/supabase-client.js';
     import { getCurrentSession, initTheme, toggleTheme } from './js/auth.js';
-    import { listClientOverview, setClientLock, getReportData, listClientDevices, deleteClientDevice, setClientMaxDevices } from './js/betrieb.js';
+    import { listClientOverview, setClientLock, setClientModuleAccess, getReportData, listClientDevices, deleteClientDevice, setClientMaxDevices } from './js/betrieb.js';
+    import { getUnreadCount } from './js/messages.js';
 
     initTheme();
     document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
@@ -95,7 +99,18 @@
       }
 
       currentProfile = profile;
+      mountMessageBadge(profile.id);
       renderShell();
+    }
+
+    async function mountMessageBadge(userId) {
+      const count = await getUnreadCount(userId);
+      const el = document.getElementById('msg-badge');
+      if (!el) return;
+      if (count > 0) {
+        el.textContent = count > 9 ? '9+' : String(count);
+        el.style.display = 'inline-block';
+      }
     }
 
     function renderShell() {
@@ -225,8 +240,13 @@
             <span class="activity-badge activity-critical" style="margin:0 4px;">21+ Tage</span> sind Hinweise, sich zu melden – kein Automatismus.
           </p>
           ${!clients || clients.length === 0 ? '<p style="color:var(--color-text-muted);">Noch keine Kunden angelegt.</p>' : `
+          <p style="color:var(--color-text-muted); font-size:0.82rem; margin-top:14px;">
+            Reiter-Freigabe: einzeln steuerbar, welche Bereiche ein Kunde nutzen darf (Standard: alle drei
+            aktiv). Ein gesperrter Reiter zeigt dem Kunden eine Vorteils-Übersicht statt der echten Inhalte —
+            Nachrichten sind davon nie betroffen.
+          </p>
           <table class="simple-table mt-16">
-            <thead><tr><th>Kunde</th><th>Letzte Aktivität</th><th>Zugriff</th><th></th></tr></thead>
+            <thead><tr><th>Kunde</th><th>Letzte Aktivität</th><th>Zugriff</th><th>Reiter-Freigabe</th><th></th></tr></thead>
             <tbody>
               ${clients.map((c) => {
                 let badge;
@@ -234,11 +254,26 @@
                 else if (c.days_since_activity >= 21) badge = `<span class="activity-badge activity-critical">${c.days_since_activity} Tage her</span>`;
                 else if (c.days_since_activity >= 10) badge = `<span class="activity-badge activity-warn">${c.days_since_activity} Tage her</span>`;
                 else badge = `<span class="activity-badge activity-ok">${c.days_since_activity === 0 ? 'heute' : c.days_since_activity + ' Tage her'}</span>`;
+                const modules = [
+                  { field: 'training_enabled', label: 'Training', on: c.training_enabled },
+                  { field: 'nutrition_enabled', label: 'Ernährung', on: c.nutrition_enabled },
+                  { field: 'coaching_enabled', label: 'Coaching', on: c.coaching_enabled },
+                ];
                 return `
                   <tr>
                     <td>${escapeHtml(c.full_name || c.email)}</td>
                     <td>${badge}</td>
                     <td>${c.access_locked ? '🔒 gesperrt' : '✓ aktiv'}</td>
+                    <td>
+                      <div class="module-toggles">
+                        ${modules.map((m) => `
+                          <button class="module-toggle-btn ${m.on ? 'on' : 'off'}"
+                                  data-toggle-module="${c.id}" data-field="${m.field}" data-current="${m.on}">
+                            ${m.label} ${m.on ? '✓' : '✗'}
+                          </button>
+                        `).join('')}
+                      </div>
+                    </td>
                     <td>
                       <button class="btn secondary lock-btn" data-toggle-lock="${c.id}" data-current="${c.access_locked}">
                         ${c.access_locked ? 'Entsperren' : 'Sperren'}
@@ -258,6 +293,15 @@
           const label = current ? 'entsperren' : 'sperren';
           if (!confirm(`Zugriff für diesen Kunden wirklich ${label}?`)) return;
           const { error } = await setClientLock(btn.dataset.toggleLock, !current);
+          if (error) { alert('Fehler: ' + error.message); return; }
+          renderFruehwarnTab(content);
+        });
+      });
+
+      content.querySelectorAll('[data-toggle-module]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const current = btn.dataset.current === 'true';
+          const { error } = await setClientModuleAccess(btn.dataset.toggleModule, btn.dataset.field, !current);
           if (error) { alert('Fehler: ' + error.message); return; }
           renderFruehwarnTab(content);
         });

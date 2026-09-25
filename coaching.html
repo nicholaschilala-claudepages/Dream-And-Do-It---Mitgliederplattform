@@ -76,6 +76,9 @@
         DREAM AND DO IT
       </div>
       <div style="display:flex; gap:8px;">
+        <a class="icon-btn msg-btn" href="messages.html" style="text-decoration:none;">
+          Nachrichten<span class="msg-badge" id="msg-badge"></span>
+        </a>
         <a class="icon-btn" href="dashboard.html" style="text-decoration:none;">Zum Dashboard</a>
         <button class="icon-btn" id="theme-toggle" type="button">Hell/Dunkel</button>
       </div>
@@ -97,6 +100,8 @@
       insertGoalOption, updateGoalOption, deleteGoalOption,
       insertWillAction, updateWillActionStatus, deleteWillAction,
     } from './js/coaching.js';
+    import { getUnreadCount } from './js/messages.js';
+    import { SECTION_INFO } from './js/section-info.js';
 
     initTheme();
     document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
@@ -122,7 +127,7 @@
 
       const { data: profile, error } = await supabaseClient
         .from('profiles')
-        .select('id, full_name, role, access_locked')
+        .select('id, full_name, role, access_locked, coaching_enabled')
         .eq('id', session.user.id)
         .maybeSingle();
 
@@ -136,14 +141,55 @@
       }
 
       currentProfile = profile;
+      mountMessageBadge(profile.id);
+
+      if (profile.role !== 'admin' && !profile.coaching_enabled) {
+        renderLockedTeaser();
+        return;
+      }
       renderShell();
+    }
+
+    async function mountMessageBadge(userId) {
+      const count = await getUnreadCount(userId);
+      const el = document.getElementById('msg-badge');
+      if (!el) return;
+      if (count > 0) {
+        el.textContent = count > 9 ? '9+' : String(count);
+        el.style.display = 'inline-block';
+      }
+    }
+
+    function renderLockedTeaser() {
+      const info = SECTION_INFO.coaching;
+      container.innerHTML = `
+        <div class="locked-teaser">
+          <span class="lock-badge">🔒 ${escapeHtml(info.lockedLead)}</span>
+          <div class="section-hero">
+            <span class="kicker">${escapeHtml(info.title)}</span>
+            <h2>${escapeHtml(info.heroLine)}</h2>
+            <p class="lead">${info.clientIntro}</p>
+          </div>
+          <div class="benefit-grid">
+            ${info.benefits.map((b) => `<div class="benefit-card"><h4>${escapeHtml(b.h)}</h4><p>${escapeHtml(b.t)}</p></div>`).join('')}
+          </div>
+          <div class="science-box">
+            <span class="kicker">Wissenschaftlicher Hintergrund</span>
+            <p>${info.scienceText}</p>
+          </div>
+          <a class="btn mt-16" style="display:inline-block; width:auto; padding:12px 24px;" href="messages.html">
+            Interesse? Jetzt nachfragen
+          </a>
+        </div>
+      `;
     }
 
     function renderShell() {
       const isAdmin = currentProfile.role === 'admin';
       container.innerHTML = `
         <div class="subtabs">
-          <button class="ctab active" data-tab="content">Content</button>
+          <button class="ctab active" data-tab="start">Start</button>
+          <button class="ctab" data-tab="content">Content</button>
           ${isAdmin ? '<button class="ctab" data-tab="content-admin">Content verwalten</button>' : ''}
           <button class="ctab" data-tab="fragebogen">Fragebögen</button>
           <button class="ctab" data-tab="ziele">Ziele (GROW)</button>
@@ -158,11 +204,50 @@
           renderTab(btn.dataset.tab);
         });
       });
-      renderTab('content');
+      renderTab('start');
+    }
+
+    function goToTab(tabName) {
+      const btn = container.querySelector(`.ctab[data-tab="${tabName}"]`);
+      if (btn) btn.click();
+    }
+
+    function renderStartTab(content) {
+      const isAdmin = currentProfile.role === 'admin';
+      const info = SECTION_INFO.coaching;
+      content.innerHTML = `
+        <div class="section-hero">
+          <span class="kicker">${escapeHtml(info.title)}</span>
+          <h2>${escapeHtml(info.heroLine)}</h2>
+          <p class="lead">${isAdmin ? info.adminIntro : info.clientIntro}</p>
+        </div>
+        ${isAdmin ? '' : `
+        <div class="benefit-grid">
+          ${info.benefits.map((b) => `<div class="benefit-card"><h4>${escapeHtml(b.h)}</h4><p>${escapeHtml(b.t)}</p></div>`).join('')}
+        </div>`}
+        <div class="science-box">
+          <span class="kicker">${isAdmin ? 'Akademischer Hintergrund & wissenschaftliche Grundlage' : 'Wissenschaftlicher Hintergrund'}</span>
+          <p>${info.scienceText}</p>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:16px;">
+          ${isAdmin ? `
+            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="content-admin">Content verwalten</button>
+            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="fragebogen">Fragebögen der Kunden</button>
+          ` : `
+            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="content">Zur Content-Bibliothek</button>
+            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="fragebogen">Zu den Fragebögen</button>
+            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="ziele">Zu meinen Zielen</button>
+          `}
+        </div>
+      `;
+      content.querySelectorAll('[data-goto]').forEach((btn) => {
+        btn.addEventListener('click', () => goToTab(btn.dataset.goto));
+      });
     }
 
     function renderTab(tab) {
       const content = document.getElementById('tab-content');
+      if (tab === 'start') return renderStartTab(content);
       if (tab === 'content') return renderContentTab(content, false);
       if (tab === 'content-admin') return renderContentTab(content, true);
       if (tab === 'fragebogen') return renderFragebogenTab(content);

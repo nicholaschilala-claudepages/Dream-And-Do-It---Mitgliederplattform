@@ -18,6 +18,9 @@
         DREAM AND DO IT
       </div>
       <div style="display:flex; gap:8px;">
+        <a class="icon-btn msg-btn" href="messages.html" style="text-decoration:none;">
+          Nachrichten<span class="msg-badge" id="msg-badge"></span>
+        </a>
         <button class="icon-btn" id="theme-toggle" type="button">Hell/Dunkel</button>
         <button class="icon-btn" id="logout-btn" type="button">Abmelden</button>
       </div>
@@ -34,6 +37,8 @@
 
   <script type="module">
     import { requireAuth, signOut, initTheme, toggleTheme } from './js/auth.js';
+    import { getUnreadCount } from './js/messages.js';
+    import { SECTION_INFO, welcomeParagraphs } from './js/section-info.js';
 
     initTheme();
     document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
@@ -47,12 +52,24 @@
     requireAuth().then((profile) => {
       if (!profile) return; // requireAuth leitet bereits zum Login um
 
+      mountMessageBadge(profile.id);
+
       if (profile.access_locked) {
         renderLocked();
         return;
       }
       renderDashboard(profile);
     });
+
+    async function mountMessageBadge(userId) {
+      const count = await getUnreadCount(userId);
+      const el = document.getElementById('msg-badge');
+      if (!el) return;
+      if (count > 0) {
+        el.textContent = count > 9 ? '9+' : String(count);
+        el.style.display = 'inline-block';
+      }
+    }
 
     function renderLocked() {
       container.innerHTML = `
@@ -69,41 +86,135 @@
       `;
     }
 
+    function availPill(enabled) {
+      return enabled
+        ? '<span class="status-pill" style="display:inline-block; margin-top:10px; font-size:0.72rem; padding:3px 8px; border-radius:12px; background:rgba(47,111,79,0.15); color:var(--color-success);">verfügbar</span>'
+        : '<span class="status-pill" style="display:inline-block; margin-top:10px; font-size:0.72rem; padding:3px 8px; border-radius:12px; background:rgba(180,40,40,0.1); color:var(--color-danger);">auf Anfrage</span>';
+    }
+
     function renderDashboard(profile) {
-      const rolleLabel = profile.role === 'admin' ? 'Admin/Coach' : 'Kunde';
+      if (profile.role === 'admin') {
+        renderTrainerStart(profile);
+      } else {
+        renderClientStart(profile);
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // TRAINER-STARTSEITE (Admin) — "wo befinde ich mich, was liegt wo"
+    // -------------------------------------------------------------------------
+    function renderTrainerStart(profile) {
       container.innerHTML = `
-        <div class="card">
-          <h2 style="font-size:1.15rem;">Willkommen, ${escapeHtml(profile.full_name || 'bei Dream And Do It')}</h2>
-          <p style="color:var(--color-text-muted); margin-top:-8px;">Rolle: ${rolleLabel}</p>
+        <div class="section-hero">
+          <span class="kicker">Trainer-Ansicht</span>
+          <h2>Kundensoftware von Dream And Do It</h2>
+          <p class="lead">
+            Hallo ${escapeHtml(profile.full_name || '')}, du befindest dich in der Admin-/Coach-Ansicht der
+            Kundenplattform. Hier verwaltest du Inhalte und Pläne, siehst die Entwicklung deiner Kunden und
+            kommunizierst direkt mit ihnen. Kunden sehen eine eigene, vereinfachte Ansicht mit nur den Bereichen,
+            die du für sie freigeschaltet hast — deine eigenen Rechte und Zugriffe bleiben davon unberührt.
+          </p>
+        </div>
+
+        <div class="benefit-grid">
+          <div class="benefit-card">
+            <h4>Training</h4>
+            <p>${SECTION_INFO.training.adminIntro}</p>
+          </div>
+          <div class="benefit-card">
+            <h4>Ernährung</h4>
+            <p>${SECTION_INFO.nutrition.adminIntro}</p>
+          </div>
+          <div class="benefit-card">
+            <h4>Coaching</h4>
+            <p>${SECTION_INFO.coaching.adminIntro}</p>
+          </div>
+          <div class="benefit-card">
+            <h4>Nachrichten</h4>
+            <p>Direkter Austausch mit all deinen Kunden zu ihren Leistungen — immer erreichbar, unabhängig von Reiter-Freigaben.</p>
+          </div>
+          <div class="benefit-card">
+            <h4>Trainer-Dashboard (Betrieb)</h4>
+            <p>Kundenübersicht mit Aktivitäts-Frühwarnsystem, Wochenreport-Erstellung, Geräteverwaltung und die
+              Reiter-Freigabe je Kunde (Training/Ernährung/Coaching einzeln sperr-/freischaltbar).</p>
+          </div>
         </div>
 
         <div class="section-grid">
           <a class="section-card" href="training.html" style="text-decoration:none; color:inherit; display:block;">
-            <h3>Training</h3>
-            <p>${profile.role === 'admin' ? 'Übungsbibliothek pflegen und Trainingspläne zuweisen.' : 'Dein Trainingsplan, Übungen und dein Trainingstagebuch.'}</p>
-            <span class="status-pill active" style="display:inline-block; margin-top:10px; font-size:0.72rem; padding:3px 8px; border-radius:12px; background:rgba(47,111,79,0.15); color:var(--color-success);">verfügbar</span>
+            <h3>Training</h3><p>Übungsbibliothek, Vorlagen &amp; Kundenanalyse.</p>${availPill(true)}
           </a>
           <a class="section-card" href="nutrition.html" style="text-decoration:none; color:inherit; display:block;">
-            <h3>Ernährung</h3>
-            <p>Rezepte, PAL-Rechner und dein Körperfett-Verlauf (Navy-Methode).</p>
-            <span class="status-pill active" style="display:inline-block; margin-top:10px; font-size:0.72rem; padding:3px 8px; border-radius:12px; background:rgba(47,111,79,0.15); color:var(--color-success);">verfügbar</span>
+            <h3>Ernährung</h3><p>Rezepte, Lebensmittel &amp; Ernährungsprotokolle.</p>${availPill(true)}
           </a>
           <a class="section-card" href="coaching.html" style="text-decoration:none; color:inherit; display:block;">
-            <h3>Coaching</h3>
-            <p>Content zu persönlicher Entwicklung, Fragebögen und dein Ziel-Modul.</p>
-            <span class="status-pill active" style="display:inline-block; margin-top:10px; font-size:0.72rem; padding:3px 8px; border-radius:12px; background:rgba(47,111,79,0.15); color:var(--color-success);">verfügbar</span>
+            <h3>Coaching</h3><p>Content, Fragebögen &amp; GROW-Ziele.</p>${availPill(true)}
           </a>
           <a class="section-card" href="messages.html" style="text-decoration:none; color:inherit; display:block;">
-            <h3>Nachrichten</h3>
-            <p>${profile.role === 'admin' ? 'Direkter Austausch mit deinen Kunden zu ihren Leistungen.' : 'Direkter Austausch mit deinem Coach zu deinen Leistungen.'}</p>
-            <span class="status-pill active" style="display:inline-block; margin-top:10px; font-size:0.72rem; padding:3px 8px; border-radius:12px; background:rgba(47,111,79,0.15); color:var(--color-success);">verfügbar</span>
+            <h3>Nachrichten</h3><p>Austausch mit deinen Kunden.</p>${availPill(true)}
           </a>
-          ${profile.role === 'admin' ? `
           <a class="section-card" href="betrieb.html" style="text-decoration:none; color:inherit; display:block;">
-            <h3>Trainer-Dashboard</h3>
-            <p>Überblick über alle Kunden, Aktivität und Zugriffsverwaltung.</p>
-            <span class="status-pill active" style="display:inline-block; margin-top:10px; font-size:0.72rem; padding:3px 8px; border-radius:12px; background:rgba(47,111,79,0.15); color:var(--color-success);">verfügbar</span>
-          </a>` : ''}
+            <h3>Trainer-Dashboard</h3><p>Kunden, Aktivität, Zugriff &amp; Reiter-Freigabe.</p>${availPill(true)}
+          </a>
+        </div>
+      `;
+    }
+
+    // -------------------------------------------------------------------------
+    // KUNDEN-STARTSEITE — persönliche Begrüßung + Überblick inkl. Vorteilen
+    // -------------------------------------------------------------------------
+    function renderClientStart(profile) {
+      const firstName = (profile.full_name || '').split(' ')[0];
+      const welcomeHtml = welcomeParagraphs(firstName).map((p) => `<p>${p}</p>`).join('');
+
+      const modules = [
+        { key: 'training', href: 'training.html', enabled: profile.training_enabled },
+        { key: 'nutrition', href: 'nutrition.html', enabled: profile.nutrition_enabled },
+        { key: 'coaching', href: 'coaching.html', enabled: profile.coaching_enabled },
+      ];
+
+      container.innerHTML = `
+        <div class="welcome-card">
+          <div class="welcome-card-header">
+            <img class="welcome-card-photo" src="icons/nicholas-portrait.jpg" alt="Nicholas Chilala" />
+            <div class="welcome-card-header-text">
+              <h2 style="margin-bottom:2px;">Willkommen bei Dream And Do It</h2>
+              <p class="welcome-card-signature">Nicholas Chilala — Gründer &amp; Head Coach</p>
+              <p class="welcome-card-credentials">M.A. Prävention &amp; Gesundheitsmanagement (Schwerpunkt Coaching &amp; Sportpsychologie) · IHK-Coach · zertifizierter Trainer für Management &amp; Sales</p>
+            </div>
+          </div>
+          ${welcomeHtml}
+        </div>
+
+        <div class="benefit-grid">
+          ${modules.map((m) => {
+            const info = SECTION_INFO[m.key];
+            return `
+              <div class="benefit-card">
+                <h4>${escapeHtml(info.title)} ${m.enabled ? '' : '<span style="font-size:0.68rem; color:var(--color-danger); font-weight:400;">(auf Anfrage)</span>'}</h4>
+                <p>${info.clientIntro}</p>
+              </div>
+            `;
+          }).join('')}
+          <div class="benefit-card">
+            <h4>Nachrichten</h4>
+            <p>Direkter Austausch mit mir zu deinen Leistungen — dieser Bereich ist für dich immer zugänglich, egal welche anderen Bereiche freigeschaltet sind.</p>
+          </div>
+        </div>
+
+        <div class="section-grid">
+          <a class="section-card" href="training.html" style="text-decoration:none; color:inherit; display:block;">
+            <h3>Training</h3><p>Dein Trainingsplan, Übungen und dein Trainingstagebuch.</p>${availPill(profile.training_enabled)}
+          </a>
+          <a class="section-card" href="nutrition.html" style="text-decoration:none; color:inherit; display:block;">
+            <h3>Ernährung</h3><p>Rezepte, PAL-Rechner und dein Körperfett-Verlauf.</p>${availPill(profile.nutrition_enabled)}
+          </a>
+          <a class="section-card" href="coaching.html" style="text-decoration:none; color:inherit; display:block;">
+            <h3>Coaching</h3><p>Content zu persönlicher Entwicklung, Fragebögen und dein Ziel-Modul.</p>${availPill(profile.coaching_enabled)}
+          </a>
+          <a class="section-card" href="messages.html" style="text-decoration:none; color:inherit; display:block;">
+            <h3>Nachrichten</h3><p>Direkter Austausch mit deinem Coach zu deinen Leistungen.</p>${availPill(true)}
+          </a>
         </div>
       `;
     }
