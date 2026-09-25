@@ -95,7 +95,7 @@
   <div class="page">
     <div class="topbar">
       <div class="brand">
-        <img src="icons/icon-192.png" alt="Dream And Do It Logo" onerror="this.style.display='none'" />
+        <img src="icons/logo-mark.png" alt="Dream And Do It Logo" onerror="this.style.display='none'" />
         DREAM AND DO IT
       </div>
       <div style="display:flex; gap:8px;">
@@ -318,7 +318,10 @@
         const startedLabel = formatDate(activeSession.started_at);
         html += `<div class="session-banner active">
           <div><strong>Trainingseinheit läuft</strong> · gestartet ${startedLabel}</div>
-          <button class="btn secondary small-btn" id="end-session-btn" type="button">Einheit beenden</button>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <input type="number" id="end-session-calories" min="0" step="1" placeholder="kcal verbrannt (optional)" style="width:180px; padding:6px 8px; border-radius:6px; border:1px solid var(--color-border); background:var(--color-bg); color:var(--color-text); font-size:0.82rem;" />
+            <button class="btn secondary small-btn" id="end-session-btn" type="button">Einheit beenden</button>
+          </div>
         </div>`;
       } else {
         html += `<div class="session-banner">
@@ -396,7 +399,9 @@
       if (endBtn) {
         endBtn.addEventListener('click', async () => {
           endBtn.disabled = true;
-          const { error } = await endSession(activeSession.id);
+          const caloriesInput = document.getElementById('end-session-calories');
+          const caloriesBurned = caloriesInput && caloriesInput.value ? parseFloat(caloriesInput.value) : null;
+          const { error } = await endSession(activeSession.id, { caloriesBurned });
           if (error) { alert('Fehler: ' + error.message); endBtn.disabled = false; return; }
           renderClientView(content, profile);
         });

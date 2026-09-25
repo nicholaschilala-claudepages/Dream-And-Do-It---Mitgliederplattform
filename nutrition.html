@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="css/styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <style>
+    :root { --chart-teal: #1479a3; }
     .subtabs { display: flex; gap: 8px; margin: 0 0 16px; flex-wrap: wrap; }
     .subtabs button { padding: 7px 14px; border-radius: 20px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); font-size: 0.82rem; cursor: pointer; }
     .subtabs button.active { background: var(--color-navy); color: #fff; border-color: var(--color-navy); }
@@ -33,13 +34,41 @@
     .recipe-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--color-border); flex-wrap: wrap; }
     .recipe-row:last-child { border-bottom: none; }
     .recipe-row img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
+
+    .stat-tiles { display: flex; gap: 12px; flex-wrap: wrap; margin: 4px 0 20px; }
+    .stat-tile { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 10px; padding: 10px 16px; min-width: 140px; }
+    .stat-tile .value { font-size: 1.25rem; font-weight: 700; color: var(--color-navy); }
+    :root[data-theme="dark"] .stat-tile .value { color: var(--color-gold-light); }
+    @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .stat-tile .value { color: var(--color-gold-light); } }
+    .stat-tile .label { font-size: 0.74rem; color: var(--color-text-muted); }
+
+    .filter-presets { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+    .filter-presets button { padding: 5px 12px; font-size: 0.76rem; border-radius: 20px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text-muted); cursor: pointer; }
+    .filter-presets button.active { background: var(--color-gold); color: #1a1a1a; border-color: var(--color-gold); }
+
+    .compare-legend { display: flex; gap: 18px; font-size: 0.8rem; margin-bottom: 10px; color: var(--color-text-muted); }
+    .compare-legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .compare-legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+    .compare-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .compare-bar-row .side-label { width: 150px; font-size: 0.78rem; color: var(--color-text-muted); flex-shrink: 0; }
+    .compare-bar-track { flex: 1; background: var(--color-border); border-radius: 5px; height: 16px; overflow: hidden; }
+    .compare-bar-fill { height: 100%; border-radius: 5px 0 0 5px; }
+    .compare-bar-value { width: 100px; text-align: right; font-size: 0.78rem; flex-shrink: 0; }
+    .compare-verdict { font-size: 0.8rem; margin-top: 4px; }
+    .compare-verdict.ok { color: var(--color-success); }
+    .compare-verdict.warn { color: var(--color-gold); }
+    .compare-verdict.alert { color: var(--color-danger); }
+
+    .log-entry { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--color-border); flex-wrap: wrap; }
+    .log-entry:last-child { border-bottom: none; }
+    .trainer-comment-box { background: rgba(200,124,0,0.08); border: 1px solid rgba(200,124,0,0.25); border-radius: 8px; padding: 8px 10px; margin-top: 6px; font-size: 0.8rem; }
   </style>
 </head>
 <body>
   <div class="page">
     <div class="topbar">
       <div class="brand">
-        <img src="icons/icon-192.png" alt="Dream And Do It Logo" onerror="this.style.display='none'" />
+        <img src="icons/logo-mark.png" alt="Dream And Do It Logo" onerror="this.style.display='none'" />
         DREAM AND DO IT
       </div>
       <div style="display:flex; gap:8px;">
@@ -62,7 +91,11 @@
       calculateNavyBodyFat, calculateWaistToHip,
       insertBodyMeasurement, listMyBodyMeasurements, deleteBodyMeasurement,
       listRecipes, createRecipe, deleteRecipe,
+      listFoodItems, createFoodItem,
+      createNutritionLog, listNutritionLogs, deleteNutritionLog, setTrainerComment,
+      insertEnergyTarget, getLatestEnergyTarget,
     } from './js/nutrition.js';
+    import { listClients, listSessions } from './js/training.js';
 
     initTheme();
     document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
@@ -74,6 +107,22 @@
       const div = document.createElement('div');
       div.textContent = str == null ? '' : String(str);
       return div.innerHTML;
+    }
+
+    function todayIso() {
+      return new Date().toISOString().slice(0, 10);
+    }
+
+    function isoDaysAgo(n) {
+      const d = new Date();
+      d.setDate(d.getDate() - n);
+      return d.toISOString().slice(0, 10);
+    }
+
+    function nowLocalDatetimeValue() {
+      const d = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
     }
 
     async function init() {
@@ -105,8 +154,10 @@
         <div class="subtabs">
           <button class="ntab active" data-tab="pal">PAL-Rechner</button>
           <button class="ntab" data-tab="bodyfat">Körperfett-Verlauf</button>
+          <button class="ntab" data-tab="protokoll">Ernährungsprotokoll</button>
           <button class="ntab" data-tab="recipes">Rezepte</button>
           ${isAdmin ? '<button class="ntab" data-tab="recipes-admin">Rezepte verwalten</button>' : ''}
+          ${isAdmin ? '<button class="ntab" data-tab="foods-admin">Lebensmittel verwalten</button>' : ''}
         </div>
         <div id="tab-content"></div>
       `;
@@ -124,8 +175,70 @@
       const content = document.getElementById('tab-content');
       if (tab === 'pal') return renderPalTab(content);
       if (tab === 'bodyfat') return renderBodyfatTab(content);
+      if (tab === 'protokoll') return renderNutritionLogTab(content);
       if (tab === 'recipes') return renderRecipesTab(content, false);
       if (tab === 'recipes-admin') return renderRecipesTab(content, true);
+      if (tab === 'foods-admin') return renderFoodItemsAdminTab(content);
+    }
+
+    // =========================================================================
+    // LEBENSMITTEL-DATENBANK VERWALTEN (admin)
+    // =========================================================================
+
+    async function renderFoodItemsAdminTab(content) {
+      content.innerHTML = '<p class="center-text">Lade …</p>';
+      const { data: items, error } = await listFoodItems();
+      if (error) { content.innerHTML = `<div class="msg error">${escapeHtml(error.message)}</div>`; return; }
+
+      content.innerHTML = `
+        <div class="card">
+          <h2 style="font-size:1.05rem;">Neues Lebensmittel hinzufügen</h2>
+          <p style="color:var(--color-text-muted); font-size:0.85rem;">
+            Werte jeweils pro 100 g/ml, damit Kunden im Ernährungsprotokoll die Menge frei eingeben können.
+          </p>
+          <form id="food-form">
+            <div class="field"><label>Name</label><input type="text" id="food-name" required /></div>
+            <div class="grid-2">
+              <div class="field"><label>kcal / 100g</label><input type="number" id="food-kcal" min="0" step="1" required /></div>
+              <div class="field"><label>Eiweiß / 100g (g)</label><input type="number" id="food-protein" min="0" step="0.1" value="0" /></div>
+              <div class="field"><label>Kohlenhydrate / 100g (g)</label><input type="number" id="food-carbs" min="0" step="0.1" value="0" /></div>
+              <div class="field"><label>Fett / 100g (g)</label><input type="number" id="food-fat" min="0" step="0.1" value="0" /></div>
+            </div>
+            <button class="btn" type="submit">Speichern</button>
+          </form>
+          <div id="food-result"></div>
+        </div>
+        <div class="card mt-24">
+          <h2 style="font-size:1.05rem;">Lebensmittel-Datenbank (${(items || []).length})</h2>
+          <table class="simple-table mt-16">
+            <thead><tr><th>Name</th><th>kcal</th><th>Eiweiß</th><th>Kohlenhydrate</th><th>Fett</th></tr></thead>
+            <tbody>
+              ${(items || []).map((f) => `
+                <tr>
+                  <td>${escapeHtml(f.name)}</td>
+                  <td>${f.kcal_per_100g}</td>
+                  <td>${f.protein_per_100g} g</td>
+                  <td>${f.carbs_per_100g} g</td>
+                  <td>${f.fat_per_100g} g</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      document.getElementById('food-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const { error: saveError } = await createFoodItem({
+          name: document.getElementById('food-name').value.trim(),
+          kcalPer100g: parseFloat(document.getElementById('food-kcal').value),
+          proteinPer100g: parseFloat(document.getElementById('food-protein').value) || 0,
+          carbsPer100g: parseFloat(document.getElementById('food-carbs').value) || 0,
+          fatPer100g: parseFloat(document.getElementById('food-fat').value) || 0,
+        });
+        if (saveError) { document.getElementById('food-result').innerHTML = `<div class="msg error">${escapeHtml(saveError.message)}</div>`; return; }
+        renderFoodItemsAdminTab(content);
+      });
     }
 
     // =========================================================================
@@ -138,6 +251,7 @@
       const { data: measurements } = await listMyBodyMeasurements(currentProfile.id);
       const usable = (measurements || []).filter((m) => m.weight_kg != null && m.body_fat_percent != null);
       const latestBf = usable.length ? usable[usable.length - 1] : null;
+      const { data: savedTarget } = await getLatestEnergyTarget(currentProfile.id);
 
       content.innerHTML = `
         <div class="card">
@@ -145,6 +259,12 @@
           <p style="color:var(--color-text-muted); font-size:0.88rem;">
             Grundumsatz nach Mifflin-St Jeor (1990) × Aktivitätsfaktor (PAL). Referenzwerte orientiert an DGE.
           </p>
+          ${savedTarget ? `
+          <div class="result-box" style="margin-bottom:14px;">
+            <div style="color:var(--color-text-muted); font-size:0.82rem;">Aktuell gespeicherter Bedarf (Grundlage für den Vergleich im Ernährungsprotokoll)</div>
+            <div class="big">${Math.round(savedTarget.tee_kcal)} kcal/Tag</div>
+            <div class="caveat">Gespeichert am ${new Date(savedTarget.calculated_at).toLocaleDateString('de-DE')} · ${savedTarget.method === 'katch_mcardle' ? 'Präzisions-Schätzung' : 'Standard-Schätzung'}</div>
+          </div>` : ''}
           ${latestBf ? `
           <div class="msg info" style="font-size:0.85rem; margin-bottom:14px;">
             Präzisions-Modus aktiv: Da ein Körperfett-Wert vorliegt (${latestBf.body_fat_percent.toFixed(1)} %,
@@ -181,6 +301,8 @@
         </div>
       `;
 
+      let lastComputed = null;
+
       document.getElementById('pal-form').addEventListener('submit', (e) => {
         e.preventDefault();
         const sex = document.getElementById('pal-sex').value;
@@ -197,6 +319,10 @@
           const ffm = calculateFatFreeMass(weightKg, latestBf.body_fat_percent);
           const bmrPrecise = calculateBmrKatchMcArdle(ffm);
           const teePrecise = calculateTee(bmrPrecise, pal);
+          lastComputed = {
+            method: 'katch_mcardle', bmr_kcal: bmrPrecise, pal_value: pal, tee_kcal: teePrecise,
+            age, sex, height_cm: heightCm, weight_kg: weightKg, body_fat_percent: latestBf.body_fat_percent,
+          };
           precisionBox = `
             <div class="result-box">
               <div style="font-size:0.78rem; color:var(--color-gold); font-weight:600; text-transform:uppercase; letter-spacing:0.02em;">Präzisions-Schätzung (Katch-McArdle)</div>
@@ -219,8 +345,13 @@
               <div class="big" style="font-size:1.3rem;">${Math.round(teeStandard)} kcal/Tag</div>
               <div class="caveat">Nur zum Vergleich – schätzt allein über Gewicht, Größe, Alter und Geschlecht, ohne Körperzusammensetzung.</div>
             </div>
+            <button class="btn mt-16" type="button" id="pal-save-btn">Als aktuellen Bedarf speichern (Präzisions-Schätzung)</button>
           `;
         } else {
+          lastComputed = {
+            method: 'mifflin', bmr_kcal: bmrStandard, pal_value: pal, tee_kcal: teeStandard,
+            age, sex, height_cm: heightCm, weight_kg: weightKg, body_fat_percent: null,
+          };
           precisionBox = `
             <div class="result-box">
               <div>Grundumsatz (BMR): <strong>${Math.round(bmrStandard)} kcal/Tag</strong></div>
@@ -228,10 +359,18 @@
               <div style="color:var(--color-text-muted); font-size:0.85rem;">geschätzter Gesamtenergieumsatz bei PAL ${pal}</div>
               <div class="caveat">Richtwert zur Orientierung, kein individueller Ernährungsplan. Tatsächlicher Bedarf kann je nach Stoffwechsel und Alltag abweichen – am besten im Coaching-Gespräch einordnen lassen.</div>
             </div>
+            <button class="btn mt-16" type="button" id="pal-save-btn">Als aktuellen Bedarf speichern</button>
           `;
         }
 
         document.getElementById('pal-result').innerHTML = precisionBox;
+
+        document.getElementById('pal-save-btn').addEventListener('click', async (ev) => {
+          ev.target.disabled = true;
+          const { error } = await insertEnergyTarget({ client_id: currentProfile.id, ...lastComputed });
+          if (error) { alert('Fehler: ' + error.message); ev.target.disabled = false; return; }
+          renderPalTab(content);
+        });
       });
     }
 
@@ -264,11 +403,34 @@
                 <select id="bf-sex"><option value="male">Männlich</option><option value="female">Weiblich</option></select>
               </div>
               <div class="field"><label>Datum</label><input type="date" id="bf-date" required /></div>
+              <div class="field"><label>Wer hat gemessen?</label>
+                <select id="bf-measured-by">
+                  <option value="client">Ich selbst</option>
+                  <option value="trainer">Trainer/Coach</option>
+                </select>
+              </div>
               <div class="field"><label>Größe (cm)</label><input type="number" id="bf-height" step="0.1" required /></div>
               <div class="field"><label>Gewicht (kg, optional)</label><input type="number" id="bf-weight" step="0.1" /></div>
+            </div>
+
+            <h3 style="font-size:0.9rem; margin-top:6px;">Umfänge für die Körperfett-Berechnung</h3>
+            <div class="grid-2">
               <div class="field"><label>Hals-Umfang (cm)</label><input type="number" id="bf-neck" step="0.1" required /></div>
-              <div class="field"><label>Taillen-Umfang (cm)</label><input type="number" id="bf-waist" step="0.1" required /></div>
-              <div class="field"><label>Hüft-Umfang (cm, bei Frauen nötig)</label><input type="number" id="bf-hip" step="0.1" /></div>
+              <div class="field"><label>Taillen-Umfang (cm) — Maßband auf Höhe des Bauchnabels anlegen</label><input type="number" id="bf-waist" step="0.1" required /></div>
+              <div class="field"><label>Hüft-/Po-Umfang (cm, bei Frauen nötig) — an der breitesten Stelle von Po/Hüfte</label><input type="number" id="bf-hip" step="0.1" /></div>
+            </div>
+
+            <h3 style="font-size:0.9rem; margin-top:6px;">Weitere Umfänge (optional, für den Verlauf)</h3>
+            <p style="color:var(--color-text-muted); font-size:0.8rem; margin-top:-8px;">
+              Arme, Waden und Beine jeweils an der breitesten Stelle messen.
+            </p>
+            <div class="grid-2">
+              <div class="field"><label>Oberarm links (cm)</label><input type="number" id="bf-arm-left" step="0.1" /></div>
+              <div class="field"><label>Oberarm rechts (cm)</label><input type="number" id="bf-arm-right" step="0.1" /></div>
+              <div class="field"><label>Oberschenkel links (cm)</label><input type="number" id="bf-thigh-left" step="0.1" /></div>
+              <div class="field"><label>Oberschenkel rechts (cm)</label><input type="number" id="bf-thigh-right" step="0.1" /></div>
+              <div class="field"><label>Wade links (cm)</label><input type="number" id="bf-calf-left" step="0.1" /></div>
+              <div class="field"><label>Wade rechts (cm)</label><input type="number" id="bf-calf-right" step="0.1" /></div>
             </div>
             <button class="btn" type="submit">Speichern</button>
           </form>
@@ -297,17 +459,25 @@
           ` : ''}
           <div id="bf-chart" class="mt-24" style="position:relative;"></div>
           <table class="simple-table mt-24">
-            <thead><tr><th>Datum</th><th>Körperfett %</th><th>WHR</th><th>Gewicht</th><th></th></tr></thead>
+            <thead><tr><th>Datum</th><th>Körperfett %</th><th>WHR</th><th>Gewicht</th><th>Von</th><th>Weitere Umfänge</th><th></th></tr></thead>
             <tbody>
-              ${measurements.slice().reverse().map((m) => `
+              ${measurements.slice().reverse().map((m) => {
+                const extras = [];
+                if (m.arm_left_cm != null || m.arm_right_cm != null) extras.push(`Arm ${m.arm_left_cm ?? '–'}/${m.arm_right_cm ?? '–'}`);
+                if (m.thigh_left_cm != null || m.thigh_right_cm != null) extras.push(`Oberschenkel ${m.thigh_left_cm ?? '–'}/${m.thigh_right_cm ?? '–'}`);
+                if (m.calf_left_cm != null || m.calf_right_cm != null) extras.push(`Wade ${m.calf_left_cm ?? '–'}/${m.calf_right_cm ?? '–'}`);
+                return `
                 <tr>
                   <td>${new Date(m.measured_at).toLocaleDateString('de-DE')}</td>
                   <td>${m.body_fat_percent != null ? m.body_fat_percent.toFixed(1) + ' %' : '–'}</td>
                   <td>${m.waist_to_hip_ratio != null ? m.waist_to_hip_ratio.toFixed(2) : '–'}</td>
                   <td>${m.weight_kg != null ? m.weight_kg + ' kg' : '–'}</td>
+                  <td>${m.measured_by === 'trainer' ? 'Trainer' : 'Kunde'}</td>
+                  <td style="font-size:0.78rem; color:var(--color-text-muted);">${extras.length ? extras.join(' · ') : '–'}</td>
                   <td><button class="btn secondary" style="width:auto; padding:4px 10px; font-size:0.75rem;" data-delete-measurement="${m.id}">Löschen</button></td>
                 </tr>
-              `).join('')}
+              `;
+              }).join('')}
             </tbody>
           </table>
         </div>` : ''}
@@ -328,6 +498,8 @@
         const hipCm = document.getElementById('bf-hip').value ? parseFloat(document.getElementById('bf-hip').value) : null;
         const weightKg = document.getElementById('bf-weight').value ? parseFloat(document.getElementById('bf-weight').value) : null;
         const measuredAt = document.getElementById('bf-date').value;
+        const measuredBy = document.getElementById('bf-measured-by').value;
+        const optNum = (id) => (document.getElementById(id).value ? parseFloat(document.getElementById(id).value) : null);
 
         if (sex === 'female' && !hipCm) {
           document.getElementById('bf-result').innerHTML = '<div class="msg error">Für Frauen wird zusätzlich der Hüftumfang benötigt.</div>';
@@ -344,6 +516,13 @@
           weight_kg: weightKg,
           body_fat_percent: bodyFat,
           waist_to_hip_ratio: whr,
+          measured_by: measuredBy,
+          arm_left_cm: optNum('bf-arm-left'),
+          arm_right_cm: optNum('bf-arm-right'),
+          thigh_left_cm: optNum('bf-thigh-left'),
+          thigh_right_cm: optNum('bf-thigh-right'),
+          calf_left_cm: optNum('bf-calf-left'),
+          calf_right_cm: optNum('bf-calf-right'),
         });
 
         if (error) {
@@ -432,6 +611,13 @@
               <div class="field"><label>Kurzbeschreibung</label><input type="text" id="recipe-desc" /></div>
               <div class="field"><label>Link zur PDF-Datei</label><input type="url" id="recipe-pdf" required placeholder="https://..." /></div>
               <div class="field"><label>Bild-URL (optional)</label><input type="url" id="recipe-image" placeholder="https://..." /></div>
+              <h3 style="font-size:0.9rem;">Nährwerte pro Portion (optional)</h3>
+              <div class="grid-2">
+                <div class="field"><label>Eiweiß (g)</label><input type="number" id="recipe-protein" step="1" /></div>
+                <div class="field"><label>Kohlenhydrate (g)</label><input type="number" id="recipe-carbs" step="1" /></div>
+                <div class="field"><label>Fett (g)</label><input type="number" id="recipe-fat" step="1" /></div>
+                <div class="field"><label>Energie (kcal)</label><input type="number" id="recipe-kcal" step="1" /></div>
+              </div>
               <button class="btn" type="submit">Rezept speichern</button>
             </form>
           </div>
@@ -448,6 +634,7 @@
                 <h4 style="margin:0 0 2px;">${escapeHtml(r.title)}</h4>
                 ${r.category ? `<div style="font-size:0.78rem; color:var(--color-gold);">${escapeHtml(r.category)}</div>` : ''}
                 ${r.description ? `<p style="margin:4px 0 0; font-size:0.85rem; color:var(--color-text-muted);">${escapeHtml(r.description)}</p>` : ''}
+                ${r.kcal_per_portion != null ? `<p style="margin:4px 0 0; font-size:0.78rem; color:var(--color-text-muted);">Eiweiß: ${r.protein_g ?? '–'} g · Kohlenhydrate: ${r.carbs_g ?? '–'} g · Fett: ${r.fat_g ?? '–'} g · ${r.kcal_per_portion} kcal</p>` : ''}
               </div>
               <div style="display:flex; gap:8px; flex-shrink:0;">
                 <a class="btn secondary" style="width:auto; padding:8px 14px; font-size:0.82rem; text-decoration:none;" href="${escapeHtml(r.pdf_url)}" target="_blank" rel="noopener">PDF öffnen</a>
@@ -469,6 +656,10 @@
             description: document.getElementById('recipe-desc').value.trim(),
             pdfUrl: document.getElementById('recipe-pdf').value.trim(),
             imageUrl: document.getElementById('recipe-image').value.trim(),
+            proteinG: document.getElementById('recipe-protein').value ? parseFloat(document.getElementById('recipe-protein').value) : null,
+            carbsG: document.getElementById('recipe-carbs').value ? parseFloat(document.getElementById('recipe-carbs').value) : null,
+            fatG: document.getElementById('recipe-fat').value ? parseFloat(document.getElementById('recipe-fat').value) : null,
+            kcalPerPortion: document.getElementById('recipe-kcal').value ? parseFloat(document.getElementById('recipe-kcal').value) : null,
           });
           if (error) { alert('Fehler: ' + error.message); return; }
           renderRecipesTab(content, true);
@@ -482,6 +673,369 @@
           });
         });
       }
+    }
+
+    // =========================================================================
+    // ERNÄHRUNGSPROTOKOLL
+    // =========================================================================
+
+    async function renderNutritionLogTab(content) {
+      const isAdmin = currentProfile.role === 'admin';
+      content.innerHTML = '<p class="center-text">Lade …</p>';
+
+      let clients = [];
+      if (isAdmin) {
+        const { data } = await listClients();
+        clients = data || [];
+      }
+
+      let selectedClientId = isAdmin ? (clients[0] ? clients[0].id : null) : currentProfile.id;
+      let currentFrom = todayIso();
+      let currentTo = todayIso();
+      let foodItems = [];
+      let recipesForLog = [];
+      if (!isAdmin) {
+        const [{ data: fi }, { data: rc }] = await Promise.all([listFoodItems(), listRecipes()]);
+        foodItems = fi || [];
+        recipesForLog = (rc || []).filter((r) => r.kcal_per_portion != null);
+      }
+
+      content.innerHTML = `
+        ${isAdmin ? `
+        <div class="card">
+          <div class="field" style="margin-bottom:0;">
+            <label>Kunde</label>
+            <select id="np-client-select">
+              ${clients.length === 0 ? '<option value="">– keine Kunden –</option>' : clients.map((c) => `<option value="${c.id}" ${c.id === selectedClientId ? 'selected' : ''}>${escapeHtml(c.full_name || c.email)}</option>`).join('')}
+            </select>
+          </div>
+        </div>` : ''}
+        <div id="np-body" class="mt-24"></div>
+      `;
+
+      if (isAdmin) {
+        const sel = document.getElementById('np-client-select');
+        if (sel) {
+          sel.addEventListener('change', () => {
+            selectedClientId = sel.value;
+            loadBody();
+          });
+        }
+      }
+
+      function renderComparison(intake, need, burned) {
+        const budget = need + burned;
+        const max = Math.max(intake, budget) || 1;
+        const diff = intake - budget;
+        const pct = budget > 0 ? intake / budget : 0;
+        let verdictClass = 'ok', verdictText = 'Im Rahmen des Budgets.';
+        if (pct > 1.15) { verdictClass = 'alert'; verdictText = `${Math.round(diff)} kcal über dem Budget.`; }
+        else if (pct > 1.0) { verdictClass = 'warn'; verdictText = `${Math.round(diff)} kcal über dem Budget.`; }
+        else if (pct < 0.7) { verdictClass = 'warn'; verdictText = `${Math.round(-diff)} kcal unter dem Budget.`; }
+        return `
+          <div class="mt-16">
+            <div class="compare-legend">
+              <span><i style="background:var(--color-gold);"></i> Budget (Bedarf${burned > 0 ? ' + Leistungsumsatz' : ''})</span>
+              <span><i style="background:var(--chart-teal);"></i> Erfasste Kalorien</span>
+            </div>
+            <div class="compare-bar-row">
+              <div class="side-label">Budget</div>
+              <div class="compare-bar-track"><div class="compare-bar-fill" style="width:${Math.min(100, budget / max * 100).toFixed(1)}%; background:var(--color-gold);"></div></div>
+              <div class="compare-bar-value">${Math.round(budget)} kcal</div>
+            </div>
+            <div class="compare-bar-row">
+              <div class="side-label">Erfasst</div>
+              <div class="compare-bar-track"><div class="compare-bar-fill" style="width:${Math.min(100, intake / max * 100).toFixed(1)}%; background:var(--chart-teal);"></div></div>
+              <div class="compare-bar-value">${Math.round(intake)} kcal</div>
+            </div>
+            <div class="compare-verdict ${verdictClass}">${verdictText}</div>
+            <p style="color:var(--color-text-muted); font-size:0.78rem; margin-top:4px;">
+              Richtwert: Budget = zuletzt gespeicherter Kalorienbedarf (PAL-Rechner) zzgl. im gewählten Zeitraum
+              getrackter, real gemessener Trainingskalorien (Leistungsumsatz). Ersetzt kein individuelles
+              Ernährungscoaching.
+            </p>
+          </div>
+        `;
+      }
+
+      function renderLogEntry(l) {
+        const name = l.source_type === 'food_item' ? (l.food_items ? l.food_items.name : 'Lebensmittel')
+          : l.source_type === 'recipe' ? (l.recipes ? l.recipes.title : 'Rezept')
+          : (l.custom_name || 'Eintrag');
+        const amount = l.amount_grams != null ? ` (${l.amount_grams} g)` : '';
+        const time = new Date(l.logged_at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+        const macroParts = [];
+        if (l.protein_g != null) macroParts.push(`E ${Math.round(l.protein_g)} g`);
+        if (l.carbs_g != null) macroParts.push(`KH ${Math.round(l.carbs_g)} g`);
+        if (l.fat_g != null) macroParts.push(`F ${Math.round(l.fat_g)} g`);
+        return `
+          <div class="log-entry">
+            <div style="flex:1;">
+              <strong>${escapeHtml(name)}</strong><span style="color:var(--color-text-muted); font-size:0.82rem;">${amount}</span>
+              <div style="font-size:0.78rem; color:var(--color-text-muted);">${l.meal_label ? escapeHtml(l.meal_label) + ' · ' : ''}${time} · ${Math.round(l.kcal)} kcal${macroParts.length ? ' · ' + macroParts.join(' · ') : ''}</div>
+              ${l.trainer_comment ? `<div class="trainer-comment-box"><strong>Kommentar vom Coach:</strong> ${escapeHtml(l.trainer_comment)}</div>` : ''}
+              ${isAdmin ? `
+                <div style="margin-top:6px; display:flex; gap:6px; flex-wrap:wrap;">
+                  <input type="text" class="np-comment-input" data-log-id="${l.id}" placeholder="Kommentar hinzufügen/bearbeiten" value="${escapeHtml(l.trainer_comment || '')}" style="flex:1; min-width:180px; padding:6px 8px; border-radius:6px; border:1px solid var(--color-border); background:var(--color-bg); color:var(--color-text); font-size:0.8rem;" />
+                  <button class="btn secondary" data-save-comment="${l.id}" type="button" style="width:auto; padding:6px 10px; font-size:0.78rem;">Speichern</button>
+                </div>
+              ` : ''}
+            </div>
+            ${!isAdmin ? `<button class="btn secondary" data-delete-log="${l.id}" type="button" style="width:auto; padding:6px 10px; font-size:0.75rem; flex-shrink:0;">Löschen</button>` : ''}
+          </div>
+        `;
+      }
+
+      function renderSourceFields(source) {
+        const el = document.getElementById('np-source-fields');
+        if (!el) return;
+        if (source === 'food_item') {
+          el.innerHTML = `
+            <div class="grid-2">
+              <div class="field"><label>Lebensmittel</label>
+                <select id="np-food-item">${foodItems.map((f) => `<option value="${f.id}">${escapeHtml(f.name)}</option>`).join('') || '<option value="">– keine Lebensmittel –</option>'}</select>
+              </div>
+              <div class="field"><label>Menge (g)</label><input type="number" id="np-amount" min="1" step="1" value="100" /></div>
+            </div>
+            <div id="np-preview" style="font-size:0.8rem; color:var(--color-text-muted); margin:-8px 0 12px;"></div>
+          `;
+          const updatePreview = () => {
+            const food = foodItems.find((f) => f.id === document.getElementById('np-food-item').value);
+            const grams = parseFloat(document.getElementById('np-amount').value) || 0;
+            if (!food) return;
+            const kcal = food.kcal_per_100g * grams / 100;
+            const p = food.protein_per_100g * grams / 100;
+            const c = food.carbs_per_100g * grams / 100;
+            const f = food.fat_per_100g * grams / 100;
+            document.getElementById('np-preview').textContent = `≈ ${Math.round(kcal)} kcal · E ${p.toFixed(0)} g · KH ${c.toFixed(0)} g · F ${f.toFixed(0)} g`;
+          };
+          const foodSel = document.getElementById('np-food-item');
+          if (foodSel) {
+            foodSel.addEventListener('change', updatePreview);
+            document.getElementById('np-amount').addEventListener('input', updatePreview);
+            if (foodItems.length) updatePreview();
+          }
+        } else if (source === 'recipe') {
+          el.innerHTML = `
+            <div class="grid-2">
+              <div class="field"><label>Rezept</label>
+                <select id="np-recipe">${recipesForLog.map((r) => `<option value="${r.id}">${escapeHtml(r.title)}</option>`).join('') || '<option value="">– keine Rezepte mit Nährwerten –</option>'}</select>
+              </div>
+              <div class="field"><label>Portionen</label><input type="number" id="np-portions" min="0.25" step="0.25" value="1" /></div>
+            </div>
+            <div id="np-preview" style="font-size:0.8rem; color:var(--color-text-muted); margin:-8px 0 12px;"></div>
+          `;
+          const updatePreview = () => {
+            const recipe = recipesForLog.find((r) => r.id === document.getElementById('np-recipe').value);
+            const portions = parseFloat(document.getElementById('np-portions').value) || 0;
+            const previewEl = document.getElementById('np-preview');
+            if (!recipe) { previewEl.textContent = ''; return; }
+            previewEl.textContent = `≈ ${Math.round((recipe.kcal_per_portion || 0) * portions)} kcal · E ${Math.round((recipe.protein_g || 0) * portions)} g · KH ${Math.round((recipe.carbs_g || 0) * portions)} g · F ${Math.round((recipe.fat_g || 0) * portions)} g`;
+          };
+          const recipeSel = document.getElementById('np-recipe');
+          if (recipeSel) {
+            recipeSel.addEventListener('change', updatePreview);
+            document.getElementById('np-portions').addEventListener('input', updatePreview);
+            if (recipesForLog.length) updatePreview();
+          }
+        } else {
+          el.innerHTML = `
+            <div class="field"><label>Bezeichnung</label><input type="text" id="np-custom-name" required /></div>
+            <div class="grid-2">
+              <div class="field"><label>Kalorien (kcal)</label><input type="number" id="np-custom-kcal" min="0" step="1" required /></div>
+              <div class="field"><label>Eiweiß (g, optional)</label><input type="number" id="np-custom-protein" min="0" step="1" /></div>
+              <div class="field"><label>Kohlenhydrate (g, optional)</label><input type="number" id="np-custom-carbs" min="0" step="1" /></div>
+              <div class="field"><label>Fett (g, optional)</label><input type="number" id="np-custom-fat" min="0" step="1" /></div>
+            </div>
+          `;
+        }
+      }
+
+      async function loadBody() {
+        const bodyEl = document.getElementById('np-body');
+        if (!bodyEl) return;
+        if (!selectedClientId) { bodyEl.innerHTML = '<p style="color:var(--color-text-muted);">Kein Kunde ausgewählt.</p>'; return; }
+        bodyEl.innerHTML = '<p class="center-text">Lade …</p>';
+
+        const fromIso = new Date(currentFrom + 'T00:00:00').toISOString();
+        const toIso = new Date(currentTo + 'T23:59:59').toISOString();
+
+        const [{ data: logs, error: logsError }, { data: target }, { data: sessions }] = await Promise.all([
+          listNutritionLogs(selectedClientId, { from: fromIso, to: toIso }),
+          getLatestEnergyTarget(selectedClientId),
+          listSessions(selectedClientId, { from: fromIso, to: toIso }),
+        ]);
+
+        if (logsError) { bodyEl.innerHTML = `<div class="msg error">${escapeHtml(logsError.message)}</div>`; return; }
+        renderBody(bodyEl, logs || [], target, sessions || []);
+      }
+
+      function renderBody(bodyEl, logs, target, sessions) {
+        const totalKcal = logs.reduce((s, l) => s + (l.kcal || 0), 0);
+        const totalProtein = logs.reduce((s, l) => s + (l.protein_g || 0), 0);
+        const totalCarbs = logs.reduce((s, l) => s + (l.carbs_g || 0), 0);
+        const totalFat = logs.reduce((s, l) => s + (l.fat_g || 0), 0);
+        const caloriesBurned = sessions.reduce((s, sess) => s + (sess.calories_burned || 0), 0);
+        const need = target ? target.tee_kcal : null;
+
+        let html = '';
+
+        if (!isAdmin) {
+          html += `
+            <div class="card">
+              <h2 style="font-size:1.05rem;">Eintrag hinzufügen</h2>
+              <form id="np-form">
+                <div class="field">
+                  <label>Quelle</label>
+                  <select id="np-source">
+                    <option value="food_item">Lebensmittel aus der Liste</option>
+                    <option value="recipe">Rezept</option>
+                    <option value="custom">Eigene Eingabe</option>
+                  </select>
+                </div>
+                <div id="np-source-fields"></div>
+                <div class="grid-2">
+                  <div class="field"><label>Mahlzeit</label>
+                    <select id="np-meal">
+                      <option value="Frühstück">Frühstück</option>
+                      <option value="Mittagessen">Mittagessen</option>
+                      <option value="Abendessen">Abendessen</option>
+                      <option value="Snack">Snack</option>
+                    </select>
+                  </div>
+                  <div class="field"><label>Zeitpunkt</label><input type="datetime-local" id="np-time" required /></div>
+                </div>
+                <button class="btn" type="submit">Eintragen</button>
+              </form>
+              <div id="np-result"></div>
+            </div>
+          `;
+        }
+
+        html += `
+          <div class="card mt-24">
+            <h2 style="font-size:1.05rem;">${isAdmin ? 'Ernährungsprotokoll des Kunden' : 'Mein Ernährungsprotokoll'}</h2>
+            <div class="analytics-filters" style="margin-top:10px;">
+              <div class="field"><label>Von</label><input type="date" id="np-from" value="${currentFrom}" /></div>
+              <div class="field"><label>Bis</label><input type="date" id="np-to" value="${currentTo}" /></div>
+              <button class="btn small-btn" id="np-filter-apply" type="button" style="width:auto; padding:8px 14px;">Filtern</button>
+            </div>
+            <div class="filter-presets">
+              <button type="button" data-preset="today">Heute</button>
+              <button type="button" data-preset="7d">Letzte 7 Tage</button>
+              <button type="button" data-preset="month">Dieser Monat</button>
+            </div>
+
+            <div class="stat-tiles">
+              <div class="stat-tile"><div class="value">${Math.round(totalKcal)} kcal</div><div class="label">Erfasste Kalorien im Zeitraum</div></div>
+              <div class="stat-tile"><div class="value">${Math.round(totalProtein)} / ${Math.round(totalCarbs)} / ${Math.round(totalFat)} g</div><div class="label">Eiweiß / Kohlenhydrate / Fett</div></div>
+              ${need != null ? `<div class="stat-tile"><div class="value">${Math.round(need)} kcal</div><div class="label">Gespeicherter Bedarf/Tag</div></div>` : ''}
+              ${caloriesBurned > 0 ? `<div class="stat-tile"><div class="value">${Math.round(caloriesBurned)} kcal</div><div class="label">Leistungsumsatz (getrackte Einheiten)</div></div>` : ''}
+            </div>
+
+            ${need != null ? renderComparison(totalKcal, need, caloriesBurned) : `<div class="msg info" style="font-size:0.85rem;">Noch kein Kalorienbedarf gespeichert – unter „PAL-Rechner" berechnen und speichern, um hier einen Vergleich zu sehen.</div>`}
+
+            <h3 style="font-size:0.95rem; margin-top:20px;">Einträge</h3>
+            ${logs.length === 0 ? '<p style="color:var(--color-text-muted);">Keine Einträge im gewählten Zeitraum.</p>' : logs.map((l) => renderLogEntry(l)).join('')}
+          </div>
+        `;
+
+        bodyEl.innerHTML = html;
+
+        if (!isAdmin) {
+          renderSourceFields('food_item');
+          document.getElementById('np-time').value = nowLocalDatetimeValue();
+          document.getElementById('np-source').addEventListener('change', (e) => renderSourceFields(e.target.value));
+
+          document.getElementById('np-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const source = document.getElementById('np-source').value;
+            const meal = document.getElementById('np-meal').value;
+            const loggedAtRaw = document.getElementById('np-time').value;
+            const entry = {
+              client_id: selectedClientId,
+              logged_at: new Date(loggedAtRaw).toISOString(),
+              meal_label: meal,
+              source_type: source,
+            };
+
+            if (source === 'food_item') {
+              const food = foodItems.find((f) => f.id === document.getElementById('np-food-item').value);
+              const grams = parseFloat(document.getElementById('np-amount').value) || 0;
+              if (!food) { alert('Bitte ein Lebensmittel wählen.'); return; }
+              entry.food_item_id = food.id;
+              entry.amount_grams = grams;
+              entry.kcal = Math.round(food.kcal_per_100g * grams / 100);
+              entry.protein_g = Math.round(food.protein_per_100g * grams / 100);
+              entry.carbs_g = Math.round(food.carbs_per_100g * grams / 100);
+              entry.fat_g = Math.round(food.fat_per_100g * grams / 100);
+            } else if (source === 'recipe') {
+              const recipe = recipesForLog.find((r) => r.id === document.getElementById('np-recipe').value);
+              const portions = parseFloat(document.getElementById('np-portions').value) || 0;
+              if (!recipe) { alert('Bitte ein Rezept wählen.'); return; }
+              entry.recipe_id = recipe.id;
+              entry.kcal = Math.round((recipe.kcal_per_portion || 0) * portions);
+              entry.protein_g = Math.round((recipe.protein_g || 0) * portions);
+              entry.carbs_g = Math.round((recipe.carbs_g || 0) * portions);
+              entry.fat_g = Math.round((recipe.fat_g || 0) * portions);
+            } else {
+              const name = document.getElementById('np-custom-name').value.trim();
+              const kcal = parseFloat(document.getElementById('np-custom-kcal').value);
+              if (!name || isNaN(kcal)) { alert('Bitte Bezeichnung und Kalorien angeben.'); return; }
+              entry.custom_name = name;
+              entry.kcal = kcal;
+              entry.protein_g = document.getElementById('np-custom-protein').value ? parseFloat(document.getElementById('np-custom-protein').value) : null;
+              entry.carbs_g = document.getElementById('np-custom-carbs').value ? parseFloat(document.getElementById('np-custom-carbs').value) : null;
+              entry.fat_g = document.getElementById('np-custom-fat').value ? parseFloat(document.getElementById('np-custom-fat').value) : null;
+            }
+
+            const { error } = await createNutritionLog(entry);
+            if (error) { document.getElementById('np-result').innerHTML = `<div class="msg error">${escapeHtml(error.message)}</div>`; return; }
+            loadBody();
+          });
+        }
+
+        document.getElementById('np-filter-apply').addEventListener('click', () => {
+          currentFrom = document.getElementById('np-from').value;
+          currentTo = document.getElementById('np-to').value;
+          loadBody();
+        });
+
+        bodyEl.querySelectorAll('.filter-presets button').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            bodyEl.querySelectorAll('.filter-presets button').forEach((b) => b.classList.remove('active'));
+            btn.classList.add('active');
+            if (btn.dataset.preset === 'today') { currentFrom = todayIso(); currentTo = todayIso(); }
+            else if (btn.dataset.preset === '7d') { currentFrom = isoDaysAgo(6); currentTo = todayIso(); }
+            else if (btn.dataset.preset === 'month') {
+              const d = new Date();
+              currentFrom = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+              currentTo = todayIso();
+            }
+            loadBody();
+          });
+        });
+
+        bodyEl.querySelectorAll('[data-delete-log]').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            if (!confirm('Diesen Eintrag wirklich löschen?')) return;
+            await deleteNutritionLog(btn.dataset.deleteLog);
+            loadBody();
+          });
+        });
+
+        bodyEl.querySelectorAll('[data-save-comment]').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            const input = bodyEl.querySelector(`.np-comment-input[data-log-id="${btn.dataset.saveComment}"]`);
+            btn.disabled = true;
+            const { error } = await setTrainerComment(btn.dataset.saveComment, input.value.trim());
+            if (error) { alert('Fehler: ' + error.message); btn.disabled = false; return; }
+            loadBody();
+          });
+        });
+      }
+
+      await loadBody();
     }
 
     init();

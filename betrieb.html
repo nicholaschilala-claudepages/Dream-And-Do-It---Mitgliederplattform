@@ -29,7 +29,7 @@
   <div class="page">
     <div class="topbar">
       <div class="brand">
-        <img src="icons/icon-192.png" alt="Dream And Do It Logo" onerror="this.style.display='none'" />
+        <img src="icons/logo-mark.png" alt="Dream And Do It Logo" onerror="this.style.display='none'" />
         DREAM AND DO IT
       </div>
       <div style="display:flex; gap:8px;">
@@ -46,7 +46,7 @@
   <script type="module">
     import { supabaseClient } from './js/supabase-client.js';
     import { getCurrentSession, initTheme, toggleTheme } from './js/auth.js';
-    import { listClientOverview, setClientLock, getReportData } from './js/betrieb.js';
+    import { listClientOverview, setClientLock, getReportData, listClientDevices, deleteClientDevice, setClientMaxDevices } from './js/betrieb.js';
 
     initTheme();
     document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
@@ -103,6 +103,7 @@
         <div class="subtabs">
           <button class="btab active" data-tab="fruehwarn">Frühwarnsystem</button>
           <button class="btab" data-tab="report">Wochenreport</button>
+          <button class="btab" data-tab="geraete">Geräte</button>
         </div>
         <div id="tab-content"></div>
       `;
@@ -120,6 +121,90 @@
       const content = document.getElementById('tab-content');
       if (tab === 'fruehwarn') return renderFruehwarnTab(content);
       if (tab === 'report') return renderReportTab(content);
+      if (tab === 'geraete') return renderGeraeteTab(content);
+    }
+
+    // =========================================================================
+    // GERÄTE-VERWALTUNG (max. Geräte je Kunde)
+    // =========================================================================
+
+    async function renderGeraeteTab(content) {
+      content.innerHTML = '<p class="center-text">Lade …</p>';
+      const { data: clients, error } = await listClientOverview();
+      if (error) { content.innerHTML = `<div class="msg error">${escapeHtml(error.message)}</div>`; return; }
+
+      content.innerHTML = `
+        <div class="card">
+          <h2 style="font-size:1.05rem;">Geräte-Limit je Kunde</h2>
+          <p style="color:var(--color-text-muted); font-size:0.85rem;">
+            Jeder Kunde kann sich mit maximal so vielen Geräten gleichzeitig anmelden, wie hier hinterlegt
+            (Standard: 2) — das soll das Teilen eines Accounts verhindern. Ein Gerät wird beim Login registriert;
+            um Platz für ein neues Gerät zu schaffen, entferne unten ein bestehendes.
+          </p>
+          <div class="field"><label>Kunde</label>
+            <select id="geraete-client">
+              <option value="">– bitte wählen –</option>
+              ${(clients || []).map((c) => `<option value="${c.id}">${escapeHtml(c.full_name || c.email)}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div id="geraete-body" class="mt-24"></div>
+      `;
+
+      document.getElementById('geraete-client').addEventListener('change', (e) => {
+        loadDevices(e.target.value, clients);
+      });
+    }
+
+    async function loadDevices(clientId, clients) {
+      const bodyEl = document.getElementById('geraete-body');
+      if (!clientId) { bodyEl.innerHTML = ''; return; }
+      bodyEl.innerHTML = '<p class="center-text">Lade …</p>';
+
+      const client = (clients || []).find((c) => c.id === clientId);
+      const { data: devices, error } = await listClientDevices(clientId);
+      if (error) { bodyEl.innerHTML = `<div class="msg error">${escapeHtml(error.message)}</div>`; return; }
+
+      bodyEl.innerHTML = `
+        <div class="card">
+          <h3 style="font-size:0.95rem;">Erlaubte Geräte-Anzahl</h3>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <input type="number" id="geraete-max" min="1" max="10" value="${client ? client.max_devices : 2}" style="width:80px; padding:8px; border-radius:8px; border:1px solid var(--color-border); background:var(--color-bg); color:var(--color-text);" />
+            <button class="btn secondary lock-btn" id="geraete-max-save" type="button">Speichern</button>
+          </div>
+          <h3 style="font-size:0.95rem; margin-top:20px;">Registrierte Geräte (${(devices || []).length})</h3>
+          ${!devices || devices.length === 0 ? '<p style="color:var(--color-text-muted);">Noch kein Gerät registriert.</p>' : `
+          <table class="simple-table mt-16">
+            <thead><tr><th>Gerät</th><th>Zuerst gesehen</th><th>Zuletzt aktiv</th><th></th></tr></thead>
+            <tbody>
+              ${devices.map((d) => `
+                <tr>
+                  <td>${escapeHtml(d.label || 'Unbekanntes Gerät')}</td>
+                  <td>${fmtDate(d.first_seen)}</td>
+                  <td>${fmtDate(d.last_seen)}</td>
+                  <td><button class="btn secondary lock-btn" data-delete-device="${d.id}">Entfernen</button></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>`}
+        </div>
+      `;
+
+      document.getElementById('geraete-max-save').addEventListener('click', async (e) => {
+        e.target.disabled = true;
+        const val = parseInt(document.getElementById('geraete-max').value, 10) || 2;
+        const { error: saveError } = await setClientMaxDevices(clientId, val);
+        if (saveError) { alert('Fehler: ' + saveError.message); }
+        e.target.disabled = false;
+      });
+
+      bodyEl.querySelectorAll('[data-delete-device]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Dieses Gerät wirklich entfernen? Der Kunde kann sich damit erst nach erneuter Anmeldung wieder verbinden, sofern ein Platz frei ist.')) return;
+          await deleteClientDevice(btn.dataset.deleteDevice);
+          loadDevices(clientId, clients);
+        });
+      });
     }
 
     // =========================================================================
