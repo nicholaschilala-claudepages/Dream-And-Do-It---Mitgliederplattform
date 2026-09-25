@@ -10,12 +10,17 @@
   <link rel="stylesheet" href="css/styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <style>
+    :root { --chart-teal: #1479a3; }
     .plan-card { margin-bottom: 20px; }
     .day-block { margin-bottom: 18px; }
     .day-block h3 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-gold); margin: 0 0 8px; }
     .exercise-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--color-border); flex-wrap: wrap; }
     .exercise-row:last-child { border-bottom: none; }
-    .exercise-row img { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
+    .exercise-row img.thumb, .thumb-img {
+      width: 88px; height: 88px; object-fit: contain; background: var(--color-bg);
+      border: 1px solid var(--color-border); border-radius: 8px; flex-shrink: 0; cursor: zoom-in;
+    }
+    .thumb-sm { width: 40px; height: 40px; object-fit: contain; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 6px; flex-shrink: 0; cursor: zoom-in; }
     .exercise-meta { flex: 1; min-width: 220px; }
     .exercise-meta h4 { margin: 0 0 2px 0; font-family: var(--font-body); font-weight: 600; font-size: 0.98rem; }
     .exercise-meta .target { font-size: 0.82rem; color: var(--color-text-muted); }
@@ -28,7 +33,7 @@
     .subtabs { display: flex; gap: 8px; margin: 20px 0 12px; flex-wrap: wrap; }
     .subtabs button { padding: 7px 14px; border-radius: 20px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); font-size: 0.82rem; cursor: pointer; }
     .subtabs button.active { background: var(--color-navy); color: #fff; border-color: var(--color-navy); }
-    .exercise-builder-row { display: grid; grid-template-columns: 2fr 0.7fr 0.9fr 1fr 0.9fr auto; gap: 8px; margin-bottom: 8px; align-items: center; }
+    .exercise-builder-row { display: grid; grid-template-columns: 44px 1.7fr 0.7fr 0.9fr 1fr 0.9fr auto; gap: 8px; margin-bottom: 8px; align-items: center; }
     .exercise-builder-row select, .exercise-builder-row input { padding: 8px; border-radius: 6px; border: 1px solid var(--color-border); background: var(--color-bg); color: var(--color-text); width: 100%; }
     .small-btn { padding: 6px 10px; font-size: 0.78rem; width: auto; }
     .status-pill { font-size: 0.72rem; padding: 2px 8px; border-radius: 12px; white-space: nowrap; }
@@ -43,6 +48,47 @@
     .day-builder-header input { flex: 1; padding: 8px; border-radius: 6px; border: 1px solid var(--color-border); background: var(--color-bg); color: var(--color-text); }
     .template-card { border: 1px solid var(--color-border); border-radius: 10px; padding: 14px; margin-bottom: 14px; }
     .template-card h3 { margin: 0 0 4px; font-size: 1.02rem; }
+    .template-exercise-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 20px; padding: 2px 10px 2px 2px; margin: 3px 4px 3px 0; font-size: 0.78rem; }
+    .template-exercise-chip img { width: 22px; height: 22px; object-fit: contain; border-radius: 50%; background: var(--color-surface); }
+
+    .lightbox-overlay { position: fixed; inset: 0; background: rgba(5,10,12,0.88); display: none; align-items: center; justify-content: center; z-index: 1000; cursor: zoom-out; padding: 28px; }
+    .lightbox-overlay.open { display: flex; }
+    .lightbox-overlay img { max-width: 92vw; max-height: 88vh; object-fit: contain; border-radius: 10px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+    .lightbox-close { position: absolute; top: 18px; right: 22px; color: #fff; font-size: 1.6rem; cursor: pointer; line-height: 1; }
+
+    .session-banner { display: flex; justify-content: space-between; align-items: center; gap: 12px; background: rgba(200,124,0,0.08); border: 1px solid rgba(200,124,0,0.3); border-radius: 10px; padding: 12px 16px; margin-bottom: 18px; flex-wrap: wrap; }
+    .session-banner.active { background: rgba(47,111,79,0.1); border-color: rgba(47,111,79,0.35); }
+    .session-banner select { padding: 7px; border-radius: 6px; border: 1px solid var(--color-border); background: var(--color-bg); color: var(--color-text); }
+
+    .stat-tiles { display: flex; gap: 12px; flex-wrap: wrap; margin: 4px 0 20px; }
+    .stat-tile { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 10px; padding: 10px 16px; min-width: 140px; }
+    .stat-tile .value { font-size: 1.25rem; font-weight: 700; color: var(--color-navy); }
+    :root[data-theme="dark"] .stat-tile .value { color: var(--color-gold-light); }
+    @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .stat-tile .value { color: var(--color-gold-light); } }
+    .stat-tile .label { font-size: 0.74rem; color: var(--color-text-muted); }
+
+    .analytics-filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 8px; }
+    .analytics-filters .field { margin-bottom: 0; min-width: 160px; }
+    .filter-presets { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+    .filter-presets button { padding: 5px 12px; font-size: 0.76rem; border-radius: 20px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text-muted); cursor: pointer; }
+    .filter-presets button.active { background: var(--color-gold); color: #1a1a1a; border-color: var(--color-gold); }
+
+    .chart-tooltip { position: absolute; background: var(--color-navy); color: #fff; font-size: 0.75rem; padding: 4px 8px; border-radius: 6px; pointer-events: none; opacity: 0; transition: opacity 0.1s; white-space: nowrap; transform: translate(-50%, -130%); }
+
+    .dysbalance-legend { display: flex; gap: 18px; font-size: 0.8rem; margin-bottom: 14px; color: var(--color-text-muted); }
+    .dysbalance-legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .dysbalance-legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+    .dysbalance-pair { margin-bottom: 18px; }
+    .dysbalance-pair .pair-title { font-size: 0.85rem; font-weight: 600; margin-bottom: 6px; }
+    .dysbalance-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .dysbalance-bar-row .side-label { width: 130px; font-size: 0.78rem; color: var(--color-text-muted); flex-shrink: 0; }
+    .dysbalance-bar-track { flex: 1; background: var(--color-border); border-radius: 5px; height: 16px; overflow: hidden; }
+    .dysbalance-bar-fill { height: 100%; border-radius: 5px 0 0 5px; }
+    .dysbalance-bar-value { width: 90px; text-align: right; font-size: 0.78rem; flex-shrink: 0; }
+    .dysbalance-verdict { font-size: 0.8rem; margin-top: 2px; }
+    .dysbalance-verdict.ok { color: var(--color-success); }
+    .dysbalance-verdict.warn { color: var(--color-gold); }
+    .dysbalance-verdict.alert { color: var(--color-danger); }
   </style>
 </head>
 <body>
@@ -63,6 +109,11 @@
     </div>
   </div>
 
+  <div class="lightbox-overlay" id="lightbox-overlay">
+    <span class="lightbox-close">✕</span>
+    <img id="lightbox-img" src="" alt="" />
+  </div>
+
   <script type="module">
     import { supabaseClient } from './js/supabase-client.js';
     import { getCurrentSession, initTheme, toggleTheme } from './js/auth.js';
@@ -73,6 +124,7 @@
       listMyActivePlans, listPlansForAdmin, getPlanForAdmin, createPlan, assignTemplateToClient,
       addExerciseToPlan, removePlanExercise, setPlanActive,
       insertTrainingLog, listMyTrainingLogs, listLogsForPlanExercises,
+      getActiveSession, startSession, endSession, listLogsForAnalytics,
     } from './js/training.js';
     import { queueTrainingLog, syncQueuedLogs } from './js/offline-queue.js';
 
@@ -93,6 +145,10 @@
       return d.toLocaleDateString('de-DE') + ' ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
     }
 
+    function formatDateOnly(iso) {
+      return new Date(iso).toLocaleDateString('de-DE');
+    }
+
     function formatDuration(sec) {
       if (sec == null) return '–';
       const m = Math.floor(sec / 60);
@@ -100,7 +156,28 @@
       return m > 0 ? `${m} Min. ${s ? s + ' Sek.' : ''}`.trim() : `${s} Sek.`;
     }
 
+    // --- Bilder: Lightbox zum Maximieren -------------------------------------
+
+    const lightboxOverlay = document.getElementById('lightbox-overlay');
+    const lightboxImg = document.getElementById('lightbox-img');
+    window.openLightbox = function (src, alt) {
+      if (!src) return;
+      lightboxImg.src = src;
+      lightboxImg.alt = alt || '';
+      lightboxOverlay.classList.add('open');
+    };
+    lightboxOverlay.addEventListener('click', () => lightboxOverlay.classList.remove('open'));
+
     const CATEGORY_ORDER = ['Mobilisation', 'Kraft', 'Bodyweight', 'Cardio'];
+    const MOVEMENT_PATTERN_LABELS = {
+      push_oberkoerper: 'Push (Oberkörper)',
+      pull_oberkoerper: 'Pull (Oberkörper)',
+      vordere_beinkette: 'Vordere Beinkette',
+      hintere_beinkette: 'Hintere Beinkette',
+      rumpf_vorne: 'Rumpf vorne',
+      rumpf_hinten: 'Rumpf hinten',
+      sonstige: 'Sonstige',
+    };
 
     function groupExercisesByCategory(exercises) {
       const groups = {};
@@ -144,7 +221,7 @@
       if (profile.role === 'admin') {
         await renderAdminView();
       } else {
-        await renderClientView(profile);
+        await renderClientRoot(profile);
       }
 
       trySyncOfflineLogs();
@@ -154,13 +231,33 @@
     async function trySyncOfflineLogs() {
       const synced = await syncQueuedLogs((entry) => insertTrainingLog(entry));
       if (synced > 0 && currentProfile && currentProfile.role !== 'admin') {
-        renderClientView(currentProfile);
+        renderClientRoot(currentProfile);
       }
     }
 
     // =========================================================================
     // KUNDEN-ANSICHT
     // =========================================================================
+
+    async function renderClientRoot(profile) {
+      container.innerHTML = `
+        <div class="subtabs">
+          <button class="client-tab active" data-tab="plan">Mein Plan</button>
+          <button class="client-tab" data-tab="progress">Meine Entwicklung</button>
+        </div>
+        <div id="client-content"><p class="center-text">Lade …</p></div>
+      `;
+      container.querySelectorAll('.client-tab').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          container.querySelectorAll('.client-tab').forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          const content = document.getElementById('client-content');
+          if (btn.dataset.tab === 'progress') renderAnalyticsView(content, profile.id, { isAdminView: false });
+          else renderClientView(content, profile);
+        });
+      });
+      renderClientView(document.getElementById('client-content'), profile);
+    }
 
     function computeStatus(pe, logsForThis) {
       if (!logsForThis || logsForThis.length === 0) return null;
@@ -182,17 +279,20 @@
       return null;
     }
 
-    async function renderClientView(profile) {
-      container.innerHTML = `<p class="center-text">Lade deinen Trainingsplan …</p>`;
+    async function renderClientView(content, profile) {
+      content.innerHTML = `<p class="center-text">Lade deinen Trainingsplan …</p>`;
 
-      const { data: plans, error: plansError } = await listMyActivePlans(profile.id);
+      const [{ data: plans, error: plansError }, { data: activeSession }] = await Promise.all([
+        listMyActivePlans(profile.id),
+        getActiveSession(profile.id),
+      ]);
       if (plansError) {
-        container.innerHTML = `<div class="msg error">Trainingsplan konnte nicht geladen werden: ${escapeHtml(plansError.message)}</div>`;
+        content.innerHTML = `<div class="msg error">Trainingsplan konnte nicht geladen werden: ${escapeHtml(plansError.message)}</div>`;
         return;
       }
 
       const allPlanExerciseIds = (plans || []).flatMap((p) => (p.plan_exercises || []).map((pe) => pe.id));
-      const [{ data: logsForStatus }, { data: recentLogs, error: logsError }, queuedCount] = await Promise.all([
+      const [{ data: logsForStatus }, { data: recentLogs }, queuedCount] = await Promise.all([
         listLogsForPlanExercises(profile.id, allPlanExerciseIds),
         listMyTrainingLogs(profile.id),
         (async () => (await (await import('./js/offline-queue.js')).getQueuedLogs()).length)(),
@@ -209,6 +309,27 @@
         html += `<div class="offline-banner" style="display:block;">
           ${!navigator.onLine ? 'Du bist offline – neue Einträge werden lokal gespeichert und synchronisiert, sobald wieder Internet da ist.' : ''}
           ${queuedCount > 0 ? ` ${queuedCount} Eintrag/Einträge warten noch auf Synchronisierung.` : ''}
+        </div>`;
+      }
+
+      // Trainingseinheit-Banner (Start/Ende)
+      const allDays = (plans || []).flatMap((p) => (p.training_plan_days || []).map((d) => ({ ...d, planId: p.id, planTitle: p.title })));
+      if (activeSession) {
+        const startedLabel = formatDate(activeSession.started_at);
+        html += `<div class="session-banner active">
+          <div><strong>Trainingseinheit läuft</strong> · gestartet ${startedLabel}</div>
+          <button class="btn secondary small-btn" id="end-session-btn" type="button">Einheit beenden</button>
+        </div>`;
+      } else {
+        html += `<div class="session-banner">
+          <div>
+            <strong>Keine Trainingseinheit aktiv</strong>
+            <div style="font-size:0.78rem; color:var(--color-text-muted);">Starte eine Einheit, damit deine Sätze als eine Einheit gezählt und ausgewertet werden können.</div>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            ${allDays.length > 0 ? `<select id="start-session-day"><option value="">– ohne festen Tag –</option>${allDays.map((d) => `<option value="${d.planId}|${d.id}">${escapeHtml(d.planTitle)} · ${escapeHtml(d.label)}</option>`).join('')}</select>` : ''}
+            <button class="btn small-btn" id="start-session-btn" type="button">Trainingseinheit starten</button>
+          </div>
         </div>`;
       }
 
@@ -229,12 +350,12 @@
             if (dayExercises.length === 0) return '';
             return `<div class="day-block">
               <h3>${escapeHtml(day.label)}</h3>
-              ${dayExercises.map((pe) => renderExerciseRow(pe, logsByPlanExercise[pe.id])).join('')}
+              ${dayExercises.map((pe) => renderExerciseRow(pe, logsByPlanExercise[pe.id], activeSession)).join('')}
             </div>`;
           }).join('')}
           ${looseExercises.length > 0 ? `<div class="day-block">
             ${days.length > 0 ? '<h3>Weitere Übungen</h3>' : ''}
-            ${looseExercises.map((pe) => renderExerciseRow(pe, logsByPlanExercise[pe.id])).join('')}
+            ${looseExercises.map((pe) => renderExerciseRow(pe, logsByPlanExercise[pe.id], activeSession)).join('')}
           </div>` : ''}
         </div>`;
       }
@@ -243,7 +364,7 @@
         <h2 style="font-size:1.05rem;">Mein Trainingstagebuch</h2>
         ${!recentLogs || recentLogs.length === 0
           ? '<p style="color:var(--color-text-muted);">Noch keine Einträge vorhanden.</p>'
-          : `<table class="log-table"><thead><tr><th>Datum</th><th>Übung</th><th>Satz</th><th>Wdh.</th><th>Gewicht</th><th>Dauer</th></tr></thead><tbody>
+          : `<table class="log-table"><thead><tr><th>Datum</th><th>Übung</th><th>Satz</th><th>Wdh.</th><th>Gewicht</th><th>Dauer</th><th>Distanz</th></tr></thead><tbody>
               ${recentLogs.map((l) => `<tr>
                 <td>${formatDate(l.performed_at)}</td>
                 <td>${escapeHtml(l.exercises ? l.exercises.name : '–')}</td>
@@ -251,14 +372,37 @@
                 <td>${l.reps ?? '–'}</td>
                 <td>${l.weight_kg != null ? l.weight_kg + ' kg' : '–'}</td>
                 <td>${l.duration_seconds != null ? formatDuration(l.duration_seconds) : '–'}</td>
+                <td>${l.distance_meters != null ? l.distance_meters + ' m' : '–'}</td>
               </tr>`).join('')}
             </tbody></table>`
         }
       </div>`;
 
-      container.innerHTML = html;
+      content.innerHTML = html;
 
-      container.querySelectorAll('.log-form').forEach((form) => {
+      const startBtn = document.getElementById('start-session-btn');
+      if (startBtn) {
+        startBtn.addEventListener('click', async () => {
+          const sel = document.getElementById('start-session-day');
+          let planId = null, planDayId = null;
+          if (sel && sel.value) { [planId, planDayId] = sel.value.split('|'); }
+          startBtn.disabled = true;
+          const { error } = await startSession({ clientId: profile.id, planId, planDayId });
+          if (error) { alert('Fehler: ' + error.message); startBtn.disabled = false; return; }
+          renderClientView(content, profile);
+        });
+      }
+      const endBtn = document.getElementById('end-session-btn');
+      if (endBtn) {
+        endBtn.addEventListener('click', async () => {
+          endBtn.disabled = true;
+          const { error } = await endSession(activeSession.id);
+          if (error) { alert('Fehler: ' + error.message); endBtn.disabled = false; return; }
+          renderClientView(content, profile);
+        });
+      }
+
+      content.querySelectorAll('.log-form').forEach((form) => {
         form.addEventListener('submit', async (e) => {
           e.preventDefault();
           const exerciseId = form.dataset.exerciseId;
@@ -266,6 +410,7 @@
           const setNumber = form.querySelector('.f-set') ? (parseInt(form.querySelector('.f-set').value, 10) || null) : null;
           const reps = form.querySelector('.f-reps') ? (parseInt(form.querySelector('.f-reps').value, 10) || null) : null;
           const weight = form.querySelector('.f-weight') && form.querySelector('.f-weight').value ? parseFloat(form.querySelector('.f-weight').value) : null;
+          const distance = form.querySelector('.f-distance') && form.querySelector('.f-distance').value ? parseFloat(form.querySelector('.f-distance').value) : null;
           const durationMin = form.querySelector('.f-duration-min') ? (parseFloat(form.querySelector('.f-duration-min').value) || 0) : 0;
           const durationSec = form.querySelector('.f-duration-sec') ? (parseFloat(form.querySelector('.f-duration-sec').value) || 0) : 0;
           const duration = (durationMin || durationSec) ? Math.round(durationMin * 60 + durationSec) : null;
@@ -274,11 +419,13 @@
             client_id: profile.id,
             exercise_id: exerciseId,
             plan_exercise_id: planExerciseId || null,
+            session_id: activeSession ? activeSession.id : null,
             performed_at: new Date().toISOString(),
             set_number: setNumber,
             reps,
             weight_kg: weight,
             duration_seconds: duration,
+            distance_meters: distance,
           };
 
           const submitBtn = form.querySelector('button');
@@ -298,7 +445,7 @@
           submitBtn.textContent = 'Eintragen';
 
           if (ok) {
-            renderClientView(profile);
+            renderClientView(content, profile);
           } else {
             alert('Der Eintrag konnte weder gespeichert noch in die Offline-Warteschlange gelegt werden.');
           }
@@ -306,20 +453,22 @@
       });
     }
 
-    function renderExerciseRow(pe, logsForThis) {
+    function renderExerciseRow(pe, logsForThis, activeSession) {
       const ex = pe.exercises;
       const isDurationBased = !!pe.target_duration_seconds;
+      const isDistanceBased = !!pe.target_distance_meters || ex.category === 'Cardio';
       const target = [
         pe.target_sets ? `${pe.target_sets} Sätze` : null,
         pe.target_reps ? `${pe.target_reps} Wdh.` : null,
         pe.target_weight_hint ? pe.target_weight_hint : null,
         pe.target_duration_seconds ? `Ziel: ${formatDuration(pe.target_duration_seconds)}` : null,
+        pe.target_distance_meters ? `Ziel: ${pe.target_distance_meters} m` : null,
       ].filter(Boolean).join(' · ');
 
       const status = computeStatus(pe, logsForThis);
 
       return `<div class="exercise-row">
-        ${ex.image_url ? `<img src="${escapeHtml(ex.image_url)}" alt="" onerror="this.style.display='none'" />` : ''}
+        ${ex.image_url ? `<img class="thumb" src="${escapeHtml(ex.image_url)}" alt="${escapeHtml(ex.name)}" onerror="this.style.display='none'" onclick="openLightbox('${escapeHtml(ex.image_url)}', '${escapeHtml(ex.name)}')" />` : ''}
         <div class="exercise-meta">
           <h4>${escapeHtml(ex.name)}</h4>
           ${ex.muscle_group ? `<div class="muscle">Beanspruchte Muskulatur: ${escapeHtml(ex.muscle_group)}</div>` : ''}
@@ -327,14 +476,14 @@
           ${ex.description ? `<p style="margin:4px 0 0; font-size:0.85rem; color:var(--color-text-muted);">${escapeHtml(ex.description)}</p>` : ''}
           ${pe.notes ? `<p style="margin:4px 0 0; font-size:0.82rem; color:var(--color-gold);">Hinweis vom Coach: ${escapeHtml(pe.notes)}</p>` : ''}
           ${status ? `<div style="margin-top:6px;"><span class="status-pill ${status.cls}">${escapeHtml(status.label)}</span></div>` : ''}
+          ${!activeSession ? `<p style="margin:6px 0 0; font-size:0.76rem; color:var(--color-gold);">Starte oben eine Trainingseinheit, damit dieser Satz einer Einheit zugeordnet wird.</p>` : ''}
           <form class="log-form" data-exercise-id="${ex.id}" data-plan-exercise-id="${pe.id}">
-            ${isDurationBased
-              ? `<input class="f-duration-min" type="number" min="0" placeholder="Min." style="width:64px;" />
-                 <input class="f-duration-sec" type="number" min="0" max="59" placeholder="Sek." style="width:64px;" />`
-              : `<input class="f-set" type="number" min="1" placeholder="Satz Nr." required />
+            ${isDurationBased ? `<input class="f-duration-min" type="number" min="0" placeholder="Min." style="width:64px;" />
+                 <input class="f-duration-sec" type="number" min="0" max="59" placeholder="Sek." style="width:64px;" />` : ''}
+            ${!isDurationBased ? `<input class="f-set" type="number" min="1" placeholder="Satz Nr." required />
                  <input class="f-reps" type="number" min="0" placeholder="Wdh." required />
-                 <input class="f-weight" type="number" min="0" step="0.5" placeholder="kg" />`
-            }
+                 <input class="f-weight" type="number" min="0" step="0.5" placeholder="kg" />` : ''}
+            ${isDistanceBased ? `<input class="f-distance" type="number" min="0" step="1" placeholder="Distanz (m)" />` : ''}
             <button class="btn secondary small-btn" type="submit">Eintragen</button>
           </form>
         </div>
@@ -353,6 +502,7 @@
           <button class="admin-tab" data-tab="plans">Einzelplan erstellen</button>
           <button class="admin-tab" data-tab="library">Übungsbibliothek</button>
           <button class="admin-tab" data-tab="existing">Bestehende Pläne</button>
+          <button class="admin-tab" data-tab="analysis">Kundenanalyse</button>
         </div>
         <div id="admin-content"><p class="center-text">Lade …</p></div>
       `;
@@ -376,6 +526,7 @@
       if (tab === 'existing') return renderExistingPlansTab(content);
       if (tab === 'templates') return renderTemplatesTab(content);
       if (tab === 'assign') return renderAssignTab(content);
+      if (tab === 'analysis') return renderClientAnalysisTab(content);
       return renderPlanBuilderTab(content);
     }
 
@@ -416,7 +567,7 @@
             <h3 style="font-size:0.9rem; text-transform:uppercase; letter-spacing:0.04em; color:var(--color-gold); margin:16px 0 6px;">${escapeHtml(cat)}</h3>
             ${groups[cat].map((ex) => `
               <div class="exercise-row">
-                ${ex.image_url ? `<img src="${escapeHtml(ex.image_url)}" alt="" onerror="this.style.display='none'" />` : ''}
+                ${ex.image_url ? `<img class="thumb" src="${escapeHtml(ex.image_url)}" alt="${escapeHtml(ex.name)}" onerror="this.style.display='none'" onclick="openLightbox('${escapeHtml(ex.image_url)}', '${escapeHtml(ex.name)}')" />` : ''}
                 <div class="exercise-meta">
                   <h4>${escapeHtml(ex.name)}</h4>
                   ${ex.muscle_group ? `<div class="muscle">Beanspruchte Muskulatur: ${escapeHtml(ex.muscle_group)}</div>` : ''}
@@ -454,7 +605,26 @@
 
     // --- Wiederverwendbarer Tage-Builder (für Vorlagen & Einzelpläne) -------
 
-    function createDayBuilder(rowsContainer, exerciseOptions, dayLabel) {
+    function buildExercisePreview(exercisesById) {
+      return function attachPreview(row) {
+        const select = row.querySelector('.row-exercise');
+        const preview = row.querySelector('.row-preview');
+        function update() {
+          const ex = exercisesById[select.value];
+          if (ex && ex.image_url) {
+            preview.src = ex.image_url;
+            preview.style.visibility = 'visible';
+            preview.onclick = () => window.openLightbox(ex.image_url, ex.name);
+          } else {
+            preview.style.visibility = 'hidden';
+          }
+        }
+        select.addEventListener('change', update);
+        update();
+      };
+    }
+
+    function createDayBuilder(rowsContainer, exerciseOptions, dayLabel, exercisesById) {
       const dayEl = document.createElement('div');
       dayEl.className = 'day-builder';
       dayEl.innerHTML = `
@@ -467,11 +637,13 @@
       `;
       dayEl.querySelector('.remove-day').addEventListener('click', () => dayEl.remove());
       const exRows = dayEl.querySelector('.day-exercise-rows');
+      const attachPreview = buildExercisePreview(exercisesById);
 
       function addExerciseRow() {
         const row = document.createElement('div');
         row.className = 'exercise-builder-row';
         row.innerHTML = `
+          <img class="row-preview thumb-sm" src="" alt="" style="visibility:hidden;" />
           <select class="row-exercise">${exerciseOptions}</select>
           <input class="row-sets" type="number" min="1" placeholder="Sätze" />
           <input class="row-reps" type="text" placeholder="Wdh. (z.B. 8-12)" />
@@ -481,6 +653,7 @@
         `;
         row.querySelector('button').addEventListener('click', () => row.remove());
         exRows.appendChild(row);
+        attachPreview(row);
       }
       dayEl.querySelector('.add-exercise-to-day').addEventListener('click', addExerciseRow);
       addExerciseRow();
@@ -516,6 +689,7 @@
         return;
       }
 
+      const exercisesById = Object.fromEntries(exercises.map((ex) => [ex.id, ex]));
       const exerciseOptions = exerciseOptionsHtml(exercises);
 
       content.innerHTML = `
@@ -538,10 +712,15 @@
               <h3>${escapeHtml(tpl.title)}</h3>
               ${tpl.description ? `<p style="color:var(--color-text-muted); font-size:0.85rem; margin-top:0;">${escapeHtml(tpl.description)}</p>` : ''}
               ${(tpl.plan_template_days || []).sort((a,b) => a.sort_order - b.sort_order).map((day) => `
-                <div style="margin:8px 0;">
+                <div style="margin:10px 0;">
                   <strong style="font-size:0.85rem;">${escapeHtml(day.label)}</strong>
-                  <div style="font-size:0.82rem; color:var(--color-text-muted);">
-                    ${(day.plan_template_exercises || []).sort((a,b) => a.sort_order - b.sort_order).map((ex) => escapeHtml(ex.exercises ? ex.exercises.name : '?')).join(', ') || '– keine Übungen –'}
+                  <div style="margin-top:4px;">
+                    ${(day.plan_template_exercises || []).sort((a,b) => a.sort_order - b.sort_order).map((ex) => `
+                      <span class="template-exercise-chip">
+                        ${ex.exercises && ex.exercises.image_url ? `<img src="${escapeHtml(ex.exercises.image_url)}" alt="" onclick="openLightbox('${escapeHtml(ex.exercises.image_url)}','${escapeHtml(ex.exercises.name)}')" />` : ''}
+                        ${escapeHtml(ex.exercises ? ex.exercises.name : '?')}
+                      </span>
+                    `).join('') || '<span style="font-size:0.8rem; color:var(--color-text-muted);">– keine Übungen –</span>'}
                   </div>
                 </div>
               `).join('')}
@@ -552,8 +731,8 @@
       `;
 
       const daysContainer = document.getElementById('tpl-days');
-      document.getElementById('add-day-btn').addEventListener('click', () => createDayBuilder(daysContainer, exerciseOptions, `Tag ${daysContainer.children.length + 1}`));
-      createDayBuilder(daysContainer, exerciseOptions, 'Tag 1');
+      document.getElementById('add-day-btn').addEventListener('click', () => createDayBuilder(daysContainer, exerciseOptions, `Tag ${daysContainer.children.length + 1}`, exercisesById));
+      createDayBuilder(daysContainer, exerciseOptions, 'Tag 1', exercisesById);
 
       document.getElementById('template-form').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -652,6 +831,7 @@
         return;
       }
 
+      const exercisesById = Object.fromEntries(exercises.map((ex) => [ex.id, ex]));
       const exerciseOptions = exerciseOptionsHtml(exercises);
       const clientOptions = clients.map((c) => `<option value="${c.id}">${escapeHtml(c.full_name || c.email)}${c.access_locked ? ' (gesperrt)' : ''}</option>`).join('');
 
@@ -678,13 +858,15 @@
       `;
 
       const daysContainer = document.getElementById('plan-days');
-      document.getElementById('add-day-btn').addEventListener('click', () => createDayBuilder(daysContainer, exerciseOptions, `Tag ${daysContainer.children.length + 1}`));
+      document.getElementById('add-day-btn').addEventListener('click', () => createDayBuilder(daysContainer, exerciseOptions, `Tag ${daysContainer.children.length + 1}`, exercisesById));
 
       const looseContainer = document.getElementById('loose-rows');
+      const attachPreview = buildExercisePreview(exercisesById);
       function addLooseRow() {
         const row = document.createElement('div');
         row.className = 'exercise-builder-row';
         row.innerHTML = `
+          <img class="row-preview thumb-sm" src="" alt="" style="visibility:hidden;" />
           <select class="row-exercise">${exerciseOptions}</select>
           <input class="row-sets" type="number" min="1" placeholder="Sätze" />
           <input class="row-reps" type="text" placeholder="Wdh. (z.B. 8-12)" />
@@ -694,6 +876,7 @@
         `;
         row.querySelector('button').addEventListener('click', () => row.remove());
         looseContainer.appendChild(row);
+        attachPreview(row);
       }
       document.getElementById('add-loose-btn').addEventListener('click', addLooseRow);
 
@@ -785,15 +968,17 @@
         return;
       }
 
+      const exercisesById = Object.fromEntries((exercises || []).map((ex) => [ex.id, ex]));
       const days = (plan.training_plan_days || []).sort((a, b) => a.sort_order - b.sort_order);
       const dayOptions = `<option value="">– kein fester Tag –</option>` + days.map((d) => `<option value="${d.id}">${escapeHtml(d.label)}</option>`).join('');
       const exerciseOptions = exerciseOptionsHtml(exercises || []);
       const nextSort = (plan.plan_exercises || []).length;
 
       area.innerHTML = `
-        <div class="exercise-builder-row" style="grid-template-columns: 1.3fr 1.7fr 0.7fr 0.9fr 1fr 0.9fr auto;">
+        <div class="exercise-builder-row" style="grid-template-columns: 44px 1.1fr 1.5fr 0.7fr 0.9fr 1fr 0.9fr auto;">
+          <img class="row-preview thumb-sm" src="" alt="" style="visibility:hidden;" />
           <select class="add-ex-day">${dayOptions}</select>
-          <select class="add-ex-exercise">${exerciseOptions}</select>
+          <select class="add-ex-exercise row-exercise">${exerciseOptions}</select>
           <input class="add-ex-sets" type="number" min="1" placeholder="Sätze" />
           <input class="add-ex-reps" type="text" placeholder="Wdh." />
           <input class="add-ex-weight" type="text" placeholder="Gewicht/Hinweis" />
@@ -801,6 +986,7 @@
           <button class="btn small-btn add-ex-submit" type="button">Hinzufügen</button>
         </div>
       `;
+      buildExercisePreview(exercisesById)(area);
 
       area.querySelector('.add-ex-submit').addEventListener('click', async () => {
         const { error } = await addExerciseToPlan({
@@ -818,6 +1004,288 @@
         area.style.display = 'none';
         area.innerHTML = '';
       });
+    }
+
+    // --- Kundenanalyse (Admin) -------------------------------------------------------
+
+    async function renderClientAnalysisTab(content) {
+      const { data: clients, error } = await listClients();
+      if (error) {
+        content.innerHTML = `<div class="msg error">${escapeHtml(error.message)}</div>`;
+        return;
+      }
+      if (!clients || clients.length === 0) {
+        content.innerHTML = `<div class="card"><p>Noch keine Kunden-Accounts vorhanden.</p></div>`;
+        return;
+      }
+
+      content.innerHTML = `
+        <div class="card">
+          <div class="field" style="max-width:360px;">
+            <label>Kunde auswählen</label>
+            <select id="analysis-client">${clients.map((c) => `<option value="${c.id}">${escapeHtml(c.full_name || c.email)}</option>`).join('')}</select>
+          </div>
+        </div>
+        <div id="analysis-body" class="mt-24"></div>
+      `;
+
+      const select = document.getElementById('analysis-client');
+      const body = document.getElementById('analysis-body');
+      select.addEventListener('change', () => renderAnalyticsView(body, select.value, { isAdminView: true }));
+      renderAnalyticsView(body, select.value, { isAdminView: true });
+    }
+
+    // =========================================================================
+    // AUSWERTUNG / ANALYTICS (gemeinsam für Kunde & Trainer)
+    // =========================================================================
+
+    function logMetric(log) {
+      if (log.weight_kg != null && log.reps != null) return { type: 'volume', value: log.weight_kg * log.reps, unit: 'kg' };
+      if (log.duration_seconds != null) return { type: 'duration', value: log.duration_seconds / 60, unit: 'Min.' };
+      if (log.distance_meters != null) return { type: 'distance', value: log.distance_meters, unit: 'm' };
+      if (log.reps != null) return { type: 'reps', value: log.reps, unit: 'Wdh.' };
+      return null;
+    }
+
+    function presetRange(preset) {
+      const now = new Date();
+      let from = null;
+      const to = now.toISOString();
+      if (preset === '4w') { from = new Date(now.getTime() - 28 * 86400000).toISOString(); }
+      else if (preset === 'year') { from = new Date(now.getFullYear(), 0, 1).toISOString(); }
+      else if (preset === 'all') { from = null; }
+      return { from, to: null };
+    }
+
+    async function renderAnalyticsView(el, clientId, { isAdminView }) {
+      el.innerHTML = '<p class="center-text">Lade Auswertung …</p>';
+      if (!clientId) { el.innerHTML = ''; return; }
+
+      let currentFrom = null;
+      let currentTo = null;
+      let currentExerciseId = null;
+
+      async function load() {
+        const { data: logs, error } = await listLogsForAnalytics(clientId, { from: currentFrom, to: currentTo });
+        if (error) { el.innerHTML = `<div class="msg error">${escapeHtml(error.message)}</div>`; return; }
+        renderContent(logs || []);
+      }
+
+      function renderContent(logs) {
+        const exerciseMap = {};
+        for (const log of logs) {
+          if (!log.exercises) continue;
+          exerciseMap[log.exercise_id] = log.exercises;
+        }
+        const exerciseChoices = Object.values(exerciseMap).sort((a, b) => a.name.localeCompare(b.name, 'de'));
+
+        if (!currentExerciseId && exerciseChoices.length > 0) currentExerciseId = exerciseChoices[0].id;
+
+        const sessionIds = new Set(logs.map((l) => l.session_id).filter(Boolean));
+        const dates = logs.map((l) => l.performed_at).sort();
+        const firstDate = dates[0] ? formatDateOnly(dates[0]) : '–';
+        const lastDate = dates[dates.length - 1] ? formatDateOnly(dates[dates.length - 1]) : '–';
+
+        const totalVolumeKg = logs.reduce((sum, l) => {
+          const m = logMetric(l);
+          return sum + (m && m.type === 'volume' ? m.value : 0);
+        }, 0);
+        const totalVolumeDisplay = totalVolumeKg >= 1000 ? (totalVolumeKg / 1000).toFixed(2) + ' t' : Math.round(totalVolumeKg) + ' kg';
+
+        el.innerHTML = `
+          <div class="card">
+            <div class="analytics-filters">
+              <div class="field">
+                <label>Von</label>
+                <input type="date" id="af-from" />
+              </div>
+              <div class="field">
+                <label>Bis</label>
+                <input type="date" id="af-to" />
+              </div>
+              <div class="field" style="min-width:220px;">
+                <label>Übung für Verlauf</label>
+                <select id="af-exercise">${exerciseChoices.map((ex) => `<option value="${ex.id}" ${ex.id === currentExerciseId ? 'selected' : ''}>${escapeHtml(ex.name)}</option>`).join('') || '<option value="">– keine Daten –</option>'}</select>
+              </div>
+              <button class="btn small-btn" id="af-apply" type="button">Filtern</button>
+            </div>
+            <div class="filter-presets">
+              <button type="button" data-preset="all">Gesamter Zeitraum</button>
+              <button type="button" data-preset="4w">Letzte 4 Wochen</button>
+              <button type="button" data-preset="year">Dieses Jahr</button>
+            </div>
+
+            <div class="stat-tiles">
+              <div class="stat-tile"><div class="value">${sessionIds.size}</div><div class="label">Trainingseinheiten</div></div>
+              <div class="stat-tile"><div class="value">${firstDate} – ${lastDate}</div><div class="label">Zeitraum der Daten</div></div>
+              <div class="stat-tile"><div class="value">${totalVolumeDisplay}</div><div class="label">Insgesamt bewegte Kilos (Zeitraum)</div></div>
+            </div>
+
+            <h3 style="font-size:0.95rem; margin-bottom:4px;">Verlauf je Trainingseinheit</h3>
+            <div id="progress-chart" style="position:relative;"></div>
+            <div id="progress-table" class="mt-16"></div>
+          </div>
+
+          <div class="card mt-24">
+            <h2 style="font-size:1.05rem;">Belastungsverteilung (Dysbalance-Hinweis)</h2>
+            <p style="color:var(--color-text-muted); font-size:0.82rem;">Groborientierung auf Basis der insgesamt bewegten Kilos je Bewegungsmuster im gewählten Zeitraum – ersetzt keine individuelle fachliche Einschätzung. Übungen ohne eindeutiges Bewegungsmuster (z.B. gemischtes Cardio) fließen nicht ein.</p>
+            <div id="dysbalance-section"></div>
+          </div>
+        `;
+
+        document.getElementById('af-apply').addEventListener('click', () => {
+          const fromVal = document.getElementById('af-from').value;
+          const toVal = document.getElementById('af-to').value;
+          currentFrom = fromVal ? new Date(fromVal).toISOString() : null;
+          currentTo = toVal ? new Date(toVal + 'T23:59:59').toISOString() : null;
+          currentExerciseId = document.getElementById('af-exercise').value || null;
+          el.querySelectorAll('.filter-presets button').forEach((b) => b.classList.remove('active'));
+          load();
+        });
+        document.getElementById('af-exercise').addEventListener('change', (e) => {
+          currentExerciseId = e.target.value || null;
+          renderProgressChart(logs);
+        });
+        el.querySelectorAll('.filter-presets button').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            el.querySelectorAll('.filter-presets button').forEach((b) => b.classList.remove('active'));
+            btn.classList.add('active');
+            const { from, to } = presetRange(btn.dataset.preset);
+            currentFrom = from; currentTo = to;
+            load();
+          });
+        });
+
+        renderProgressChart(logs);
+        renderDysbalanceSection(logs);
+      }
+
+      function renderProgressChart(logs) {
+        const chartEl = document.getElementById('progress-chart');
+        const tableEl = document.getElementById('progress-table');
+        if (!chartEl) return;
+        if (!currentExerciseId) { chartEl.innerHTML = '<p style="color:var(--color-text-muted); font-size:0.85rem;">Keine Übungsdaten im gewählten Zeitraum.</p>'; tableEl.innerHTML = ''; return; }
+
+        const exLogs = logs.filter((l) => l.exercise_id === currentExerciseId);
+        const bySession = {};
+        for (const log of exLogs) {
+          const key = log.session_id || ('day:' + log.performed_at.slice(0, 10));
+          const m = logMetric(log);
+          if (!m) continue;
+          if (!bySession[key]) bySession[key] = { date: log.performed_at, type: m.type, unit: m.unit, value: 0 };
+          bySession[key].value += m.value;
+          if (log.performed_at < bySession[key].date) bySession[key].date = log.performed_at;
+        }
+        const points = Object.values(bySession).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+        if (points.length === 0) {
+          chartEl.innerHTML = '<p style="color:var(--color-text-muted); font-size:0.85rem;">Für diese Übung liegen im gewählten Zeitraum noch keine Einträge vor.</p>';
+          tableEl.innerHTML = '';
+          return;
+        }
+        if (points.length < 2) {
+          chartEl.innerHTML = `<p style="color:var(--color-text-muted); font-size:0.85rem;">Erst ein Datenpunkt (${formatDateOnly(points[0].date)}: ${points[0].value.toFixed(1)} ${points[0].unit}) – für einen Verlauf braucht es mindestens zwei Trainingseinheiten mit dieser Übung.</p>`;
+          tableEl.innerHTML = '';
+          return;
+        }
+
+        const unit = points[0].unit;
+        const width = 640, height = 220, padding = 36;
+        const values = points.map((p) => p.value);
+        const minV = Math.min(0, ...values), maxV = Math.max(...values);
+        const range = (maxV - minV) || 1;
+        const coords = points.map((p, i) => ({
+          x: padding + (i / (points.length - 1 || 1)) * (width - padding * 2),
+          y: height - padding - ((p.value - minV) / range) * (height - padding * 2),
+          date: p.date, value: p.value,
+        }));
+        const pathD = coords.map((p, i) => (i === 0 ? 'M' : 'L') + p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' ');
+
+        chartEl.innerHTML = `
+          <svg viewBox="0 0 ${width} ${height}" style="width:100%; height:auto; overflow:visible;">
+            <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="var(--color-border)" stroke-width="1" />
+            <path d="${pathD}" fill="none" stroke="var(--color-gold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            ${coords.map((p) => `<circle cx="${p.x}" cy="${p.y}" r="4" fill="var(--color-gold)" class="chart-point" data-date="${p.date}" data-value="${p.value.toFixed(1)}" style="cursor:pointer;" />`).join('')}
+          </svg>
+          <div class="chart-tooltip" id="progress-tooltip"></div>
+        `;
+        const tooltip = document.getElementById('progress-tooltip');
+        chartEl.querySelectorAll('.chart-point').forEach((pt) => {
+          pt.addEventListener('mouseenter', (e) => {
+            const rect = chartEl.getBoundingClientRect();
+            tooltip.textContent = `${formatDateOnly(pt.dataset.date)}: ${pt.dataset.value} ${unit}`;
+            tooltip.style.left = (e.clientX - rect.left) + 'px';
+            tooltip.style.top = (e.clientY - rect.top) + 'px';
+            tooltip.style.opacity = '1';
+          });
+          pt.addEventListener('mouseleave', () => { tooltip.style.opacity = '0'; });
+        });
+
+        tableEl.innerHTML = `<table class="log-table"><thead><tr><th>Datum</th><th>Wert (${escapeHtml(unit)})</th></tr></thead><tbody>
+          ${points.map((p) => `<tr><td>${formatDateOnly(p.date)}</td><td>${p.value.toFixed(1)}</td></tr>`).join('')}
+        </tbody></table>`;
+      }
+
+      function renderDysbalanceSection(logs) {
+        const dysEl = document.getElementById('dysbalance-section');
+        if (!dysEl) return;
+
+        const totals = {};
+        for (const log of logs) {
+          const m = logMetric(log);
+          if (!m || m.type !== 'volume') continue;
+          const pattern = log.exercises && log.exercises.movement_pattern;
+          if (!pattern || pattern === 'sonstige') continue;
+          totals[pattern] = (totals[pattern] || 0) + m.value;
+        }
+
+        const pairs = [
+          { title: 'Push / Pull (Oberkörper)', aKey: 'push_oberkoerper', bKey: 'pull_oberkoerper' },
+          { title: 'Vordere / Hintere Beinkette', aKey: 'vordere_beinkette', bKey: 'hintere_beinkette' },
+          { title: 'Rumpf vorne / hinten', aKey: 'rumpf_vorne', bKey: 'rumpf_hinten' },
+        ];
+
+        const hasAnyData = pairs.some((p) => (totals[p.aKey] || 0) > 0 || (totals[p.bKey] || 0) > 0);
+        if (!hasAnyData) {
+          dysEl.innerHTML = '<p style="color:var(--color-text-muted); font-size:0.85rem;">Noch keine mit Gewicht geloggten Sätze im gewählten Zeitraum, aus denen sich eine Belastungsverteilung berechnen ließe.</p>';
+          return;
+        }
+
+        dysEl.innerHTML = `
+          <div class="dysbalance-legend">
+            <span><i style="background:var(--color-gold);"></i> Vorderseite / Push</span>
+            <span><i style="background:var(--chart-teal);"></i> Rückseite / Pull</span>
+          </div>
+          ${pairs.map((p) => {
+            const a = totals[p.aKey] || 0;
+            const b = totals[p.bKey] || 0;
+            if (a === 0 && b === 0) return '';
+            const max = Math.max(a, b, 1);
+            const ratio = a === 0 || b === 0 ? Infinity : Math.max(a, b) / Math.min(a, b);
+            let verdict, cls;
+            if (a === 0 || b === 0) { verdict = 'Eine Seite ist im Zeitraum noch komplett unbelastet.'; cls = 'alert'; }
+            else if (ratio <= 1.2) { verdict = 'Ausgewogen.'; cls = 'ok'; }
+            else if (ratio <= 1.5) { verdict = 'Leichtes Ungleichgewicht.'; cls = 'warn'; }
+            else { verdict = 'Deutliches Ungleichgewicht – ggf. gezielt gegensteuern.'; cls = 'alert'; }
+            return `<div class="dysbalance-pair">
+              <div class="pair-title">${escapeHtml(p.title)}</div>
+              <div class="dysbalance-bar-row">
+                <div class="side-label">${escapeHtml(MOVEMENT_PATTERN_LABELS[p.aKey])}</div>
+                <div class="dysbalance-bar-track"><div class="dysbalance-bar-fill" style="width:${(a / max * 100).toFixed(1)}%; background:var(--color-gold);"></div></div>
+                <div class="dysbalance-bar-value">${Math.round(a)} kg</div>
+              </div>
+              <div class="dysbalance-bar-row">
+                <div class="side-label">${escapeHtml(MOVEMENT_PATTERN_LABELS[p.bKey])}</div>
+                <div class="dysbalance-bar-track"><div class="dysbalance-bar-fill" style="width:${(b / max * 100).toFixed(1)}%; background:var(--chart-teal);"></div></div>
+                <div class="dysbalance-bar-value">${Math.round(b)} kg</div>
+              </div>
+              <div class="dysbalance-verdict ${cls}">${verdict}</div>
+            </div>`;
+          }).join('')}
+        `;
+      }
+
+      await load();
     }
 
     init();
