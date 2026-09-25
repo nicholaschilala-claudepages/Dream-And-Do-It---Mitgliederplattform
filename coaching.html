@@ -24,8 +24,11 @@
     @media (max-width: 520px) { .grid-2 { grid-template-columns: 1fr; } }
     table.simple-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
     table.simple-table th, table.simple-table td { text-align: left; padding: 7px 6px; border-bottom: 1px solid var(--color-border); }
-    .content-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--color-border); }
+    .content-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--color-border); flex-wrap: wrap; }
     .content-row:last-child { border-bottom: none; }
+    .content-row img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
+    .image-wrap { display: flex; flex-direction: column; align-items: center; gap: 2px; flex-shrink: 0; }
+    .ai-image-note { font-size: 0.62rem; color: var(--color-text-muted); text-align: center; max-width: 64px; line-height: 1.15; }
     .q-item { padding: 14px 0; border-bottom: 1px solid var(--color-border); }
     .q-item:last-child { border-bottom: none; }
     .q-item p.q-text { margin: 0 0 10px; font-size: 0.92rem; }
@@ -189,6 +192,7 @@
               <div class="field"><label>Kategorie (z.B. Mindset, Gewohnheiten, Stressbewältigung)</label><input type="text" id="content-category" /></div>
               <div class="field"><label>Kurzbeschreibung</label><input type="text" id="content-desc" /></div>
               <div class="field"><label>Link zur PDF-Datei</label><input type="url" id="content-pdf" required placeholder="https://..." /></div>
+              <div class="field"><label>Bild-URL (optional)</label><input type="url" id="content-image" placeholder="https://..." /></div>
               <button class="btn" type="submit">Content speichern</button>
             </form>
           </div>
@@ -200,6 +204,7 @@
           <h2 style="font-size:1.05rem;">${adminMode ? 'Aller Content' : 'Content zum Download'}</h2>
           ${!items || items.length === 0 ? '<p style="color:var(--color-text-muted);">Noch keine Inhalte hinterlegt.</p>' : items.map((r) => `
             <div class="content-row">
+              ${r.image_url ? `<div class="image-wrap"><img src="${escapeHtml(r.image_url)}" alt="" onerror="this.parentElement.style.display='none'" /><span class="ai-image-note">Bild KI-generiert</span></div>` : ''}
               <div>
                 <h4 style="margin:0 0 2px;">${escapeHtml(r.title)}</h4>
                 ${r.category ? `<div style="font-size:0.78rem; color:var(--color-gold);">${escapeHtml(r.category)}</div>` : ''}
@@ -224,6 +229,7 @@
             category: document.getElementById('content-category').value.trim(),
             description: document.getElementById('content-desc').value.trim(),
             pdfUrl: document.getElementById('content-pdf').value.trim(),
+            imageUrl: document.getElementById('content-image').value.trim(),
           });
           if (error) { alert('Fehler: ' + error.message); return; }
           renderContentTab(content, true);
@@ -255,6 +261,18 @@
         if (error) { content.innerHTML = `<div class="msg error">${escapeHtml(error.message)}</div>`; return; }
         content.innerHTML = `
           <div class="card">
+            <h2 style="font-size:1.05rem;">Verfügbare Fragebogen-Vorlagen</h2>
+            <p style="color:var(--color-text-muted); font-size:0.85rem;">Diese validierten Skalen stehen Kunden im Bereich "Fragebögen" zum Ausfüllen zur Verfügung.</p>
+            ${QUESTIONNAIRES.map((q) => `
+              <div class="content-row">
+                <div>
+                  <h4 style="margin:0 0 2px;">${escapeHtml(q.title)}</h4>
+                  <div style="font-size:0.78rem; color:var(--color-text-muted);">Quelle: ${escapeHtml(q.source)}</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+          <div class="card mt-24">
             <h2 style="font-size:1.05rem;">Ausgefüllte Fragebögen aller Kunden</h2>
             ${!responses || responses.length === 0 ? '<p style="color:var(--color-text-muted);">Noch keine Fragebögen ausgefüllt.</p>' : `
             <table class="simple-table mt-16">
