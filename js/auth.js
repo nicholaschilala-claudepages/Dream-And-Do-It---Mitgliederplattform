@@ -59,7 +59,7 @@ export async function getMyProfile() {
 
   const { data, error } = await supabaseClient
     .from('profiles')
-    .select('id, full_name, role, access_locked, created_at')
+    .select('id, full_name, role, access_locked, created_at, training_enabled, nutrition_enabled, coaching_enabled')
     .eq('id', session.user.id)
     .single();
 

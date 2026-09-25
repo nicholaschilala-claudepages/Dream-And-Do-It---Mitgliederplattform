@@ -14,7 +14,7 @@ export async function listClientOverview() {
   const [clientsRes, activityRes] = await Promise.all([
     supabaseClient
       .from('profiles')
-      .select('id, full_name, email, access_locked, created_at, max_devices')
+      .select('id, full_name, email, access_locked, created_at, max_devices, training_enabled, nutrition_enabled, coaching_enabled')
       .eq('role', 'client')
       .order('full_name', { ascending: true }),
     supabaseClient.from('client_last_activity').select('*'),
@@ -45,6 +45,16 @@ export async function listClientOverview() {
 
 export async function setClientLock(clientId, locked) {
   return supabaseClient.from('profiles').update({ access_locked: locked }).eq('id', clientId);
+}
+
+// ---------------------------------------------------------------------------
+// Reiter-Freigabe (Training/Ernährung/Coaching einzeln pro Kunde), siehe
+// sql/020_reiter_freigabe.sql. field ist eines von 'training_enabled',
+// 'nutrition_enabled', 'coaching_enabled'.
+// ---------------------------------------------------------------------------
+
+export async function setClientModuleAccess(clientId, field, enabled) {
+  return supabaseClient.from('profiles').update({ [field]: enabled }).eq('id', clientId);
 }
 
 // ---------------------------------------------------------------------------

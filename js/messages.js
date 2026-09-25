@@ -4,6 +4,23 @@
 
 import { supabaseClient } from './supabase-client.js';
 
+/**
+ * Anzahl ungelesener Nachrichten für den übergebenen Nutzer (Kunde oder
+ * Admin) — für das Nachrichten-Badge in der Topbar auf allen Seiten.
+ */
+export async function getUnreadCount(userId) {
+  const { count, error } = await supabaseClient
+    .from('messages')
+    .select('id', { count: 'exact', head: true })
+    .eq('recipient_id', userId)
+    .eq('is_read', false);
+  if (error) {
+    console.error('Ungelesene Nachrichten konnten nicht gezählt werden:', error);
+    return 0;
+  }
+  return count || 0;
+}
+
 export async function getAdminId() {
   const { data, error } = await supabaseClient.from('profiles').select('id').eq('role', 'admin').limit(1).maybeSingle();
   return { data: data ? data.id : null, error };
