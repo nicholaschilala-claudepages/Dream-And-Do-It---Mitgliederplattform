@@ -290,7 +290,7 @@
     // =========================================================================
 
     const CLIENT_TRAINING_TABS = [
-      { key: 'start', label: 'Start' },
+      { key: 'start', label: 'Start', hidden: true },
       { key: 'plan', label: 'Mein Plan' },
       { key: 'progress', label: 'Meine Entwicklung' },
     ];
@@ -333,20 +333,7 @@
           <span class="kicker">Wissenschaftlicher Hintergrund</span>
           ${collapsibleHtml(`<p>${info.scienceText}</p>`, { fadeVar: 'var(--color-bg)' })}
         </div>
-        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:16px;">
-          ${isAdmin ? `
-            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="templates">Zu den Vorlagen</button>
-            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="library">Zur Übungsbibliothek</button>
-            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="analysis">Zur Kundenanalyse</button>
-          ` : `
-            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="plan">Zu meinem Plan</button>
-            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="progress">Zu meiner Entwicklung</button>
-          `}
-        </div>
       `;
-      content.querySelectorAll('[data-goto]').forEach((btn) => {
-        btn.addEventListener('click', () => goToTab(isAdmin ? 'admin-tab' : 'client-tab', btn.dataset.goto));
-      });
       initCollapsibles(content);
     }
 
@@ -591,7 +578,7 @@
     // =========================================================================
 
     const ADMIN_TRAINING_TABS = [
-      { key: 'start', label: 'Start' },
+      { key: 'start', label: 'Start', hidden: true },
       { key: 'templates', label: 'Vorlagen bauen' },
       { key: 'assign', label: 'Vorlage zuweisen' },
       { key: 'plans', label: 'Einzelplan erstellen' },

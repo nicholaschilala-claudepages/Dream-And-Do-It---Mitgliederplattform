@@ -222,7 +222,7 @@
     function renderShell() {
       const isAdmin = currentProfile.role === 'admin';
       const tabs = [
-        { key: 'start', label: 'Start' },
+        { key: 'start', label: 'Start', hidden: true },
         { key: 'pal', label: 'PAL-Rechner' },
         { key: 'bodyfat', label: 'Körperfett-Verlauf' },
         { key: 'protokoll', label: 'Ernährungsprotokoll' },
@@ -261,22 +261,7 @@
           <span class="kicker">Wissenschaftlicher Hintergrund</span>
           ${collapsibleHtml(`<p>${info.scienceText}</p>`, { fadeVar: 'var(--color-bg)' })}
         </div>
-        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:16px;">
-          ${isAdmin ? `
-            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="recipes-admin">Rezepte verwalten</button>
-            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="foods-admin">Lebensmittel verwalten</button>
-            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="protokoll">Ernährungsprotokolle</button>
-          ` : `
-            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="pal">Zum PAL-Rechner</button>
-            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="bodyfat">Zum Körperfett-Verlauf</button>
-            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="protokoll">Zum Ernährungsprotokoll</button>
-            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="recipes">Zu den Rezepten</button>
-          `}
-        </div>
       `;
-      content.querySelectorAll('[data-goto]').forEach((btn) => {
-        btn.addEventListener('click', () => goToTab(btn.dataset.goto));
-      });
       initCollapsibles(content);
     }
 

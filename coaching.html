@@ -229,7 +229,7 @@
     function renderShell() {
       const isAdmin = currentProfile.role === 'admin';
       const tabs = [
-        { key: 'start', label: 'Start' },
+        { key: 'start', label: 'Start', hidden: true },
         { key: 'content', label: 'Content' },
         ...(isAdmin ? [{ key: 'content-admin', label: 'Content verwalten' }] : []),
         { key: 'fragebogen', label: 'Fragebögen' },
@@ -269,20 +269,7 @@
           <span class="kicker">${isAdmin ? 'Akademischer Hintergrund & wissenschaftliche Grundlage' : 'Wissenschaftlicher Hintergrund'}</span>
           ${collapsibleHtml(`<p>${info.scienceText}</p>`, { fadeVar: 'var(--color-bg)' })}
         </div>
-        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:16px;">
-          ${isAdmin ? `
-            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="content-admin">Content verwalten</button>
-            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="fragebogen">Fragebögen der Kunden</button>
-          ` : `
-            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="content">Zur Content-Bibliothek</button>
-            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="fragebogen">Zu den Fragebögen</button>
-            <button class="btn secondary" style="width:auto; padding:10px 18px;" data-goto="ziele">Zu meinen Zielen</button>
-          `}
-        </div>
       `;
-      content.querySelectorAll('[data-goto]').forEach((btn) => {
-        btn.addEventListener('click', () => goToTab(btn.dataset.goto));
-      });
       initCollapsibles(content);
     }
 
