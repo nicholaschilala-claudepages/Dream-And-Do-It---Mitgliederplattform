@@ -30,9 +30,6 @@
     .log-form button { padding: 7px 12px; font-size: 0.8rem; }
     table.log-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
     table.log-table th, table.log-table td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--color-border); }
-    .subtabs { display: flex; gap: 8px; margin: 20px 0 12px; flex-wrap: wrap; }
-    .subtabs button { padding: 7px 14px; border-radius: 20px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); font-size: 0.82rem; cursor: pointer; }
-    .subtabs button.active { background: var(--color-navy); color: #fff; border-color: var(--color-navy); }
     .exercise-builder-row { display: grid; grid-template-columns: 44px 1.7fr 0.7fr 0.9fr 1fr 0.9fr auto; gap: 8px; margin-bottom: 8px; align-items: center; }
     .exercise-builder-row select, .exercise-builder-row input { padding: 8px; border-radius: 6px; border: 1px solid var(--color-border); background: var(--color-bg); color: var(--color-text); width: 100%; }
     .small-btn { padding: 6px 10px; font-size: 0.78rem; width: auto; }
@@ -131,6 +128,7 @@
     import { getNewSignupCount } from './js/betrieb.js';
     import { navTabsHtml } from './js/nav.js';
     import { collapsibleHtml, initCollapsibles } from './js/collapsible.js';
+    import { subnavSelectHtml, bindSubnavSelect, setSubnavValue } from './js/subnav.js';
     import { SECTION_INFO } from './js/section-info.js';
 
     initTheme();
@@ -291,31 +289,32 @@
     // KUNDEN-ANSICHT
     // =========================================================================
 
+    const CLIENT_TRAINING_TABS = [
+      { key: 'start', label: 'Start' },
+      { key: 'plan', label: 'Mein Plan' },
+      { key: 'progress', label: 'Meine Entwicklung' },
+    ];
+
     async function renderClientRoot(profile) {
       container.innerHTML = `
-        <div class="subtabs">
-          <button class="client-tab active" data-tab="start">Start</button>
-          <button class="client-tab" data-tab="plan">Mein Plan</button>
-          <button class="client-tab" data-tab="progress">Meine Entwicklung</button>
-        </div>
+        ${subnavSelectHtml(CLIENT_TRAINING_TABS, 'start')}
         <div id="client-content"><p class="center-text">Lade …</p></div>
       `;
-      container.querySelectorAll('.client-tab').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          container.querySelectorAll('.client-tab').forEach((b) => b.classList.remove('active'));
-          btn.classList.add('active');
-          const content = document.getElementById('client-content');
-          if (btn.dataset.tab === 'progress') renderAnalyticsView(content, profile.id, { isAdminView: false });
-          else if (btn.dataset.tab === 'start') renderStartTab(content, false);
-          else renderClientView(content, profile);
-        });
-      });
+      bindSubnavSelect(container, (key) => activateClientTab(key, profile));
       renderStartTab(document.getElementById('client-content'), false);
     }
 
-    function goToTab(tabClass, tabName) {
-      const btn = container.querySelector(`.${tabClass}[data-tab="${tabName}"]`);
-      if (btn) btn.click();
+    function activateClientTab(tabName, profile) {
+      const content = document.getElementById('client-content');
+      if (tabName === 'progress') renderAnalyticsView(content, profile.id, { isAdminView: false });
+      else if (tabName === 'start') renderStartTab(content, false);
+      else renderClientView(content, profile);
+    }
+
+    function goToTab(scope, tabName) {
+      setSubnavValue(container, tabName);
+      if (scope === 'admin-tab') renderAdminTab(tabName);
+      else activateClientTab(tabName, currentProfile);
     }
 
     function renderStartTab(content, isAdmin) {
@@ -591,28 +590,22 @@
     // ADMIN-ANSICHT
     // =========================================================================
 
+    const ADMIN_TRAINING_TABS = [
+      { key: 'start', label: 'Start' },
+      { key: 'templates', label: 'Vorlagen bauen' },
+      { key: 'assign', label: 'Vorlage zuweisen' },
+      { key: 'plans', label: 'Einzelplan erstellen' },
+      { key: 'library', label: 'Übungsbibliothek' },
+      { key: 'existing', label: 'Bestehende Pläne' },
+      { key: 'analysis', label: 'Kundenanalyse' },
+    ];
+
     async function renderAdminView() {
       container.innerHTML = `
-        <div class="subtabs">
-          <button class="admin-tab active" data-tab="start">Start</button>
-          <button class="admin-tab" data-tab="templates">Vorlagen bauen</button>
-          <button class="admin-tab" data-tab="assign">Vorlage zuweisen</button>
-          <button class="admin-tab" data-tab="plans">Einzelplan erstellen</button>
-          <button class="admin-tab" data-tab="library">Übungsbibliothek</button>
-          <button class="admin-tab" data-tab="existing">Bestehende Pläne</button>
-          <button class="admin-tab" data-tab="analysis">Kundenanalyse</button>
-        </div>
+        ${subnavSelectHtml(ADMIN_TRAINING_TABS, 'start')}
         <div id="admin-content"><p class="center-text">Lade …</p></div>
       `;
-
-      container.querySelectorAll('.admin-tab').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          container.querySelectorAll('.admin-tab').forEach((b) => b.classList.remove('active'));
-          btn.classList.add('active');
-          renderAdminTab(btn.dataset.tab);
-        });
-      });
-
+      bindSubnavSelect(container, (key) => renderAdminTab(key));
       renderAdminTab('start');
     }
 
@@ -904,8 +897,7 @@
         if (error) { alert('Fehler: ' + error.message); return; }
         alert('Vorlage zugewiesen.');
         renderAdminTab('existing');
-        container.querySelectorAll('.admin-tab').forEach((b) => b.classList.remove('active'));
-        container.querySelector('[data-tab="existing"]').classList.add('active');
+        setSubnavValue(container, 'existing');
       });
     }
 
@@ -1003,8 +995,7 @@
         if (error) { alert('Fehler: ' + error.message); return; }
         alert('Trainingsplan gespeichert.');
         renderAdminTab('existing');
-        container.querySelectorAll('.admin-tab').forEach((b) => b.classList.remove('active'));
-        container.querySelector('[data-tab="existing"]').classList.add('active');
+        setSubnavValue(container, 'existing');
       });
     }
 

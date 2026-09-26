@@ -10,9 +10,6 @@
   <link rel="stylesheet" href="css/styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <style>
-    .subtabs { display: flex; gap: 8px; margin: 0 0 16px; flex-wrap: wrap; }
-    .subtabs button { padding: 7px 14px; border-radius: 20px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); font-size: 0.82rem; cursor: pointer; }
-    .subtabs button.active { background: var(--color-navy); color: #fff; border-color: var(--color-navy); }
     .result-box {
       background: rgba(200,124,0,0.08); border: 1px solid rgba(200,124,0,0.25);
       border-radius: 10px; padding: 16px; margin-top: 16px;
@@ -24,6 +21,14 @@
     @media (max-width: 520px) { .grid-2 { grid-template-columns: 1fr; } }
     table.simple-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
     table.simple-table th, table.simple-table td { text-align: left; padding: 7px 6px; border-bottom: 1px solid var(--color-border); }
+    /* Trainer-Fragebogen-Vollansicht (Items/Skala) — Nutzer-Feedback nach
+       Etappe 19: Trainer sollen Fragebögen nicht nur mit Titel+Quelle sehen. */
+    .qn-details summary {
+      cursor: pointer; font-family: var(--font-heading); font-size: 0.8rem;
+      color: var(--color-gold); font-weight: 600; letter-spacing: 0.02em;
+    }
+    .qn-details summary:hover { text-decoration: underline; }
+    .qn-details[open] summary { margin-bottom: 4px; }
     .content-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--color-border); flex-wrap: wrap; }
     .content-row:last-child { border-bottom: none; }
     .content-row img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
@@ -106,6 +111,7 @@
     import { getNewSignupCount } from './js/betrieb.js';
     import { navTabsHtml } from './js/nav.js';
     import { collapsibleHtml, initCollapsibles } from './js/collapsible.js';
+    import { subnavSelectHtml, bindSubnavSelect, setSubnavValue } from './js/subnav.js';
     import { SECTION_INFO } from './js/section-info.js';
 
     initTheme();
@@ -124,6 +130,32 @@
     function fmtDate(d) {
       if (!d) return '–';
       return new Date(d).toLocaleDateString('de-DE');
+    }
+
+    // Voller Trainer-Zugriff auf Fragebögen (Nutzer-Feedback nach Etappe 19):
+    // zeigt bei einer ausgefüllten Kundenantwort jede Frage mit der jeweils
+    // gewählten Antwort im Klartext, nicht nur den Gesamt-Score.
+    function renderAnswerDetailHtml(q, answers, interpretation) {
+      if (!q || !Array.isArray(answers)) {
+        return '<p style="color:var(--color-text-muted); font-size:0.82rem; padding:10px 0;">Keine Detailantworten verfügbar.</p>';
+      }
+      const labelFor = (val) => {
+        const found = q.scaleLabels.find((s) => s.value === val);
+        return found ? found.label : String(val);
+      };
+      return `
+        <div style="padding:10px 4px;">
+          <ol style="padding-left:20px; font-size:0.85rem; margin:0 0 10px;">
+            ${q.items.map((it, i) => `
+              <li style="margin-bottom:8px;">
+                <span style="color:var(--color-text-muted);">${escapeHtml(it)}</span><br />
+                <strong>${escapeHtml(labelFor(answers[i]))}</strong>
+              </li>
+            `).join('')}
+          </ol>
+          ${interpretation ? `<div style="font-size:0.8rem; color:var(--color-text-muted); border-top:1px solid var(--color-border); padding-top:8px;">${escapeHtml(interpretation)}</div>` : ''}
+        </div>
+      `;
     }
 
     async function init() {
@@ -196,30 +228,28 @@
 
     function renderShell() {
       const isAdmin = currentProfile.role === 'admin';
+      const tabs = [
+        { key: 'start', label: 'Start' },
+        { key: 'content', label: 'Content' },
+        ...(isAdmin ? [{ key: 'content-admin', label: 'Content verwalten' }] : []),
+        { key: 'fragebogen', label: 'Fragebögen' },
+        { key: 'ziele', label: 'Ziele (GROW)' },
+      ];
       container.innerHTML = `
-        <div class="subtabs">
-          <button class="ctab active" data-tab="start">Start</button>
-          <button class="ctab" data-tab="content">Content</button>
-          ${isAdmin ? '<button class="ctab" data-tab="content-admin">Content verwalten</button>' : ''}
-          <button class="ctab" data-tab="fragebogen">Fragebögen</button>
-          <button class="ctab" data-tab="ziele">Ziele (GROW)</button>
-        </div>
+        ${subnavSelectHtml(tabs, 'start')}
         <div id="tab-content"></div>
       `;
-      container.querySelectorAll('.ctab').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          container.querySelectorAll('.ctab').forEach((b) => b.classList.remove('active'));
-          btn.classList.add('active');
-          selectedGoalId = null;
-          renderTab(btn.dataset.tab);
-        });
+      bindSubnavSelect(container, (key) => {
+        selectedGoalId = null;
+        renderTab(key);
       });
       renderTab('start');
     }
 
     function goToTab(tabName) {
-      const btn = container.querySelector(`.ctab[data-tab="${tabName}"]`);
-      if (btn) btn.click();
+      setSubnavValue(container, tabName);
+      selectedGoalId = null;
+      renderTab(tabName);
     }
 
     function renderStartTab(content) {
@@ -360,11 +390,25 @@
             <h2 style="font-size:1.05rem;">Verfügbare Fragebogen-Vorlagen</h2>
             <p style="color:var(--color-text-muted); font-size:0.85rem;">Diese validierten Skalen stehen Kunden im Bereich "Fragebögen" zum Ausfüllen zur Verfügung.</p>
             ${QUESTIONNAIRES.map((q) => `
-              <div class="content-row">
-                <div>
-                  <h4 style="margin:0 0 2px;">${escapeHtml(q.title)}</h4>
-                  <div style="font-size:0.78rem; color:var(--color-text-muted);">Quelle: ${escapeHtml(q.source)}</div>
+              <div class="content-row" style="flex-direction:column; align-items:stretch;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
+                  <div>
+                    <h4 style="margin:0 0 2px;">${escapeHtml(q.title)}</h4>
+                    <div style="font-size:0.78rem; color:var(--color-text-muted);">Quelle: ${escapeHtml(q.source)} · ${q.items.length} ${q.items.length === 1 ? 'Item' : 'Items'}</div>
+                  </div>
                 </div>
+                <details class="qn-details mt-16">
+                  <summary>Vollständigen Fragebogen ansehen</summary>
+                  <div style="padding:10px 0 0;">
+                    <p style="font-size:0.85rem; color:var(--color-text-muted); margin:0 0 10px;">${escapeHtml(q.intro)}</p>
+                    <ol style="padding-left:20px; font-size:0.88rem; margin:0 0 10px;">
+                      ${q.items.map((it) => `<li style="margin-bottom:6px;">${escapeHtml(it)}</li>`).join('')}
+                    </ol>
+                    <div style="font-size:0.78rem; color:var(--color-text-muted);">
+                      Antwortskala: ${q.scaleLabels.map((s) => escapeHtml(s.label)).join(' · ')}
+                    </div>
+                  </div>
+                </details>
               </div>
             `).join('')}
           </div>
@@ -383,7 +427,13 @@
                       <td>${escapeHtml(q ? q.title : r.questionnaire_key)}</td>
                       <td>${r.score} / ${r.max_score}</td>
                       <td>${fmtDate(r.completed_at)}</td>
-                      <td><button class="btn secondary" style="width:auto; padding:4px 10px; font-size:0.75rem;" data-delete-response="${r.id}">Löschen</button></td>
+                      <td style="white-space:nowrap;">
+                        <button class="btn secondary" style="width:auto; padding:4px 10px; font-size:0.72rem;" data-toggle-answers="${r.id}">Antworten</button>
+                        <button class="btn secondary" style="width:auto; padding:4px 10px; font-size:0.75rem;" data-delete-response="${r.id}">Löschen</button>
+                      </td>
+                    </tr>
+                    <tr class="hidden" data-answers-row="${r.id}">
+                      <td colspan="5">${renderAnswerDetailHtml(q, r.answers, r.interpretation)}</td>
                     </tr>
                   `;
                 }).join('')}
@@ -396,6 +446,12 @@
             if (!confirm('Dieses Ergebnis wirklich löschen?')) return;
             await deleteQuestionnaireResponse(btn.dataset.deleteResponse);
             renderFragebogenTab(content);
+          });
+        });
+        content.querySelectorAll('[data-toggle-answers]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const row = content.querySelector(`[data-answers-row="${btn.dataset.toggleAnswers}"]`);
+            if (row) row.classList.toggle('hidden');
           });
         });
         return;

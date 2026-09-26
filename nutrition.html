@@ -11,9 +11,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <style>
     :root { --chart-teal: #1479a3; }
-    .subtabs { display: flex; gap: 8px; margin: 0 0 16px; flex-wrap: wrap; }
-    .subtabs button { padding: 7px 14px; border-radius: 20px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); font-size: 0.82rem; cursor: pointer; }
-    .subtabs button.active { background: var(--color-navy); color: #fff; border-color: var(--color-navy); }
     .result-box {
       background: rgba(200,124,0,0.08); border: 1px solid rgba(200,124,0,0.25);
       border-radius: 10px; padding: 16px; margin-top: 16px;
@@ -107,6 +104,7 @@
     import { getNewSignupCount } from './js/betrieb.js';
     import { navTabsHtml } from './js/nav.js';
     import { collapsibleHtml, initCollapsibles } from './js/collapsible.js';
+    import { subnavSelectHtml, bindSubnavSelect, setSubnavValue } from './js/subnav.js';
     import { SECTION_INFO } from './js/section-info.js';
 
     initTheme();
@@ -223,31 +221,26 @@
 
     function renderShell() {
       const isAdmin = currentProfile.role === 'admin';
+      const tabs = [
+        { key: 'start', label: 'Start' },
+        { key: 'pal', label: 'PAL-Rechner' },
+        { key: 'bodyfat', label: 'Körperfett-Verlauf' },
+        { key: 'protokoll', label: 'Ernährungsprotokoll' },
+        { key: 'recipes', label: 'Rezepte' },
+        ...(isAdmin ? [{ key: 'recipes-admin', label: 'Rezepte verwalten' }] : []),
+        ...(isAdmin ? [{ key: 'foods-admin', label: 'Lebensmittel verwalten' }] : []),
+      ];
       container.innerHTML = `
-        <div class="subtabs">
-          <button class="ntab active" data-tab="start">Start</button>
-          <button class="ntab" data-tab="pal">PAL-Rechner</button>
-          <button class="ntab" data-tab="bodyfat">Körperfett-Verlauf</button>
-          <button class="ntab" data-tab="protokoll">Ernährungsprotokoll</button>
-          <button class="ntab" data-tab="recipes">Rezepte</button>
-          ${isAdmin ? '<button class="ntab" data-tab="recipes-admin">Rezepte verwalten</button>' : ''}
-          ${isAdmin ? '<button class="ntab" data-tab="foods-admin">Lebensmittel verwalten</button>' : ''}
-        </div>
+        ${subnavSelectHtml(tabs, 'start')}
         <div id="tab-content"></div>
       `;
-      container.querySelectorAll('.ntab').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          container.querySelectorAll('.ntab').forEach((b) => b.classList.remove('active'));
-          btn.classList.add('active');
-          renderTab(btn.dataset.tab);
-        });
-      });
+      bindSubnavSelect(container, (key) => renderTab(key));
       renderTab('start');
     }
 
     function goToTab(tabName) {
-      const btn = container.querySelector(`.ntab[data-tab="${tabName}"]`);
-      if (btn) btn.click();
+      setSubnavValue(container, tabName);
+      renderTab(tabName);
     }
 
     function renderStartTab(content) {

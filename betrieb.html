@@ -11,9 +11,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <style>
-    .subtabs { display: flex; gap: 8px; margin: 0 0 16px; flex-wrap: wrap; }
-    .subtabs button { padding: 7px 14px; border-radius: 20px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); font-size: 0.82rem; cursor: pointer; }
-    .subtabs button.active { background: var(--color-navy); color: #fff; border-color: var(--color-navy); }
     table.simple-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
     table.simple-table th, table.simple-table td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--color-border); vertical-align: middle; }
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -23,6 +20,13 @@
     .activity-warn { background: rgba(200,124,0,0.18); color: var(--color-gold); }
     .activity-critical { background: rgba(179,38,30,0.15); color: var(--color-danger); }
     .lock-btn { width: auto; padding: 6px 12px; font-size: 0.75rem; }
+    .hidden { display: none; }
+    /* Granulare Dokument-Freigabe pro Kunde (Nutzer-Feedback nach Etappe 19) */
+    .docs-section { padding-top: 12px; border-top: 1px solid var(--color-border); }
+    .docs-section:first-child { border-top: none; padding-top: 0; }
+    .docs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px 14px; }
+    .docs-item { display: flex; align-items: flex-start; gap: 8px; font-size: 0.82rem; cursor: pointer; }
+    .docs-item input { margin-top: 3px; flex-shrink: 0; }
   </style>
 </head>
 <body>
@@ -46,9 +50,13 @@
   <script type="module">
     import { supabaseClient } from './js/supabase-client.js';
     import { getCurrentSession, initTheme, toggleTheme, requestPasswordReset } from './js/auth.js';
-    import { listClientOverview, setClientLock, setClientModuleAccess, getReportData, listClientDevices, deleteClientDevice, setClientMaxDevices, markNewSignupsSeen } from './js/betrieb.js';
+    import {
+      listClientOverview, setClientLock, setClientModuleAccess, getReportData, listClientDevices, deleteClientDevice, setClientMaxDevices, markNewSignupsSeen,
+      listRecipesWithAccess, listCoachingContentWithAccess, setRecipeAccess, setCoachingContentAccess, setAllRecipeAccess, setAllCoachingContentAccess,
+    } from './js/betrieb.js';
     import { getUnreadCount } from './js/messages.js';
     import { navTabsHtml } from './js/nav.js';
+    import { subnavSelectHtml, bindSubnavSelect } from './js/subnav.js';
 
     initTheme();
     document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
@@ -118,22 +126,18 @@
       });
     }
 
+    const BETRIEB_TABS = [
+      { key: 'fruehwarn', label: 'Frühwarnsystem' },
+      { key: 'report', label: 'Wochenreport' },
+      { key: 'geraete', label: 'Geräte' },
+    ];
+
     function renderShell() {
       container.innerHTML = `
-        <div class="subtabs">
-          <button class="btab active" data-tab="fruehwarn">Frühwarnsystem</button>
-          <button class="btab" data-tab="report">Wochenreport</button>
-          <button class="btab" data-tab="geraete">Geräte</button>
-        </div>
+        ${subnavSelectHtml(BETRIEB_TABS, 'fruehwarn')}
         <div id="tab-content"></div>
       `;
-      container.querySelectorAll('.btab').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          container.querySelectorAll('.btab').forEach((b) => b.classList.remove('active'));
-          btn.classList.add('active');
-          renderTab(btn.dataset.tab);
-        });
-      });
+      bindSubnavSelect(container, (key) => renderTab(key));
       renderTab('fruehwarn');
     }
 
@@ -251,8 +255,12 @@
             Reiter zeigt dem Kunden eine Vorteils-Übersicht statt der echten Inhalte — Nachrichten sind davon
             nie betroffen.
           </p>
+          <p style="color:var(--color-text-muted); font-size:0.82rem;">
+            Dokument-Freigabe: auch bei freigeschaltetem Reiter sieht ein Kunde zunächst kein einzelnes
+            Rezept/Coaching-Dokument — über "Dokumente" je Kunde einzeln oder gesammelt freischalten.
+          </p>
           <table class="simple-table mt-16">
-            <thead><tr><th>Kunde</th><th>Letzte Aktivität</th><th>Zugriff</th><th>Reiter-Freigabe</th><th></th><th></th></tr></thead>
+            <thead><tr><th>Kunde</th><th>Letzte Aktivität</th><th>Zugriff</th><th>Reiter-Freigabe</th><th></th><th></th><th></th></tr></thead>
             <tbody>
               ${clients.map((c) => {
                 let badge;
@@ -291,6 +299,14 @@
                       <button class="btn secondary lock-btn" data-reset-password="${c.id}" data-email="${escapeHtml(c.email || '')}">
                         Passwort zurücksetzen
                       </button>
+                    </td>
+                    <td>
+                      <button class="btn secondary lock-btn" data-toggle-docs="${c.id}">Dokumente</button>
+                    </td>
+                  </tr>
+                  <tr class="hidden" data-docs-row="${c.id}">
+                    <td colspan="7">
+                      <div data-docs-panel="${c.id}"><p class="center-text">Lade …</p></div>
                     </td>
                   </tr>
                 `;
@@ -345,6 +361,103 @@
           renderFruehwarnTab(content);
         });
       });
+
+      // Granulare Dokument-Freigabe (Nutzer-Feedback nach Etappe 19, Opt-in
+      // je Kunde, siehe sql/024_dokument_freigabe.sql). Panel wird erst beim
+      // ersten Aufklappen geladen, um bei vielen Kunden nicht unnötig alle
+      // Rezept-/Coaching-Content-Listen im Voraus abzufragen.
+      const loadedDocsPanels = new Set();
+      content.querySelectorAll('[data-toggle-docs]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const clientId = btn.dataset.toggleDocs;
+          const row = content.querySelector(`[data-docs-row="${clientId}"]`);
+          if (!row) return;
+          const wasHidden = row.classList.contains('hidden');
+          row.classList.toggle('hidden');
+          if (wasHidden && !loadedDocsPanels.has(clientId)) {
+            loadedDocsPanels.add(clientId);
+            await loadDocsPanel(clientId, content);
+          }
+        });
+      });
+    }
+
+    async function loadDocsPanel(clientId, content) {
+      const panel = content.querySelector(`[data-docs-panel="${clientId}"]`);
+      if (!panel) return;
+      const [{ data: recipes, error: recipesError }, { data: coachingItems, error: coachingError }] = await Promise.all([
+        listRecipesWithAccess(clientId),
+        listCoachingContentWithAccess(clientId),
+      ]);
+      if (recipesError || coachingError) {
+        panel.innerHTML = `<div class="msg error">${escapeHtml((recipesError || coachingError).message)}</div>`;
+        return;
+      }
+      panel.innerHTML = `
+        ${docsChecklistHtml('recipe', 'Rezepte', recipes, clientId)}
+        ${docsChecklistHtml('content', 'Coaching-Content', coachingItems, clientId)}
+      `;
+      bindDocsChecklist(panel, 'recipe', clientId, recipes, setRecipeAccess, setAllRecipeAccess);
+      bindDocsChecklist(panel, 'content', clientId, coachingItems, setCoachingContentAccess, setAllCoachingContentAccess);
+    }
+
+    function docsChecklistHtml(kind, label, items, clientId) {
+      if (!items || items.length === 0) {
+        return `<div class="docs-section"><h4 style="font-size:0.9rem;">${escapeHtml(label)}</h4><p style="color:var(--color-text-muted); font-size:0.82rem;">Noch keine Dokumente vorhanden.</p></div>`;
+      }
+      const grantedCount = items.filter((i) => i.granted).length;
+      return `
+        <div class="docs-section mt-16">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+            <h4 style="font-size:0.9rem; margin:0;">${escapeHtml(label)} (${grantedCount}/${items.length} freigegeben)</h4>
+            <div style="display:flex; gap:8px;">
+              <button class="btn secondary" style="width:auto; padding:5px 11px; font-size:0.72rem;" data-docs-all="${kind}" data-grant="true">Alle freigeben</button>
+              <button class="btn secondary" style="width:auto; padding:5px 11px; font-size:0.72rem;" data-docs-all="${kind}" data-grant="false">Alle sperren</button>
+            </div>
+          </div>
+          <div class="docs-grid mt-16">
+            ${items.map((i) => `
+              <label class="docs-item">
+                <input type="checkbox" data-docs-item="${kind}" data-item-id="${i.id}" ${i.granted ? 'checked' : ''} />
+                <span>${escapeHtml(i.title)}</span>
+              </label>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    function bindDocsChecklist(panel, kind, clientId, items, setOneFn, setAllFn) {
+      panel.querySelectorAll(`[data-docs-item="${kind}"]`).forEach((cb) => {
+        cb.addEventListener('change', async () => {
+          cb.disabled = true;
+          const { error } = await setOneFn(clientId, cb.dataset.itemId, cb.checked);
+          cb.disabled = false;
+          if (error) { alert('Fehler: ' + error.message); cb.checked = !cb.checked; }
+          updateDocsCount(panel, kind, items);
+        });
+      });
+      panel.querySelectorAll(`[data-docs-all="${kind}"]`).forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const grant = btn.dataset.grant === 'true';
+          const label = grant ? 'freigeben' : 'sperren';
+          if (!confirm(`Wirklich ALLE Dokumente in dieser Kategorie ${label}?`)) return;
+          const ids = items.map((i) => i.id);
+          const { error } = await setAllFn(clientId, ids, grant);
+          if (error) { alert('Fehler: ' + error.message); return; }
+          panel.querySelectorAll(`[data-docs-item="${kind}"]`).forEach((cb) => { cb.checked = grant; });
+          updateDocsCount(panel, kind, items, grant);
+        });
+      });
+    }
+
+    function updateDocsCount(panel, kind, items, forceAll) {
+      const checked = panel.querySelectorAll(`[data-docs-item="${kind}"]:checked`).length;
+      const total = items.length;
+      const heading = panel.querySelector(`[data-docs-all="${kind}"]`)?.closest('.docs-section')?.querySelector('h4');
+      if (!heading) return;
+      const label = heading.textContent.replace(/\s*\(\d+\/\d+.*\)$/, '');
+      heading.textContent = `${label} (${forceAll === false ? 0 : (forceAll === true ? total : checked)}/${total} freigegeben)`;
     }
 
     // =========================================================================
