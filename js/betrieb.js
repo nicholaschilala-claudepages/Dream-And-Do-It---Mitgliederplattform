@@ -3,6 +3,8 @@
 // ============================================================================
 
 import { supabaseClient } from './supabase-client.js';
+import { listRecipes } from './nutrition.js';
+import { listCoachingContent } from './coaching.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -77,6 +79,76 @@ export async function markNewSignupsSeen() {
 
 export async function setClientModuleAccess(clientId, field, enabled) {
   return supabaseClient.from('profiles').update({ [field]: enabled }).eq('id', clientId);
+}
+
+// ---------------------------------------------------------------------------
+// Granulare Dokument-Freigabe (Rezepte/Coaching-Content einzeln pro Kunde),
+// siehe sql/024_dokument_freigabe.sql. Opt-in: ein Dokument ist für einen
+// Kunden erst sichtbar, wenn hierüber explizit eine Freigabe-Zeile angelegt
+// wurde (zusätzlich zur Modul-Freigabe oben).
+// ---------------------------------------------------------------------------
+
+/**
+ * Liefert alle Rezepte plus, für den angegebenen Kunden, ob jeweils eine
+ * Freigabe existiert — fertig zusammengesetzt für eine Checklisten-UI.
+ */
+export async function listRecipesWithAccess(clientId) {
+  const [{ data: recipes, error: recipesError }, { data: access, error: accessError }] = await Promise.all([
+    listRecipes(),
+    supabaseClient.from('client_recipe_access').select('recipe_id').eq('client_id', clientId),
+  ]);
+  if (recipesError) return { data: null, error: recipesError };
+  if (accessError) return { data: null, error: accessError };
+  const grantedSet = new Set((access || []).map((a) => a.recipe_id));
+  const merged = (recipes || []).map((r) => ({ ...r, granted: grantedSet.has(r.id) }));
+  return { data: merged, error: null };
+}
+
+/** Analog zu listRecipesWithAccess(), für Coaching-Content-Dokumente. */
+export async function listCoachingContentWithAccess(clientId) {
+  const [{ data: items, error: itemsError }, { data: access, error: accessError }] = await Promise.all([
+    listCoachingContent(),
+    supabaseClient.from('client_coaching_content_access').select('content_id').eq('client_id', clientId),
+  ]);
+  if (itemsError) return { data: null, error: itemsError };
+  if (accessError) return { data: null, error: accessError };
+  const grantedSet = new Set((access || []).map((a) => a.content_id));
+  const merged = (items || []).map((c) => ({ ...c, granted: grantedSet.has(c.id) }));
+  return { data: merged, error: null };
+}
+
+export async function setRecipeAccess(clientId, recipeId, granted) {
+  if (granted) {
+    return supabaseClient.from('client_recipe_access').upsert({ client_id: clientId, recipe_id: recipeId });
+  }
+  return supabaseClient.from('client_recipe_access').delete().eq('client_id', clientId).eq('recipe_id', recipeId);
+}
+
+export async function setCoachingContentAccess(clientId, contentId, granted) {
+  if (granted) {
+    return supabaseClient.from('client_coaching_content_access').upsert({ client_id: clientId, content_id: contentId });
+  }
+  return supabaseClient.from('client_coaching_content_access').delete().eq('client_id', clientId).eq('content_id', contentId);
+}
+
+/** Bequemlichkeitsfunktion: alle Rezepte für einen Kunden auf einmal freigeben/sperren. */
+export async function setAllRecipeAccess(clientId, recipeIds, granted) {
+  if (granted) {
+    const rows = recipeIds.map((id) => ({ client_id: clientId, recipe_id: id }));
+    if (rows.length === 0) return { data: [], error: null };
+    return supabaseClient.from('client_recipe_access').upsert(rows);
+  }
+  return supabaseClient.from('client_recipe_access').delete().eq('client_id', clientId);
+}
+
+/** Bequemlichkeitsfunktion: alle Coaching-Content-Dokumente für einen Kunden auf einmal freigeben/sperren. */
+export async function setAllCoachingContentAccess(clientId, contentIds, granted) {
+  if (granted) {
+    const rows = contentIds.map((id) => ({ client_id: clientId, content_id: id }));
+    if (rows.length === 0) return { data: [], error: null };
+    return supabaseClient.from('client_coaching_content_access').upsert(rows);
+  }
+  return supabaseClient.from('client_coaching_content_access').delete().eq('client_id', clientId);
 }
 
 // ---------------------------------------------------------------------------
