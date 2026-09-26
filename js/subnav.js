@@ -8,7 +8,11 @@
 // ============================================================================
 
 /**
- * @param {{key:string,label:string}[]} tabs
+ * @param {{key:string,label:string,hidden?:boolean}[]} tabs - `hidden: true`
+ *   lässt den Eintrag als aktuell gewählten Wert zu (z.B. die anfängliche
+ *   "Start"-Unterseite), ohne ihn in der aufgeklappten Liste als wählbare
+ *   Option anzuzeigen — diese Funktion übernimmt bereits der Start-Button in
+ *   der Kopfzeile, ein doppelter Eintrag im Dropdown wäre redundant.
  * @param {string} activeKey
  * @param {string} [selectId='subnav-select']
  * @returns {string} HTML für eine <div class="subnav-bar"> mit <select>
@@ -19,7 +23,7 @@ export function subnavSelectHtml(tabs, activeKey, selectId) {
     <div class="subnav-bar">
       <label class="subnav-label" for="${id}">Bereich:</label>
       <select class="subnav-select" id="${id}">
-        ${tabs.map((t) => `<option value="${escapeAttr(t.key)}"${t.key === activeKey ? ' selected' : ''}>${escapeHtmlLocal(t.label)}</option>`).join('')}
+        ${tabs.map((t) => `<option value="${escapeAttr(t.key)}"${t.key === activeKey ? ' selected' : ''}${t.hidden ? ' hidden' : ''}>${escapeHtmlLocal(t.label)}</option>`).join('')}
       </select>
     </div>
   `;
