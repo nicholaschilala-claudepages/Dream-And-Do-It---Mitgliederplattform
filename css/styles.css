@@ -406,6 +406,28 @@ a { color: var(--color-gold); }
   .nav-tab { padding: 8px 13px; font-size: 0.78rem; }
 }
 
+/* Sub-Navigation innerhalb einer Sektion (Dropdown statt zweiter Reiter-
+   Ebene, siehe js/subnav.js) ------------------------------------------------ */
+.subnav-bar { display: flex; align-items: center; gap: 10px; margin: 4px 0 20px; flex-wrap: wrap; }
+.subnav-label {
+  font-family: var(--font-heading);
+  font-size: 0.76rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+.subnav-select {
+  padding: 8px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+.subnav-select:focus { outline: 2px solid var(--color-gold); outline-offset: 1px; }
+
 /* Persönliche Begrüßung / Startseiten-Hero --------------------------------- */
 
 .welcome-card {
