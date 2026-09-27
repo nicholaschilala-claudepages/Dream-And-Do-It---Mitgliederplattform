@@ -16,6 +16,41 @@ export const PAL_LEVELS = [
   { value: 1.9, label: 'Sehr hohe Aktivität (körperliche Arbeit + Sport)' },
 ];
 
+// ---------------------------------------------------------------------------
+// PAL-Rechner, Version 2: stundengenaue Tagesaufteilung nach Intensität
+// (Nutzer-Feedback: die grobe 5-stufige Einschätzung oben war zu ungenau).
+// Faktorenmethode ("Activity Diary"-Methode): der Tag wird in Stundenblöcke
+// unterschiedlicher Intensität zerlegt, jeder Block bekommt einen "Physical
+// Activity Ratio" (PAR) zugewiesen, der effektive Tages-PAL ist der über die
+// Stunden gewichtete Mittelwert. Die fünf Intensitätsstufen und PAR-Werte
+// folgen der klassischen, in der Ernährungswissenschaft verbreiteten
+// Einteilung (Resting/Very light/Light/Moderate/Heavy = PAR 1,0/1,5/2,5/5,0/
+// 7,0), wie sie u.a. in gängigen Lehrmaterialien zur Faktorenmethode auf
+// Basis der FAO/WHO/UNU-Grundlagenarbeit zum menschlichen Energiebedarf
+// dokumentiert ist.
+// ---------------------------------------------------------------------------
+
+export const PAL_INTENSITY_LEVELS = [
+  { key: 'resting', label: 'Ruhe (Schlafen, Liegen)', par: 1.0 },
+  { key: 'very_light', label: 'Sehr leicht (Sitzen/Stehen – z.B. Schreibtisch, Autofahren, Kochen)', par: 1.5 },
+  { key: 'light', label: 'Leicht (Gehen ca. 2,5–3 km/h, leichte Hausarbeit, Kinderbetreuung)', par: 2.5 },
+  { key: 'moderate', label: 'Moderat (Gehen ca. 3,5–4 km/h, Gartenarbeit, Lasten tragen)', par: 5.0 },
+  { key: 'heavy', label: 'Intensiv (Sport, schwere körperliche Arbeit, Bergaufgehen mit Last)', par: 7.0 },
+];
+
+/**
+ * Effektiver Tages-PAL aus einer stundengenauen Intensitätsaufteilung
+ * (Faktorenmethode): über die Stunden gewichteter Mittelwert der PAR-Werte.
+ * @param {{par:number, hours:number}[]} rows
+ * @returns {number} effektiver PAL-Wert
+ */
+export function calculateEffectivePal(rows) {
+  const totalHours = rows.reduce((sum, r) => sum + (Number(r.hours) || 0), 0);
+  if (totalHours <= 0) return 0;
+  const weighted = rows.reduce((sum, r) => sum + (Number(r.par) || 0) * (Number(r.hours) || 0), 0);
+  return weighted / totalHours;
+}
+
 /**
  * Grundumsatz (BMR) nach Mifflin-St Jeor. Referenz: Mifflin et al. 1990,
  * heute von DGE/EFSA als zuverlässigste Formel für die Allgemeinbevölkerung

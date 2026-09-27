@@ -36,7 +36,7 @@ export async function deleteExercise(exerciseId) {
 export async function listClients() {
   return supabaseClient
     .from('profiles')
-    .select('id, full_name, email, access_locked')
+    .select('id, full_name, email, access_locked, birth_date')
     .eq('role', 'client')
     .order('full_name', { ascending: true });
 }
@@ -48,7 +48,8 @@ export async function listClients() {
 const TEMPLATE_SELECT =
   'id, title, description, created_at, ' +
   'plan_template_days(id, label, sort_order, ' +
-  'plan_template_exercises(id, exercise_id, target_sets, target_reps, target_weight_hint, target_duration_seconds, sort_order, notes, exercises(id, name, muscle_group, category, image_url)))';
+  'plan_template_exercises(id, exercise_id, target_sets, target_reps, target_weight_hint, target_duration_seconds, ' +
+  'target_distance_meters, target_speed_kmh, target_watt, target_heart_rate_percent, sort_order, notes, exercises(id, name, muscle_group, category, image_url)))';
 
 export async function listTemplates() {
   return supabaseClient.from('plan_templates').select(TEMPLATE_SELECT).order('created_at', { ascending: false });
@@ -86,6 +87,10 @@ export async function createTemplate({ title, description, days }) {
       target_reps: ex.targetReps || null,
       target_weight_hint: ex.targetWeightHint || null,
       target_duration_seconds: ex.targetDurationSeconds || null,
+      target_distance_meters: ex.targetDistanceMeters || null,
+      target_speed_kmh: ex.targetSpeedKmh || null,
+      target_watt: ex.targetWatt || null,
+      target_heart_rate_percent: ex.targetHeartRatePercent || null,
       sort_order: index,
       notes: ex.notes || null,
     }));
@@ -110,7 +115,8 @@ export async function deleteTemplate(templateId) {
 const CLIENT_PLAN_SELECT =
   'id, title, notes, template_source_id, created_at, ' +
   'training_plan_days(id, label, sort_order), ' +
-  'plan_exercises(id, plan_day_id, target_sets, target_reps, target_weight_hint, target_duration_seconds, notes, sort_order, exercise_id, exercises(id, name, description, muscle_group, category, image_url))';
+  'plan_exercises(id, plan_day_id, target_sets, target_reps, target_weight_hint, target_duration_seconds, ' +
+  'target_distance_meters, target_speed_kmh, target_watt, target_heart_rate_percent, notes, sort_order, exercise_id, exercises(id, name, description, muscle_group, category, image_url))';
 
 export async function listMyActivePlans(clientId) {
   return supabaseClient
@@ -162,6 +168,10 @@ export async function createPlan({ clientId, title, notes, days, topLevelExercis
       target_reps: ex.targetReps || null,
       target_weight_hint: ex.targetWeightHint || null,
       target_duration_seconds: ex.targetDurationSeconds || null,
+      target_distance_meters: ex.targetDistanceMeters || null,
+      target_speed_kmh: ex.targetSpeedKmh || null,
+      target_watt: ex.targetWatt || null,
+      target_heart_rate_percent: ex.targetHeartRatePercent || null,
       sort_order: index,
       notes: ex.notes || null,
     }));
@@ -179,6 +189,10 @@ export async function createPlan({ clientId, title, notes, days, topLevelExercis
     target_reps: ex.targetReps || null,
     target_weight_hint: ex.targetWeightHint || null,
     target_duration_seconds: ex.targetDurationSeconds || null,
+    target_distance_meters: ex.targetDistanceMeters || null,
+    target_speed_kmh: ex.targetSpeedKmh || null,
+    target_watt: ex.targetWatt || null,
+    target_heart_rate_percent: ex.targetHeartRatePercent || null,
     sort_order: index,
     notes: ex.notes || null,
   }));
@@ -232,6 +246,10 @@ export async function assignTemplateToClient({ templateId, clientId, title, note
       target_reps: ex.target_reps,
       target_weight_hint: ex.target_weight_hint,
       target_duration_seconds: ex.target_duration_seconds,
+      target_distance_meters: ex.target_distance_meters,
+      target_speed_kmh: ex.target_speed_kmh,
+      target_watt: ex.target_watt,
+      target_heart_rate_percent: ex.target_heart_rate_percent,
       sort_order: ex.sort_order,
       notes: ex.notes,
     }));
@@ -246,7 +264,7 @@ export async function assignTemplateToClient({ templateId, clientId, title, note
 
 // Einzelne Übung nachträglich einem Kundenplan hinzufügen – entweder lose
 // (planDayId = null) oder in einen bestehenden Trainingstag integriert.
-export async function addExerciseToPlan({ planId, planDayId, exerciseId, targetSets, targetReps, targetWeightHint, targetDurationSeconds, notes, sortOrder }) {
+export async function addExerciseToPlan({ planId, planDayId, exerciseId, targetSets, targetReps, targetWeightHint, targetDurationSeconds, targetDistanceMeters, targetSpeedKmh, targetWatt, targetHeartRatePercent, notes, sortOrder }) {
   return supabaseClient.from('plan_exercises').insert({
     plan_id: planId,
     plan_day_id: planDayId || null,
@@ -255,6 +273,10 @@ export async function addExerciseToPlan({ planId, planDayId, exerciseId, targetS
     target_reps: targetReps || null,
     target_weight_hint: targetWeightHint || null,
     target_duration_seconds: targetDurationSeconds || null,
+    target_distance_meters: targetDistanceMeters || null,
+    target_speed_kmh: targetSpeedKmh || null,
+    target_watt: targetWatt || null,
+    target_heart_rate_percent: targetHeartRatePercent || null,
     notes: notes || null,
     sort_order: sortOrder || 0,
   });

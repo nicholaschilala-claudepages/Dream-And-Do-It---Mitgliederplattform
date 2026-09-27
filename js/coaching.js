@@ -26,6 +26,62 @@ export async function deleteCoachingContent(id) {
 }
 
 // ---------------------------------------------------------------------------
+// Atemübungstrainer (geführte Atemtechniken über einen sich ausdehnenden/
+// zusammenziehenden Kreis)
+// ---------------------------------------------------------------------------
+
+/**
+ * Datengetriebene Definition der geführten Atemtechniken. Jede Phase hat eine
+ * Dauer in Sekunden und einen Ziel-Skalierungsfaktor für den Atem-Kreis
+ * (scaleTo) – "Einatmen"/"Ausatmen" ändern die Skalierung, "Halten" behält
+ * den zuletzt erreichten Wert bei (kein Kreiswachstum während des Anhaltens).
+ *
+ * Box Breathing (4-4-4-4): gleichmäßiges Muster aus Einatmen/Halten/
+ * Ausatmen/Halten, je 4 Sekunden. Ursprünglich von der U.S. Navy (Navy SEALs)
+ * zur schnellen Stressregulation genutzt, heute u.a. von der Cleveland
+ * Clinic als einfache Technik zur Aktivierung des Parasympathikus empfohlen.
+ * Referenz: Cleveland Clinic, Melissa Young, MD (Integrative Medizin) –
+ * "How Box Breathing Can Help You Destress", health.clevelandclinic.org.
+ *
+ * Vagus-Atmung (verlängerte Ausatmung, 4:6 Sekunden, ohne Anhalten): beruht
+ * auf der wissenschaftlich am besten belegten Stellschraube für die
+ * Aktivierung des Nervus vagus über die Atmung – eine Ausatmung, die länger
+ * ist als die Einatmung. In kontrollierten Studien führte ein
+ * Einatmen:Ausatmen-Verhältnis von ca. 0,8 (hier vereinfacht 4:6 Sekunden,
+ * ca. 6 Atemzüge/Minute) zu einer stärkeren Zunahme der Herzratenvariabilität
+ * (HRV, RMSSD) als ein 1:1-Verhältnis oder Atempausen zwischen den Phasen.
+ * Referenz: Laborde, S. et al. (2021). "Slow-Paced Breathing: Influence of
+ * Inhalation/Exhalation Ratio and of Respiratory Pauses on Cardiac Vagal
+ * Activity." Sustainability, 13(14), 7775.
+ */
+export const BREATHING_TECHNIQUES = [
+  {
+    key: 'box',
+    label: 'Box Breathing (4-4-4-4)',
+    shortDesc: '4 Sekunden einatmen – 4 Sekunden halten – 4 Sekunden ausatmen – 4 Sekunden halten. Ursprünglich von der US Navy genutzt, um den Körper schnell aus dem Stress- in den Ruhemodus zu bringen.',
+    science: 'Das gleichmäßige 4-4-4-4-Muster verlangsamt die Atemfrequenz deutlich und kombiniert sie mit dem stillen Mitzählen der Sekunden – das wirkt wie eine kurze Achtsamkeitsübung und verschiebt das autonome Nervensystem von sympathischer ("Kampf-oder-Flucht") in Richtung parasympathischer ("Ruhe-und-Verdauung") Aktivität. Kontrollierte Atmung wird in der Forschung mit einer Senkung des Stresshormons Cortisol und des Blutdrucks in Verbindung gebracht.',
+    source: 'Cleveland Clinic, Melissa Young, MD (Integrative Medizin); Technik ursprünglich aus dem Stress-Training der U.S. Navy (Navy SEALs)',
+    phases: [
+      { name: 'Einatmen', seconds: 4, scaleTo: 1.55 },
+      { name: 'Halten', seconds: 4, scaleTo: 1.55 },
+      { name: 'Ausatmen', seconds: 4, scaleTo: 1 },
+      { name: 'Halten', seconds: 4, scaleTo: 1 },
+    ],
+  },
+  {
+    key: 'vagus',
+    label: 'Vagus-Atmung (verlängerte Ausatmung)',
+    shortDesc: '4 Sekunden einatmen, 6 Sekunden ausatmen – ohne Anhalten. Die verlängerte Ausatmung ist der wirksamste Hebel, um den Nervus vagus ("Bremse" des Nervensystems) zu aktivieren.',
+    science: 'Ist die Ausatmung deutlich länger als die Einatmung (hier 4:6 Sekunden, ca. 6 Atemzüge pro Minute), steigt die Herzratenvariabilität (HRV) nachweislich stärker an als bei gleich langen Phasen. Die längere Ausatmung reizt Dehnungsrezeptoren in Lunge und Brustkorb, die über den Nervus vagus die parasympathische, beruhigende Aktivität des Nervensystems verstärken.',
+    source: 'Laborde et al. (2021), Sustainability 13(14), 7775 – "Slow-Paced Breathing: Influence of Inhalation/Exhalation Ratio and of Respiratory Pauses on Cardiac Vagal Activity"',
+    phases: [
+      { name: 'Einatmen', seconds: 4, scaleTo: 1.55 },
+      { name: 'Ausatmen', seconds: 6, scaleTo: 1 },
+    ],
+  },
+];
+
+// ---------------------------------------------------------------------------
 // Fragebögen (validierte Skalen)
 // ---------------------------------------------------------------------------
 
