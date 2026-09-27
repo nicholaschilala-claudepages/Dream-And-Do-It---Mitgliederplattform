@@ -32,6 +32,27 @@
     table.log-table th, table.log-table td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--color-border); }
     .exercise-builder-row { display: grid; grid-template-columns: 44px 1.7fr 0.7fr 0.9fr 1fr 0.9fr auto; gap: 8px; margin-bottom: 8px; align-items: center; }
     .exercise-builder-row select, .exercise-builder-row input { padding: 8px; border-radius: 6px; border: 1px solid var(--color-border); background: var(--color-bg); color: var(--color-text); width: 100%; }
+    /* Neuer, umfangreicherer Übungs-Baustein (Etappe 31 Builder-Überarbeitung):
+       eigene Klasse, damit die einfache Ein-Zeilen-Form (.exercise-builder-row,
+       "Übung zu bestehendem Plan hinzufügen") unverändert bleibt. */
+    .ex-builder-row { border: 1px solid var(--color-border); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; background: var(--color-surface); }
+    .ex-builder-row select, .ex-builder-row input { padding: 7px 8px; border-radius: 6px; border: 1px solid var(--color-border); background: var(--color-bg); color: var(--color-text); font-size: 0.85rem; }
+    .ex-builder-row-top { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+    .ex-builder-row-top .row-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+    .ex-builder-row-top .row-filters select { min-width: 130px; }
+    .ex-builder-row-top .row-exercise { flex: 1; min-width: 200px; }
+    .ex-builder-row-top .row-remove-btn { margin-left: auto; }
+    .set-mode-toggle { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--color-text-muted); margin: 4px 0 8px; }
+    .set-mode-toggle input { width: auto; padding: 0; }
+    .same-for-all-fields { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+    .same-for-all-fields input { flex: 1; min-width: 100px; }
+    .set-rows-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+    .set-row-item { display: flex; gap: 6px; align-items: center; }
+    .set-row-item .set-index { font-size: 0.76rem; color: var(--color-text-muted); width: 50px; flex-shrink: 0; }
+    .set-row-item input { flex: 1; }
+    .cardio-fields { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+    .cardio-fields input { flex: 1; min-width: 150px; }
+    .ex-builder-row .row-notes { width: 100%; }
     .small-btn { padding: 6px 10px; font-size: 0.78rem; width: auto; }
     .status-pill { font-size: 0.72rem; padding: 2px 8px; border-radius: 12px; white-space: nowrap; }
     .status-pill.active { background: rgba(47,111,79,0.15); color: var(--color-success); }
@@ -86,6 +107,22 @@
     .dysbalance-verdict.ok { color: var(--color-success); }
     .dysbalance-verdict.warn { color: var(--color-gold); }
     .dysbalance-verdict.alert { color: var(--color-danger); }
+    .hidden { display: none; }
+    .result-box {
+      background: rgba(200,124,0,0.08); border: 1px solid rgba(200,124,0,0.25);
+      border-radius: 10px; padding: 16px;
+    }
+    .result-box .big { font-family: var(--font-heading); font-size: 1.5rem; color: var(--color-navy); }
+    :root[data-theme="dark"] .result-box .big { color: var(--color-gold-light); }
+    @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .result-box .big { color: var(--color-gold-light); } }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 520px) { .grid-2 { grid-template-columns: 1fr; } }
+    .qn-details summary {
+      cursor: pointer; font-family: var(--font-heading); font-size: 0.8rem;
+      color: var(--color-gold); font-weight: 600; letter-spacing: 0.02em;
+    }
+    .qn-details summary:hover { text-decoration: underline; }
+    .qn-details[open] summary { margin-bottom: 4px; }
   </style>
 </head>
 <body>
@@ -127,9 +164,18 @@
     import { getUnreadCount } from './js/messages.js';
     import { getNewSignupCount } from './js/betrieb.js';
     import { navTabsHtml } from './js/nav.js';
-    import { collapsibleHtml, initCollapsibles } from './js/collapsible.js';
     import { subnavSelectHtml, bindSubnavSelect, setSubnavValue } from './js/subnav.js';
     import { SECTION_INFO } from './js/section-info.js';
+    import { listMyBodyMeasurements } from './js/nutrition.js';
+    import {
+      calcAge, updateBirthDate, STRENGTH_TESTS, MOBILITY_TESTS, mobilityRatingLabel,
+      evaluateStrengthBenchmark, evaluateBodyFatCategory, evaluateSittingScore,
+      insertPreventionResult, listPreventionResults, deletePreventionResult,
+      latestByKey, isStale, computePreventionScore,
+      NUTRITION_QUIZ, NUTRITION_QUIZ_SOURCE, computeNutritionQuizScore, evaluateNutritionQuality,
+      SMOKING_OPTIONS, SMOKING_SOURCE, evaluateSmokingStatus,
+      ALCOHOL_SOURCE, evaluateAlcoholRisk,
+    } from './js/prevention.js';
 
     initTheme();
     document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
@@ -206,7 +252,7 @@
 
       const { data: profile, error } = await supabaseClient
         .from('profiles')
-        .select('id, full_name, role, access_locked, training_enabled, nutrition_enabled, coaching_enabled')
+        .select('id, full_name, role, access_locked, training_enabled, nutrition_enabled, coaching_enabled, birth_date')
         .eq('id', session.user.id)
         .maybeSingle();
 
@@ -261,21 +307,20 @@
           <div class="section-hero">
             <span class="kicker">${escapeHtml(info.title)}</span>
             <h2>${escapeHtml(info.heroLine)}</h2>
-            ${collapsibleHtml(`<p class="lead">${info.clientIntro}</p>`)}
-          </div>
-          <div class="benefit-grid">
-            ${info.benefits.map((b) => `<div class="benefit-card"><h4>${escapeHtml(b.h)}</h4><p>${escapeHtml(b.t)}</p></div>`).join('')}
           </div>
           <div class="science-box">
             <span class="kicker">Wissenschaftlicher Hintergrund</span>
-            ${collapsibleHtml(`<p>${info.scienceText}</p>`, { fadeVar: 'var(--color-bg)' })}
+            <p>${info.scienceText}</p>
+          </div>
+          <p class="lead">${info.clientIntro}</p>
+          <div class="benefit-grid">
+            ${info.benefits.map((b) => `<div class="benefit-card"><h4>${escapeHtml(b.h)}</h4><p>${escapeHtml(b.t)}</p></div>`).join('')}
           </div>
           <a class="btn mt-16" style="display:inline-block; width:auto; padding:12px 24px;" href="messages.html">
             Interesse? Jetzt nachfragen
           </a>
         </div>
       `;
-      initCollapsibles(container);
     }
 
     async function trySyncOfflineLogs() {
@@ -293,6 +338,7 @@
       { key: 'start', label: 'Start', hidden: true },
       { key: 'plan', label: 'Mein Plan' },
       { key: 'progress', label: 'Meine Entwicklung' },
+      { key: 'praevention', label: 'Präventionscheck' },
     ];
 
     async function renderClientRoot(profile) {
@@ -308,6 +354,7 @@
       const content = document.getElementById('client-content');
       if (tabName === 'progress') renderAnalyticsView(content, profile.id, { isAdminView: false });
       else if (tabName === 'start') renderStartTab(content, false);
+      else if (tabName === 'praevention') renderPreventionTab(content, profile, { isAdminView: false });
       else renderClientView(content, profile);
     }
 
@@ -323,18 +370,17 @@
         <div class="section-hero">
           <span class="kicker">${escapeHtml(info.title)}</span>
           <h2>${escapeHtml(info.heroLine)}</h2>
-          ${collapsibleHtml(`<p class="lead">${isAdmin ? info.adminIntro : info.clientIntro}</p>`)}
         </div>
+        <div class="science-box">
+          <span class="kicker">Wissenschaftlicher Hintergrund</span>
+          <p>${info.scienceText}</p>
+        </div>
+        <p class="lead">${isAdmin ? info.adminIntro : info.clientIntro}</p>
         ${isAdmin ? '' : `
         <div class="benefit-grid">
           ${info.benefits.map((b) => `<div class="benefit-card"><h4>${escapeHtml(b.h)}</h4><p>${escapeHtml(b.t)}</p></div>`).join('')}
         </div>`}
-        <div class="science-box">
-          <span class="kicker">Wissenschaftlicher Hintergrund</span>
-          ${collapsibleHtml(`<p>${info.scienceText}</p>`, { fadeVar: 'var(--color-bg)' })}
-        </div>
       `;
-      initCollapsibles(content);
     }
 
     function computeStatus(pe, logsForThis) {
@@ -546,6 +592,9 @@
         pe.target_weight_hint ? pe.target_weight_hint : null,
         pe.target_duration_seconds ? `Ziel: ${formatDuration(pe.target_duration_seconds)}` : null,
         pe.target_distance_meters ? `Ziel: ${pe.target_distance_meters} m` : null,
+        pe.target_speed_kmh ? `Ziel: ${pe.target_speed_kmh} km/h` : null,
+        pe.target_watt ? `Ziel: ${pe.target_watt} Watt` : null,
+        pe.target_heart_rate_percent ? `Ziel: ${pe.target_heart_rate_percent}% HFmax` : null,
       ].filter(Boolean).join(' · ');
 
       const status = computeStatus(pe, logsForThis);
@@ -571,6 +620,514 @@
           </form>
         </div>
       </div>`;
+    }
+
+    // =========================================================================
+    // PRÄVENTIONSCHECK (gemeinsam für Kunde & Trainer)
+    // =========================================================================
+
+    const BALANCE_PAIRS = [
+      { aKey: 'push_oberkoerper', bKey: 'pull_oberkoerper' },
+      { aKey: 'vordere_beinkette', bKey: 'hintere_beinkette' },
+      { aKey: 'rumpf_vorne', bKey: 'rumpf_hinten' },
+    ];
+
+    const SIDE_LABEL = { left: 'links', right: 'rechts', both: 'beidseitig' };
+
+    function renderPreventionTab(content, profile, { isAdminView }) {
+      renderPreventionSection(content, profile.id, { isAdminView });
+    }
+
+    function severityColor(sev) {
+      return { ok: 'var(--color-success)', warn: 'var(--color-gold)', alert: 'var(--color-danger)', unknown: 'var(--color-border)' }[sev] || 'var(--color-border)';
+    }
+
+    function bodyVisualHtml(markers, notices) {
+      // Vorderansicht, nicht gespiegelt: Bildseiten entsprechen den Körperseiten.
+      const dot = (cx, cy, sev, title) => `<circle cx="${cx}" cy="${cy}" r="9" fill="${severityColor(sev)}" stroke="#fff" stroke-width="1.5"><title>${escapeHtml(title)}</title></circle>`;
+      return `
+        <div style="display:flex; gap:24px; flex-wrap:wrap; align-items:flex-start;">
+          <svg viewBox="0 0 200 350" style="width:180px; height:auto; flex-shrink:0;">
+            <circle cx="100" cy="26" r="20" fill="var(--color-border)" />
+            <rect x="68" y="58" width="64" height="100" rx="16" fill="var(--color-border)" />
+            <rect x="48" y="60" width="16" height="90" rx="8" fill="var(--color-border)" />
+            <rect x="136" y="60" width="16" height="90" rx="8" fill="var(--color-border)" />
+            <rect x="72" y="158" width="56" height="30" rx="10" fill="var(--color-border)" />
+            <rect x="72" y="188" width="24" height="80" rx="10" fill="var(--color-border)" />
+            <rect x="104" y="188" width="24" height="80" rx="10" fill="var(--color-border)" />
+            <rect x="74" y="270" width="20" height="68" rx="8" fill="var(--color-border)" />
+            <rect x="106" y="270" width="20" height="68" rx="8" fill="var(--color-border)" />
+            ${dot(100, 52, markers.neck.sev, markers.neck.title)}
+            ${dot(64, 66, markers.shoulderLeft.sev, markers.shoulderLeft.title)}
+            ${dot(136, 66, markers.shoulderRight.sev, markers.shoulderRight.title)}
+            ${dot(56, 104, markers.armLeft.sev, markers.armLeft.title)}
+            ${dot(144, 104, markers.armRight.sev, markers.armRight.title)}
+            ${dot(100, 150, markers.sitting.sev, markers.sitting.title)}
+            ${dot(84, 173, markers.hipLeft.sev, markers.hipLeft.title)}
+            ${dot(116, 173, markers.hipRight.sev, markers.hipRight.title)}
+            ${dot(100, 200, markers.hamstring.sev, markers.hamstring.title)}
+            ${dot(84, 228, markers.thighLeft.sev, markers.thighLeft.title)}
+            ${dot(116, 228, markers.thighRight.sev, markers.thighRight.title)}
+            ${dot(84, 305, markers.calfLeft.sev, markers.calfLeft.title)}
+            ${dot(116, 305, markers.calfRight.sev, markers.calfRight.title)}
+          </svg>
+          <div style="flex:1; min-width:240px;">
+            <div class="dysbalance-legend" style="margin-bottom:10px;">
+              <span><i style="background:var(--color-success);"></i> unauffällig</span>
+              <span><i style="background:var(--color-gold);"></i> leichter Hinweis</span>
+              <span><i style="background:var(--color-danger);"></i> deutlicher Hinweis</span>
+              <span><i style="background:var(--color-border);"></i> keine Daten</span>
+            </div>
+            ${notices.length === 0
+              ? '<p style="color:var(--color-text-muted); font-size:0.85rem;">Noch keine auffälligen Befunde bzw. noch keine ausreichenden Daten.</p>'
+              : `<ul style="margin:0; padding-left:18px; font-size:0.85rem;">${notices.map((n) => `<li class="dysbalance-verdict ${n.sev === 'unknown' ? '' : n.sev}" style="margin-bottom:4px;">${escapeHtml(n.text)}</li>`).join('')}</ul>`}
+            <p style="font-size:0.72rem; color:var(--color-text-muted); margin-top:12px;">
+              Vorderansicht, nicht gespiegelt – Bildseiten entsprechen den Körperseiten. Ersetzt keine individuelle
+              physiotherapeutische oder ärztliche Untersuchung.
+            </p>
+          </div>
+        </div>
+      `;
+    }
+
+    function miniSparklineHtml(points, unit) {
+      if (!points || points.length < 2) return '<p style="color:var(--color-text-muted); font-size:0.8rem;">Für einen Verlauf braucht es mindestens zwei Messungen.</p>';
+      const width = 280, height = 64, padding = 10;
+      const values = points.map((p) => p.value);
+      const minV = Math.min(...values), maxV = Math.max(...values);
+      const range = (maxV - minV) || 1;
+      const coords = points.map((p, i) => ({
+        x: padding + (i / (points.length - 1)) * (width - padding * 2),
+        y: height - padding - ((p.value - minV) / range) * (height - padding * 2),
+      }));
+      const pathD = coords.map((c, i) => (i === 0 ? 'M' : 'L') + c.x.toFixed(1) + ' ' + c.y.toFixed(1)).join(' ');
+      return `
+        <svg viewBox="0 0 ${width} ${height}" style="width:100%; max-width:280px; height:${height}px;">
+          <path d="${pathD}" fill="none" stroke="var(--color-gold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          ${coords.map((c) => `<circle cx="${c.x}" cy="${c.y}" r="3" fill="var(--color-gold)" />`).join('')}
+        </svg>
+        <div style="font-size:0.72rem; color:var(--color-text-muted);">${points[0].value}${unit ? ' ' + unit : ''} → ${points[points.length - 1].value}${unit ? ' ' + unit : ''}</div>
+      `;
+    }
+
+    function strengthTestCardHtml(t, latestRow, ageYears, sex, history) {
+      const evalRes = latestRow ? evaluateStrengthBenchmark(t.key, ageYears, latestRow.value, sex) : null;
+      const points = history.filter((r) => r.test_key === t.key).map((r) => ({ date: r.measured_at, value: r.value }));
+      return `
+        <div class="card mt-24 pv-test-card" data-test-key="${t.key}">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+            <h3 style="margin:0; font-size:1rem;">${escapeHtml(t.label)}</h3>
+            ${latestRow ? `<span class="status-pill ${isStale(latestRow.measured_at) ? 'under' : 'active'}">${isStale(latestRow.measured_at) ? 'älter als 12 Wochen' : 'aktuell'}</span>` : ''}
+          </div>
+          <details class="qn-details mt-16"><summary>Testprotokoll ansehen (Ausführung, Abbruchkriterium, Kontraindikation)</summary>
+            <div style="padding:10px 0 0; font-size:0.85rem;">
+              <p><strong>Ausführung:</strong> ${escapeHtml(t.ausfuehrung)}</p>
+              <p><strong>Typische Fehler:</strong> ${escapeHtml(t.typischeFehler)}</p>
+              <p><strong>Abbruchkriterium:</strong> ${escapeHtml(t.abbruchkriterium)}</p>
+              <p style="color:var(--color-danger);"><strong>Kontraindikation:</strong> ${escapeHtml(t.kontraindikation)}</p>
+              <p style="color:var(--color-text-muted); font-size:0.78rem;">Quelle: ${escapeHtml(t.source)}</p>
+            </div>
+          </details>
+          ${latestRow ? `
+            <div class="result-box mt-16">
+              <div class="big" style="font-size:1.3rem;">${latestRow.value} ${escapeHtml(t.unit)}</div>
+              ${evalRes && evalRes.bandFound ? `<div style="font-size:0.85rem; margin-top:4px;">Einstufung: <strong>${escapeHtml(evalRes.label)}</strong></div>` : `<div style="font-size:0.8rem; color:var(--color-text-muted); margin-top:4px;">${escapeHtml(evalRes ? evalRes.label : '')}</div>`}
+              ${evalRes && evalRes.genderNote ? `<div style="font-size:0.75rem; color:var(--color-text-muted); margin-top:4px;">${escapeHtml(evalRes.genderNote)}</div>` : ''}
+              <div style="font-size:0.75rem; color:var(--color-text-muted); margin-top:4px;">Gemessen am ${formatDateOnly(latestRow.measured_at)} von ${latestRow.measured_by === 'trainer' ? 'Trainer/Coach' : 'Kunde selbst'}</div>
+            </div>
+          ` : '<p style="color:var(--color-text-muted); font-size:0.85rem; margin-top:12px;">Noch kein Test eingetragen.</p>'}
+          ${points.length >= 2 ? `<div class="mt-16">${miniSparklineHtml(points, t.unit)}</div>` : ''}
+          <form class="pv-entry-form mt-16" data-test-key="${t.key}">
+            <div class="grid-2">
+              <div class="field"><label>${escapeHtml(t.valueLabel)}</label><input type="number" step="1" min="0" class="pv-value" required /></div>
+              <div class="field"><label>Datum</label><input type="date" class="pv-date" value="${new Date().toISOString().slice(0, 10)}" required /></div>
+              <div class="field"><label>Wer hat gemessen?</label>
+                <select class="pv-measured-by">
+                  <option value="client">Ich selbst</option>
+                  <option value="trainer">Trainer/Coach</option>
+                </select>
+              </div>
+            </div>
+            <button class="btn secondary small-btn" type="submit">Testergebnis speichern</button>
+          </form>
+        </div>
+      `;
+    }
+
+    function mobilityTestCardHtml(t, latestBySide, history) {
+      const sides = t.hasSide ? ['left', 'right'] : [null];
+      return `
+        <div class="card mt-24 pv-test-card" data-test-key="${t.key}">
+          <h3 style="margin:0; font-size:1rem;">${escapeHtml(t.label)}</h3>
+          <details class="qn-details mt-16"><summary>Testprotokoll ansehen (Ausführung, Abbruchkriterium, Kontraindikation)</summary>
+            <div style="padding:10px 0 0; font-size:0.85rem;">
+              <p><strong>Ausführung:</strong> ${escapeHtml(t.ausfuehrung)}</p>
+              <p><strong>Typische Fehler:</strong> ${escapeHtml(t.typischeFehler)}</p>
+              <p><strong>Abbruchkriterium:</strong> ${escapeHtml(t.abbruchkriterium)}</p>
+              <p style="color:var(--color-danger);"><strong>Kontraindikation:</strong> ${escapeHtml(t.kontraindikation)}</p>
+              <p style="color:var(--color-text-muted); font-size:0.78rem;">Bewertungsskala: – (schlecht) · 0 (normal) · + (gut) — ${escapeHtml(t.ratingLabels['-1'])}; ${escapeHtml(t.ratingLabels['0'])}; ${escapeHtml(t.ratingLabels['1'])}.</p>
+              <p style="color:var(--color-text-muted); font-size:0.78rem;">Quelle: ${escapeHtml(t.source)}</p>
+            </div>
+          </details>
+          <div class="grid-2 mt-16">
+            ${sides.map((side) => {
+              const row = latestBySide[side ? `${t.key}:${side}` : t.key];
+              const rating = row ? mobilityRatingLabel(row.value) : null;
+              return `
+                <div class="result-box">
+                  ${side ? `<div style="font-size:0.78rem; color:var(--color-text-muted); margin-bottom:4px;">Seite: ${SIDE_LABEL[side]}</div>` : ''}
+                  ${row ? `
+                    <div class="big" style="font-size:1.4rem;">${rating.symbol}</div>
+                    <div style="font-size:0.8rem;">${escapeHtml(t.ratingLabels[String(Math.sign(row.value))] || '')}</div>
+                    <div style="font-size:0.72rem; color:var(--color-text-muted); margin-top:4px;">${formatDateOnly(row.measured_at)} · ${row.measured_by === 'trainer' ? 'Trainer/Coach' : 'Kunde selbst'}${isStale(row.measured_at) ? ' · <span style="color:var(--color-gold);">älter als 12 Wochen</span>' : ''}</div>
+                  ` : '<p style="color:var(--color-text-muted); font-size:0.82rem; margin:0;">Noch kein Test.</p>'}
+                </div>
+              `;
+            }).join('')}
+          </div>
+          <form class="pv-entry-form mt-16" data-test-key="${t.key}">
+            <div class="grid-2">
+              ${t.hasSide ? `
+              <div class="field"><label>Seite</label>
+                <select class="pv-side">
+                  <option value="left">links</option>
+                  <option value="right">rechts</option>
+                </select>
+              </div>` : ''}
+              <div class="field"><label>Bewertung</label>
+                <select class="pv-value">
+                  <option value="1">+ (${escapeHtml(t.ratingLabels['1'])})</option>
+                  <option value="0">0 (${escapeHtml(t.ratingLabels['0'])})</option>
+                  <option value="-1">– (${escapeHtml(t.ratingLabels['-1'])})</option>
+                </select>
+              </div>
+              <div class="field"><label>Datum</label><input type="date" class="pv-date" value="${new Date().toISOString().slice(0, 10)}" required /></div>
+              <div class="field"><label>Wer hat gemessen?</label>
+                <select class="pv-measured-by">
+                  <option value="client">Ich selbst</option>
+                  <option value="trainer">Trainer/Coach</option>
+                </select>
+              </div>
+            </div>
+            <button class="btn secondary small-btn" type="submit">Bewertung speichern</button>
+          </form>
+        </div>
+      `;
+    }
+
+    function nutritionQuizFormHtml() {
+      const defaults = NUTRITION_QUIZ.map(() => 2);
+      const initialScore = computeNutritionQuizScore(defaults);
+      return `
+        <form class="pv-entry-form" data-test-key="nutrition_quality" id="nq-form">
+          <input type="hidden" class="pv-value" id="nq-score" value="${initialScore}" />
+          ${NUTRITION_QUIZ.map((q, idx) => `
+            <div class="field mt-16">
+              <label>${escapeHtml(q.question)}</label>
+              <select class="nq-answer" data-idx="${idx}">
+                ${q.options.map((o) => `<option value="${o.value}" ${o.value === 2 ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
+              </select>
+            </div>
+          `).join('')}
+          <div class="result-box mt-16" style="text-align:center;">
+            <div style="font-size:0.78rem; color:var(--color-text-muted);">Voraussichtlicher Score</div>
+            <div class="big" id="nq-score-preview" style="font-size:1.3rem;">${initialScore}</div>
+          </div>
+          <div class="grid-2 mt-16">
+            <div class="field"><label>Datum</label><input type="date" class="pv-date" value="${new Date().toISOString().slice(0, 10)}" required /></div>
+            <div class="field"><label>Wer hat eingetragen?</label>
+              <select class="pv-measured-by"><option value="client">Ich selbst</option><option value="trainer">Trainer/Coach</option></select>
+            </div>
+          </div>
+          <p style="font-size:0.72rem; color:var(--color-text-muted); margin-top:8px;">Quelle: ${escapeHtml(NUTRITION_QUIZ_SOURCE)}</p>
+          <button class="btn secondary small-btn" type="submit">Speichern</button>
+        </form>
+      `;
+    }
+
+    async function renderPreventionSection(el, clientId, { isAdminView }) {
+      el.innerHTML = '<p class="center-text">Lade Präventionscheck …</p>';
+
+      const twelveWeeksAgo = new Date(Date.now() - 84 * 86400000).toISOString();
+      const [{ data: profileRow }, { data: bodyMeasurements }, { data: allResults, error: resultsError }, { data: balanceLogs }] = await Promise.all([
+        supabaseClient.from('profiles').select('birth_date').eq('id', clientId).maybeSingle(),
+        listMyBodyMeasurements(clientId),
+        listPreventionResults(clientId),
+        listLogsForAnalytics(clientId, { from: twelveWeeksAgo }),
+      ]);
+      if (resultsError) { el.innerHTML = `<div class="msg error">${escapeHtml(resultsError.message)}</div>`; return; }
+
+      const birthDate = profileRow ? profileRow.birth_date : null;
+      const ageYears = calcAge(birthDate);
+      const latestBodyMeasurement = (bodyMeasurements || [])[(bodyMeasurements || []).length - 1] || null;
+      const sex = latestBodyMeasurement ? latestBodyMeasurement.sex : null;
+      const bodyFatPercent = latestBodyMeasurement ? latestBodyMeasurement.body_fat_percent : null;
+
+      const results = allResults || [];
+      const latest = latestByKey(results);
+
+      const totals = {};
+      for (const log of balanceLogs || []) {
+        const m = logMetric(log);
+        if (!m || m.type !== 'volume') continue;
+        const pattern = log.exercises && log.exercises.movement_pattern;
+        if (!pattern || pattern === 'sonstige') continue;
+        totals[pattern] = (totals[pattern] || 0) + m.value;
+      }
+      const balancePairRatios = BALANCE_PAIRS.map((p) => {
+        const a = totals[p.aKey] || 0, b = totals[p.bKey] || 0;
+        if (a === 0 && b === 0) return { ratio: null };
+        if (a === 0 || b === 0) return { ratio: Infinity };
+        return { ratio: Math.max(a, b) / Math.min(a, b) };
+      });
+
+      const { total, breakdown } = computePreventionScore({ ageYears, sex, latestResults: latest, bodyFatPercent, balancePairRatios });
+
+      // Erinnerung: Daten älter als 12 Wochen bzw. noch nie erfasst
+      const staleItems = [];
+      [...STRENGTH_TESTS, ...MOBILITY_TESTS].forEach((t) => {
+        const sides = t.hasSide ? ['left', 'right'] : [null];
+        sides.forEach((side) => {
+          const key = side ? `${t.key}:${side}` : t.key;
+          const r = latest[key];
+          const sideLabel = side ? ` (${SIDE_LABEL[side]})` : '';
+          if (!r) staleItems.push(`${t.label}${sideLabel} – noch kein Test eingetragen`);
+          else if (isStale(r.measured_at)) staleItems.push(`${t.label}${sideLabel} – letzter Test vor über 12 Wochen (${formatDateOnly(r.measured_at)})`);
+        });
+      });
+
+      // Körper-Visual: Marker-Schweregrade berechnen
+      const asymmetrySeverity = (leftCm, rightCm) => {
+        if (leftCm == null || rightCm == null) return { sev: 'unknown', title: 'Keine Umfangsmessung vorhanden' };
+        const diffPct = Math.abs(leftCm - rightCm) / Math.max(leftCm, rightCm) * 100;
+        if (diffPct >= 8) return { sev: 'alert', title: `Deutliche Seitendifferenz (${diffPct.toFixed(1)}%): links ${leftCm}cm / rechts ${rightCm}cm` };
+        if (diffPct >= 4) return { sev: 'warn', title: `Leichte Seitendifferenz (${diffPct.toFixed(1)}%): links ${leftCm}cm / rechts ${rightCm}cm` };
+        return { sev: 'ok', title: `Ausgeglichen: links ${leftCm}cm / rechts ${rightCm}cm` };
+      };
+      const mobilitySeverity = (row, label) => {
+        if (!row) return { sev: 'unknown', title: `${label}: keine Daten` };
+        const v = Math.sign(row.value);
+        if (v < 0) return { sev: 'alert', title: `${label}: eingeschränkt` };
+        if (v === 0) return { sev: 'warn', title: `${label}: normal` };
+        return { sev: 'ok', title: `${label}: gut` };
+      };
+
+      const armSev = latestBodyMeasurement ? asymmetrySeverity(latestBodyMeasurement.arm_left_cm, latestBodyMeasurement.arm_right_cm) : { sev: 'unknown', title: 'Keine Umfangsmessung vorhanden' };
+      const thighSev = latestBodyMeasurement ? asymmetrySeverity(latestBodyMeasurement.thigh_left_cm, latestBodyMeasurement.thigh_right_cm) : { sev: 'unknown', title: 'Keine Umfangsmessung vorhanden' };
+      const calfSev = latestBodyMeasurement ? asymmetrySeverity(latestBodyMeasurement.calf_left_cm, latestBodyMeasurement.calf_right_cm) : { sev: 'unknown', title: 'Keine Umfangsmessung vorhanden' };
+
+      const sittingRow = latest.sitting_hours;
+      const sittingEval = sittingRow ? evaluateSittingScore(sittingRow.value) : null;
+      const sittingSev = !sittingRow ? { sev: 'unknown', title: 'Keine Angabe zur Sitzzeit' }
+        : sittingEval.score >= 85 ? { sev: 'ok', title: `${sittingRow.value} Std./Tag Sitzzeit – ${sittingEval.label}` }
+        : sittingEval.score >= 65 ? { sev: 'warn', title: `${sittingRow.value} Std./Tag Sitzzeit – ${sittingEval.label}` }
+        : { sev: 'alert', title: `${sittingRow.value} Std./Tag Sitzzeit – ${sittingEval.label}. Hohe Sitzzeit ist mit Rückenbeschwerden und kardiometabolischen Risiken assoziiert.` };
+
+      const sleepRow = latest.sleep_side;
+      const sleepSev = !sleepRow ? { sev: 'unknown', title: 'Keine Angabe zur Schlafseite' }
+        : Number(sleepRow.value) === 0 ? { sev: 'ok', title: 'Rücken/wechselnde Schlafseite' }
+        : { sev: 'warn', title: `Überwiegend auf ${Number(sleepRow.value) > 0 ? 'der rechten' : 'der linken'} Seite schlafend – kann zu einseitigen Verspannungen beitragen` };
+
+      const nutritionRow = latest.nutrition_quality;
+      const nutritionEval = nutritionRow ? evaluateNutritionQuality(nutritionRow.value) : null;
+      const smokingRow = latest.smoking_status;
+      const smokingEval = smokingRow ? evaluateSmokingStatus(smokingRow.value) : null;
+      const alcoholRow = latest.alcohol_weekly_drinks;
+      const alcoholEval = alcoholRow ? evaluateAlcoholRisk(alcoholRow.value, sex) : null;
+
+      const markers = {
+        neck: sleepSev,
+        shoulderLeft: mobilitySeverity(latest['shoulder_mobility:left'], 'Schulter links'),
+        shoulderRight: mobilitySeverity(latest['shoulder_mobility:right'], 'Schulter rechts'),
+        armLeft: armSev, armRight: armSev,
+        sitting: sittingSev,
+        hipLeft: mobilitySeverity(latest['thomas_mobility:left'], 'Hüftbeuger links'),
+        hipRight: mobilitySeverity(latest['thomas_mobility:right'], 'Hüftbeuger rechts'),
+        hamstring: mobilitySeverity(latest.hamstring_mobility, 'Hamstring'),
+        thighLeft: thighSev, thighRight: thighSev,
+        calfLeft: calfSev, calfRight: calfSev,
+      };
+      const notices = [markers.neck, markers.shoulderLeft, markers.shoulderRight, markers.armLeft, markers.sitting, markers.hipLeft, markers.hipRight, markers.hamstring, markers.thighLeft, markers.calfLeft]
+        .filter((m) => m.sev === 'warn' || m.sev === 'alert')
+        .map((m) => ({ sev: m.sev, text: m.title }));
+
+      el.innerHTML = `
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+            <div>
+              <h2 style="font-size:1.1rem; margin:0 0 4px;">Präventions-Score</h2>
+              <p style="color:var(--color-text-muted); font-size:0.82rem; margin:0; max-width:520px;">
+                0–100 Punkte, 100 = für das Alter maximal gesund/leistungsfähig. Berechnet aus Kraftausdauer- und
+                Beweglichkeitstests, letzter Körperfett-Messung, Trainings-Balance sowie den Lebensstil-Faktoren
+                Sitzverhalten, Ernährung, Rauchen und Alkohol. Fehlende Kategorien werden ausgeschlossen, die übrigen
+                Gewichte entsprechend angepasst.
+              </p>
+            </div>
+            <div class="result-box" style="text-align:center; min-width:120px;">
+              <div class="big" style="font-size:2.2rem;">${total != null ? total : '–'}</div>
+              <div style="font-size:0.72rem; color:var(--color-text-muted);">von 100</div>
+            </div>
+          </div>
+          ${breakdown.length > 0 ? `
+          <div class="mt-16">
+            ${breakdown.map((b) => `
+              <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--color-border); font-size:0.85rem;">
+                <span>${escapeHtml(b.label)}${b.note ? ` <span style="color:var(--color-text-muted); font-size:0.78rem;">(${escapeHtml(b.note)})</span>` : ''}</span>
+                <strong>${b.score}</strong>
+              </div>
+            `).join('')}
+          </div>` : `<p style="color:var(--color-text-muted); font-size:0.85rem; margin-top:12px;">Noch keine Daten für einen Score – trage unten mindestens einen Test ein.</p>`}
+          <p style="font-size:0.78rem; color:var(--color-text-muted); margin-top:12px;">${ageYears != null ? `Alter: ${ageYears} Jahre` : 'Kein Geburtsdatum hinterlegt – Kraftausdauer-Benchmarks können ohne Alter nicht ausgewertet werden.'}</p>
+          <button class="icon-btn" id="pv-edit-birthdate" type="button">Geburtsdatum ${birthDate ? 'ändern' : 'hinterlegen'}</button>
+          <form id="pv-birthdate-form" class="hidden mt-16">
+            <div class="field"><label>Geburtsdatum</label><input type="date" id="pv-birthdate-input" value="${birthDate || ''}" required /></div>
+            <button class="btn secondary small-btn" type="submit">Speichern</button>
+          </form>
+        </div>
+
+        ${staleItems.length > 0 ? `
+        <div class="card mt-24" style="border-color: rgba(200,124,0,0.4);">
+          <h3 style="font-size:0.95rem; margin:0 0 8px; color:var(--color-gold);">Erinnerung: Tests aktualisieren</h3>
+          <ul style="margin:0; padding-left:18px; font-size:0.85rem; color:var(--color-text-muted);">
+            ${staleItems.map((i) => `<li>${escapeHtml(i)}</li>`).join('')}
+          </ul>
+        </div>` : ''}
+
+        <div class="card mt-24">
+          <h2 style="font-size:1.05rem;">Körperliche Balance &amp; Risikofaktoren</h2>
+          <p style="color:var(--color-text-muted); font-size:0.82rem;">Zusammenfassung aus Umfangsmessungen (Körperfett-Verlauf), Beweglichkeitstests sowie Sitz-/Schlafgewohnheiten.</p>
+          ${bodyVisualHtml(markers, notices)}
+        </div>
+
+        <h2 class="mt-24" style="font-size:1.1rem;">Kraftausdauertests</h2>
+        ${STRENGTH_TESTS.map((t) => strengthTestCardHtml(t, latest[t.key], ageYears, sex, results)).join('')}
+
+        <h2 class="mt-24" style="font-size:1.1rem;">Beweglichkeitstests</h2>
+        ${MOBILITY_TESTS.map((t) => mobilityTestCardHtml(t, latest, results)).join('')}
+
+        <div class="card mt-24">
+          <h2 style="font-size:1.05rem;">Sitzverhalten &amp; Schlafseite</h2>
+          <p style="color:var(--color-text-muted); font-size:0.82rem;">Selbstauskunft – möglichst ehrlich einschätzen, ein grober Durchschnittswert reicht.</p>
+          <div class="grid-2 mt-16">
+            <div class="result-box">
+              <div style="font-size:0.82rem; color:var(--color-text-muted); margin-bottom:6px;">Sitzstunden pro Tag (Durchschnitt)</div>
+              ${sittingRow ? `<div class="big" style="font-size:1.4rem;">${sittingRow.value} Std.</div><div style="font-size:0.72rem; color:var(--color-text-muted); margin-top:4px;">${formatDateOnly(sittingRow.measured_at)}${isStale(sittingRow.measured_at) ? ' · <span style="color:var(--color-gold);">älter als 12 Wochen</span>' : ''}</div>` : '<p style="color:var(--color-text-muted); font-size:0.82rem; margin:0;">Noch keine Angabe.</p>'}
+              <form class="pv-entry-form mt-16" data-test-key="sitting_hours">
+                <div class="field"><label>Stunden/Tag</label><input type="number" step="0.5" min="0" max="24" class="pv-value" required /></div>
+                <div class="field"><label>Datum</label><input type="date" class="pv-date" value="${new Date().toISOString().slice(0, 10)}" required /></div>
+                <div class="field"><label>Wer hat eingetragen?</label>
+                  <select class="pv-measured-by"><option value="client">Ich selbst</option><option value="trainer">Trainer/Coach</option></select>
+                </div>
+                <button class="btn secondary small-btn" type="submit">Speichern</button>
+              </form>
+            </div>
+            <div class="result-box">
+              <div style="font-size:0.82rem; color:var(--color-text-muted); margin-bottom:6px;">Überwiegende Schlafseite</div>
+              ${sleepRow ? `<div class="big" style="font-size:1.1rem;">${Number(sleepRow.value) === 0 ? 'Rücken/wechselnd' : Number(sleepRow.value) > 0 ? 'Rechts' : 'Links'}</div><div style="font-size:0.72rem; color:var(--color-text-muted); margin-top:4px;">${formatDateOnly(sleepRow.measured_at)}</div>` : '<p style="color:var(--color-text-muted); font-size:0.82rem; margin:0;">Noch keine Angabe.</p>'}
+              <form class="pv-entry-form mt-16" data-test-key="sleep_side">
+                <div class="field"><label>Seite</label>
+                  <select class="pv-value">
+                    <option value="0">Rücken/wechselnd</option>
+                    <option value="-1">Links</option>
+                    <option value="1">Rechts</option>
+                  </select>
+                </div>
+                <div class="field"><label>Datum</label><input type="date" class="pv-date" value="${new Date().toISOString().slice(0, 10)}" required /></div>
+                <div class="field"><label>Wer hat eingetragen?</label>
+                  <select class="pv-measured-by"><option value="client">Ich selbst</option><option value="trainer">Trainer/Coach</option></select>
+                </div>
+                <button class="btn secondary small-btn" type="submit">Speichern</button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <div class="card mt-24">
+          <h2 style="font-size:1.05rem;">Ernährung, Rauchen &amp; Alkohol</h2>
+          <p style="color:var(--color-text-muted); font-size:0.82rem;">Kurze Selbstauskunft für den Präventions-Score – möglichst ehrlich einschätzen, ersetzt kein ausführliches Ernährungsprotokoll.</p>
+          <div class="grid-2 mt-16">
+            <div class="result-box">
+              <div style="font-size:0.82rem; color:var(--color-text-muted); margin-bottom:6px;">Ernährungsqualität</div>
+              ${nutritionRow ? `<div class="big" style="font-size:1.4rem;">${nutritionRow.value} / 100</div><div style="font-size:0.8rem; margin-top:4px;">${escapeHtml(nutritionEval ? nutritionEval.label : '')}</div><div style="font-size:0.72rem; color:var(--color-text-muted); margin-top:4px;">${formatDateOnly(nutritionRow.measured_at)} · ${nutritionRow.measured_by === 'trainer' ? 'Trainer/Coach' : 'Kunde selbst'}${isStale(nutritionRow.measured_at) ? ' · <span style="color:var(--color-gold);">älter als 12 Wochen</span>' : ''}</div>` : '<p style="color:var(--color-text-muted); font-size:0.82rem; margin:0;">Noch keine Angabe.</p>'}
+              <details class="qn-details mt-16"><summary>Kurzcheck ausfüllen</summary>
+                <div style="padding:10px 0 0;">${nutritionQuizFormHtml()}</div>
+              </details>
+            </div>
+            <div class="result-box">
+              <div style="font-size:0.82rem; color:var(--color-text-muted); margin-bottom:6px;">Rauchen</div>
+              ${smokingRow ? `<div class="big" style="font-size:1.1rem;">${escapeHtml(smokingEval ? smokingEval.label : '')}</div><div style="font-size:0.72rem; color:var(--color-text-muted); margin-top:4px;">${formatDateOnly(smokingRow.measured_at)}${isStale(smokingRow.measured_at) ? ' · <span style="color:var(--color-gold);">älter als 12 Wochen</span>' : ''}</div>` : '<p style="color:var(--color-text-muted); font-size:0.82rem; margin:0;">Noch keine Angabe.</p>'}
+              <form class="pv-entry-form mt-16" data-test-key="smoking_status">
+                <div class="field"><label>Status</label>
+                  <select class="pv-value">
+                    ${SMOKING_OPTIONS.map((o) => `<option value="${o.value}">${escapeHtml(o.label)}</option>`).join('')}
+                  </select>
+                </div>
+                <div class="field"><label>Datum</label><input type="date" class="pv-date" value="${new Date().toISOString().slice(0, 10)}" required /></div>
+                <div class="field"><label>Wer hat eingetragen?</label>
+                  <select class="pv-measured-by"><option value="client">Ich selbst</option><option value="trainer">Trainer/Coach</option></select>
+                </div>
+                <p style="font-size:0.7rem; color:var(--color-text-muted); margin-top:6px;">Quelle: ${escapeHtml(SMOKING_SOURCE)}</p>
+                <button class="btn secondary small-btn" type="submit">Speichern</button>
+              </form>
+            </div>
+            <div class="result-box">
+              <div style="font-size:0.82rem; color:var(--color-text-muted); margin-bottom:6px;">Alkohol (Standarddrinks/Woche)</div>
+              ${alcoholRow ? `<div class="big" style="font-size:1.4rem;">${alcoholRow.value}/Woche</div><div style="font-size:0.8rem; margin-top:4px;">${escapeHtml(alcoholEval ? alcoholEval.label : '')}</div><div style="font-size:0.72rem; color:var(--color-text-muted); margin-top:4px;">${formatDateOnly(alcoholRow.measured_at)}${isStale(alcoholRow.measured_at) ? ' · <span style="color:var(--color-gold);">älter als 12 Wochen</span>' : ''}</div>` : '<p style="color:var(--color-text-muted); font-size:0.82rem; margin:0;">Noch keine Angabe.</p>'}
+              <form class="pv-entry-form mt-16" data-test-key="alcohol_weekly_drinks">
+                <div class="field"><label>Standarddrinks pro Woche</label><input type="number" step="1" min="0" max="100" class="pv-value" required /></div>
+                <div class="field"><label>Datum</label><input type="date" class="pv-date" value="${new Date().toISOString().slice(0, 10)}" required /></div>
+                <div class="field"><label>Wer hat eingetragen?</label>
+                  <select class="pv-measured-by"><option value="client">Ich selbst</option><option value="trainer">Trainer/Coach</option></select>
+                </div>
+                <p style="font-size:0.7rem; color:var(--color-text-muted); margin-top:6px;">Ein Standarddrink ≈ 0,33l Bier, 0,125l Wein oder 4cl Spirituosen. Quelle: ${escapeHtml(ALCOHOL_SOURCE)}</p>
+                <button class="btn secondary small-btn" type="submit">Speichern</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      `;
+
+      el.querySelectorAll('.nq-answer').forEach((sel) => {
+        sel.addEventListener('change', () => {
+          const form = sel.closest('form');
+          const answers = Array.from(form.querySelectorAll('.nq-answer')).sort((a, b) => a.dataset.idx - b.dataset.idx).map((s) => s.value);
+          const score = computeNutritionQuizScore(answers);
+          form.querySelector('.pv-value').value = score;
+          form.querySelector('#nq-score-preview').textContent = score;
+        });
+      });
+
+      const birthBtn = document.getElementById('pv-edit-birthdate');
+      const birthForm = document.getElementById('pv-birthdate-form');
+      if (birthBtn && birthForm) {
+        birthBtn.addEventListener('click', () => birthForm.classList.toggle('hidden'));
+        birthForm.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const { error } = await updateBirthDate(clientId, document.getElementById('pv-birthdate-input').value);
+          if (error) { alert('Fehler: ' + error.message); return; }
+          renderPreventionSection(el, clientId, { isAdminView });
+        });
+      }
+
+      el.querySelectorAll('.pv-entry-form').forEach((form) => {
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const testKey = form.dataset.testKey;
+          const sideSelect = form.querySelector('.pv-side');
+          const submitBtn = form.querySelector('button[type="submit"]');
+          submitBtn.disabled = true;
+          const { error } = await insertPreventionResult({
+            clientId,
+            testKey,
+            side: sideSelect ? sideSelect.value : null,
+            value: parseFloat(form.querySelector('.pv-value').value),
+            measuredBy: form.querySelector('.pv-measured-by').value,
+            measuredAt: form.querySelector('.pv-date').value,
+          });
+          if (error) { alert('Fehler: ' + error.message); submitBtn.disabled = false; return; }
+          renderPreventionSection(el, clientId, { isAdminView });
+        });
+      });
     }
 
     // =========================================================================
@@ -703,7 +1260,202 @@
       };
     }
 
-    function createDayBuilder(rowsContainer, exerciseOptions, dayLabel, exercisesById) {
+    // --- Übungs-Baustein (Etappe 31): Kategorie-/Muskelgruppen-Filter,
+    // Satz-für-Satz-Erfassung (oder "gleiche Werte für alle Sätze"),
+    // Notizfeld sowie Cardio-spezifische Felder (Dauer/Distanz/Geschwindigkeit/
+    // Watt/Herzfrequenz), je nach Kategorie der gewählten Übung. ------------
+
+    function getUniqueMuscleGroups(exercises) {
+      return Array.from(new Set(exercises.map((ex) => ex.muscle_group).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'de'));
+    }
+
+    function filteredExerciseOptionsHtml(exercises, categoryFilter, muscleFilter) {
+      const filtered = exercises.filter((ex) =>
+        (!categoryFilter || (ex.category || 'Sonstige') === categoryFilter) &&
+        (!muscleFilter || ex.muscle_group === muscleFilter)
+      );
+      if (filtered.length === 0) return '<option value="">– keine Übung passt zu diesem Filter –</option>';
+      return exerciseOptionsHtml(filtered);
+    }
+
+    function createExerciseBuilderRow(rowsContainer, exercises, exercisesById) {
+      const categories = [...CATEGORY_ORDER, ...Array.from(new Set(exercises.map((e) => e.category || 'Sonstige'))).filter((c) => !CATEGORY_ORDER.includes(c))];
+      const muscleGroups = getUniqueMuscleGroups(exercises);
+
+      const row = document.createElement('div');
+      row.className = 'ex-builder-row';
+      row.innerHTML = `
+        <div class="ex-builder-row-top">
+          <img class="row-preview thumb-sm" src="" alt="" style="visibility:hidden;" />
+          <div class="row-filters">
+            <select class="row-filter-category">
+              <option value="">Alle Kategorien</option>
+              ${categories.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}
+            </select>
+            <select class="row-filter-muscle">
+              <option value="">Alle Muskelgruppen</option>
+              ${muscleGroups.map((m) => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('')}
+            </select>
+          </div>
+          <select class="row-exercise">${exerciseOptionsHtml(exercises)}</select>
+          <button class="btn secondary small-btn row-remove-btn" type="button">✕ Übung entfernen</button>
+        </div>
+
+        <div class="row-strength-fields">
+          <label class="set-mode-toggle"><input type="checkbox" class="row-same-for-all" checked /> Gleiche Werte für alle Sätze</label>
+          <div class="same-for-all-fields">
+            <input class="row-sets-count" type="number" min="1" placeholder="Anzahl Sätze" />
+            <input class="row-reps-all" type="text" placeholder="Wdh. (z.B. 8-12)" />
+            <input class="row-weight-all" type="text" placeholder="Gewicht/Hinweis" />
+          </div>
+          <div class="set-rows-list hidden"></div>
+          <button class="btn secondary small-btn add-set-row-btn hidden" type="button">+ Satz hinzufügen</button>
+        </div>
+
+        <div class="row-cardio-fields hidden cardio-fields">
+          <input class="row-duration" type="number" min="0" placeholder="Dauer (Sek.)" />
+          <input class="row-distance" type="number" min="0" step="1" placeholder="Distanz (m)" />
+          <input class="row-speed" type="number" min="0" step="0.1" placeholder="Geschwindigkeit (km/h)" />
+          <input class="row-watt" type="number" min="0" placeholder="Watt" />
+          <input class="row-hr-percent" type="number" min="0" max="100" placeholder="Herzfrequenz (% vom Max)" />
+        </div>
+
+        <input class="row-notes" type="text" placeholder="Notiz/Hinweis zu dieser Übung (optional)" />
+      `;
+
+      rowsContainer.appendChild(row);
+
+      const exerciseSelect = row.querySelector('.row-exercise');
+      const catFilter = row.querySelector('.row-filter-category');
+      const muscleFilter = row.querySelector('.row-filter-muscle');
+      const preview = row.querySelector('.row-preview');
+      const strengthFields = row.querySelector('.row-strength-fields');
+      const cardioFields = row.querySelector('.row-cardio-fields');
+      const sameForAll = row.querySelector('.row-same-for-all');
+      const sameForAllFields = row.querySelector('.same-for-all-fields');
+      const setRowsList = row.querySelector('.set-rows-list');
+      const addSetBtn = row.querySelector('.add-set-row-btn');
+
+      function updatePreview() {
+        const ex = exercisesById[exerciseSelect.value];
+        if (ex && ex.image_url) {
+          preview.src = ex.image_url;
+          preview.style.visibility = 'visible';
+          preview.onclick = () => window.openLightbox(ex.image_url, ex.name);
+        } else {
+          preview.style.visibility = 'hidden';
+        }
+      }
+
+      function updateModeVisibility() {
+        const ex = exercisesById[exerciseSelect.value];
+        const isCardio = !!ex && ex.category === 'Cardio';
+        strengthFields.classList.toggle('hidden', isCardio);
+        cardioFields.classList.toggle('hidden', !isCardio);
+      }
+
+      function applyFilters() {
+        const selectedBefore = exerciseSelect.value;
+        exerciseSelect.innerHTML = filteredExerciseOptionsHtml(exercises, catFilter.value, muscleFilter.value);
+        if (Array.from(exerciseSelect.options).some((o) => o.value === selectedBefore)) {
+          exerciseSelect.value = selectedBefore;
+        }
+        updatePreview();
+        updateModeVisibility();
+      }
+
+      function renumberSetRows() {
+        Array.from(setRowsList.children).forEach((el, i) => {
+          el.querySelector('.set-index').textContent = `Satz ${i + 1}`;
+        });
+      }
+
+      function addSetRow() {
+        const idx = setRowsList.children.length + 1;
+        const setRow = document.createElement('div');
+        setRow.className = 'set-row-item';
+        setRow.innerHTML = `
+          <span class="set-index">Satz ${idx}</span>
+          <input class="set-reps" type="text" placeholder="Wdh." />
+          <input class="set-weight" type="text" placeholder="Gewicht" />
+          <button class="btn secondary small-btn remove-set-row" type="button">✕</button>
+        `;
+        setRow.querySelector('.remove-set-row').addEventListener('click', () => {
+          setRow.remove();
+          renumberSetRows();
+        });
+        setRowsList.appendChild(setRow);
+      }
+
+      sameForAll.addEventListener('change', () => {
+        const useSame = sameForAll.checked;
+        sameForAllFields.classList.toggle('hidden', !useSame);
+        setRowsList.classList.toggle('hidden', useSame);
+        addSetBtn.classList.toggle('hidden', useSame);
+        if (!useSame && setRowsList.children.length === 0) {
+          addSetRow();
+          addSetRow();
+        }
+      });
+      addSetBtn.addEventListener('click', addSetRow);
+      catFilter.addEventListener('change', applyFilters);
+      muscleFilter.addEventListener('change', applyFilters);
+      exerciseSelect.addEventListener('change', () => { updatePreview(); updateModeVisibility(); });
+      row.querySelector('.row-remove-btn').addEventListener('click', () => row.remove());
+
+      updatePreview();
+      updateModeVisibility();
+
+      return row;
+    }
+
+    function readExerciseBuilderRow(row) {
+      const exerciseId = row.querySelector('.row-exercise').value;
+      if (!exerciseId) return null;
+      const notes = row.querySelector('.row-notes').value.trim();
+      const isCardioMode = !row.querySelector('.row-cardio-fields').classList.contains('hidden');
+
+      if (isCardioMode) {
+        const duration = row.querySelector('.row-duration').value;
+        const distance = row.querySelector('.row-distance').value;
+        const speed = row.querySelector('.row-speed').value;
+        const watt = row.querySelector('.row-watt').value;
+        const hr = row.querySelector('.row-hr-percent').value;
+        return {
+          exerciseId, notes,
+          targetSets: null, targetReps: null, targetWeightHint: null,
+          targetDurationSeconds: duration ? parseInt(duration, 10) : null,
+          targetDistanceMeters: distance ? parseFloat(distance) : null,
+          targetSpeedKmh: speed ? parseFloat(speed) : null,
+          targetWatt: watt ? parseFloat(watt) : null,
+          targetHeartRatePercent: hr ? parseInt(hr, 10) : null,
+        };
+      }
+
+      const sameForAll = row.querySelector('.row-same-for-all').checked;
+      if (sameForAll) {
+        return {
+          exerciseId, notes,
+          targetSets: row.querySelector('.row-sets-count').value || null,
+          targetReps: row.querySelector('.row-reps-all').value.trim() || null,
+          targetWeightHint: row.querySelector('.row-weight-all').value.trim() || null,
+          targetDurationSeconds: null, targetDistanceMeters: null, targetSpeedKmh: null, targetWatt: null, targetHeartRatePercent: null,
+        };
+      }
+
+      const setRows = Array.from(row.querySelectorAll('.set-row-item'));
+      const reps = setRows.map((r) => r.querySelector('.set-reps').value.trim() || '–');
+      const weights = setRows.map((r) => r.querySelector('.set-weight').value.trim() || '–');
+      return {
+        exerciseId, notes,
+        targetSets: setRows.length || null,
+        targetReps: reps.some((r) => r !== '–') ? reps.join(', ') : null,
+        targetWeightHint: weights.some((w) => w !== '–') ? weights.join(', ') : null,
+        targetDurationSeconds: null, targetDistanceMeters: null, targetSpeedKmh: null, targetWatt: null, targetHeartRatePercent: null,
+      };
+    }
+
+    function createDayBuilder(rowsContainer, exercises, dayLabel, exercisesById) {
       const dayEl = document.createElement('div');
       dayEl.className = 'day-builder';
       dayEl.innerHTML = `
@@ -716,26 +1468,9 @@
       `;
       dayEl.querySelector('.remove-day').addEventListener('click', () => dayEl.remove());
       const exRows = dayEl.querySelector('.day-exercise-rows');
-      const attachPreview = buildExercisePreview(exercisesById);
 
-      function addExerciseRow() {
-        const row = document.createElement('div');
-        row.className = 'exercise-builder-row';
-        row.innerHTML = `
-          <img class="row-preview thumb-sm" src="" alt="" style="visibility:hidden;" />
-          <select class="row-exercise">${exerciseOptions}</select>
-          <input class="row-sets" type="number" min="1" placeholder="Sätze" />
-          <input class="row-reps" type="text" placeholder="Wdh. (z.B. 8-12)" />
-          <input class="row-weight" type="text" placeholder="Gewicht/Hinweis" />
-          <input class="row-duration" type="number" min="0" placeholder="Dauer (Sek.)" />
-          <button class="btn secondary small-btn" type="button">✕</button>
-        `;
-        row.querySelector('button').addEventListener('click', () => row.remove());
-        exRows.appendChild(row);
-        attachPreview(row);
-      }
-      dayEl.querySelector('.add-exercise-to-day').addEventListener('click', addExerciseRow);
-      addExerciseRow();
+      dayEl.querySelector('.add-exercise-to-day').addEventListener('click', () => createExerciseBuilderRow(exRows, exercises, exercisesById));
+      createExerciseBuilderRow(exRows, exercises, exercisesById);
 
       rowsContainer.appendChild(dayEl);
       return dayEl;
@@ -743,13 +1478,7 @@
 
     function readDayBuilder(dayEl) {
       const label = dayEl.querySelector('.day-label').value.trim();
-      const exercises = Array.from(dayEl.querySelectorAll('.exercise-builder-row')).map((row) => ({
-        exerciseId: row.querySelector('.row-exercise').value,
-        targetSets: row.querySelector('.row-sets').value,
-        targetReps: row.querySelector('.row-reps').value,
-        targetWeightHint: row.querySelector('.row-weight').value,
-        targetDurationSeconds: row.querySelector('.row-duration').value ? parseInt(row.querySelector('.row-duration').value, 10) : null,
-      }));
+      const exercises = Array.from(dayEl.querySelectorAll('.ex-builder-row')).map(readExerciseBuilderRow).filter(Boolean);
       return { label, exercises };
     }
 
@@ -769,7 +1498,6 @@
       }
 
       const exercisesById = Object.fromEntries(exercises.map((ex) => [ex.id, ex]));
-      const exerciseOptions = exerciseOptionsHtml(exercises);
 
       content.innerHTML = `
         <div class="card">
@@ -810,8 +1538,8 @@
       `;
 
       const daysContainer = document.getElementById('tpl-days');
-      document.getElementById('add-day-btn').addEventListener('click', () => createDayBuilder(daysContainer, exerciseOptions, `Tag ${daysContainer.children.length + 1}`, exercisesById));
-      createDayBuilder(daysContainer, exerciseOptions, 'Tag 1', exercisesById);
+      document.getElementById('add-day-btn').addEventListener('click', () => createDayBuilder(daysContainer, exercises, `Tag ${daysContainer.children.length + 1}`, exercisesById));
+      createDayBuilder(daysContainer, exercises, 'Tag 1', exercisesById);
 
       document.getElementById('template-form').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -910,7 +1638,6 @@
       }
 
       const exercisesById = Object.fromEntries(exercises.map((ex) => [ex.id, ex]));
-      const exerciseOptions = exerciseOptionsHtml(exercises);
       const clientOptions = clients.map((c) => `<option value="${c.id}">${escapeHtml(c.full_name || c.email)}${c.access_locked ? ' (gesperrt)' : ''}</option>`).join('');
 
       content.innerHTML = `
@@ -936,38 +1663,15 @@
       `;
 
       const daysContainer = document.getElementById('plan-days');
-      document.getElementById('add-day-btn').addEventListener('click', () => createDayBuilder(daysContainer, exerciseOptions, `Tag ${daysContainer.children.length + 1}`, exercisesById));
+      document.getElementById('add-day-btn').addEventListener('click', () => createDayBuilder(daysContainer, exercises, `Tag ${daysContainer.children.length + 1}`, exercisesById));
 
       const looseContainer = document.getElementById('loose-rows');
-      const attachPreview = buildExercisePreview(exercisesById);
-      function addLooseRow() {
-        const row = document.createElement('div');
-        row.className = 'exercise-builder-row';
-        row.innerHTML = `
-          <img class="row-preview thumb-sm" src="" alt="" style="visibility:hidden;" />
-          <select class="row-exercise">${exerciseOptions}</select>
-          <input class="row-sets" type="number" min="1" placeholder="Sätze" />
-          <input class="row-reps" type="text" placeholder="Wdh. (z.B. 8-12)" />
-          <input class="row-weight" type="text" placeholder="Gewicht/Hinweis" />
-          <input class="row-duration" type="number" min="0" placeholder="Dauer (Sek.)" />
-          <button class="btn secondary small-btn" type="button">✕</button>
-        `;
-        row.querySelector('button').addEventListener('click', () => row.remove());
-        looseContainer.appendChild(row);
-        attachPreview(row);
-      }
-      document.getElementById('add-loose-btn').addEventListener('click', addLooseRow);
+      document.getElementById('add-loose-btn').addEventListener('click', () => createExerciseBuilderRow(looseContainer, exercises, exercisesById));
 
       document.getElementById('plan-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const days = Array.from(daysContainer.querySelectorAll('.day-builder')).map(readDayBuilder).filter((d) => d.exercises.length > 0);
-        const topLevelExercises = Array.from(looseContainer.querySelectorAll('.exercise-builder-row')).map((row) => ({
-          exerciseId: row.querySelector('.row-exercise').value,
-          targetSets: row.querySelector('.row-sets').value,
-          targetReps: row.querySelector('.row-reps').value,
-          targetWeightHint: row.querySelector('.row-weight').value,
-          targetDurationSeconds: row.querySelector('.row-duration').value ? parseInt(row.querySelector('.row-duration').value, 10) : null,
-        }));
+        const topLevelExercises = Array.from(looseContainer.querySelectorAll('.ex-builder-row')).map(readExerciseBuilderRow).filter(Boolean);
 
         if (days.length === 0 && topLevelExercises.length === 0) { alert('Bitte mindestens eine Übung hinzufügen (als Trainingstag oder Einzelübung).'); return; }
 
@@ -1208,6 +1912,9 @@
             <p style="color:var(--color-text-muted); font-size:0.82rem;">Groborientierung auf Basis der insgesamt bewegten Kilos je Bewegungsmuster im gewählten Zeitraum – ersetzt keine individuelle fachliche Einschätzung. Übungen ohne eindeutiges Bewegungsmuster (z.B. gemischtes Cardio) fließen nicht ein.</p>
             <div id="dysbalance-section"></div>
           </div>
+
+          <h2 class="mt-24" style="font-size:1.15rem;">Präventionscheck</h2>
+          <div id="prevention-section"></div>
         `;
 
         document.getElementById('af-apply').addEventListener('click', () => {
@@ -1235,6 +1942,8 @@
 
         renderProgressChart(logs);
         renderDysbalanceSection(logs);
+        const preventionEl = document.getElementById('prevention-section');
+        if (preventionEl) renderPreventionSection(preventionEl, clientId, { isAdminView });
       }
 
       function renderProgressChart(logs) {

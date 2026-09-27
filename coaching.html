@@ -76,6 +76,32 @@
     .action-desc { flex: 1; font-size: 0.88rem; }
     .action-date { font-size: 0.75rem; color: var(--color-text-muted); }
     .hidden { display: none; }
+    /* Atemübungstrainer */
+    .breath-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; align-items: start; }
+    @media (max-width: 640px) { .breath-grid { grid-template-columns: 1fr; } }
+    .breath-card .science-box { margin: 10px 0 14px; }
+    .breath-source { font-size: 0.7rem; color: var(--color-text-muted); margin-top: 6px; }
+    .breath-session { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 28px 12px; }
+    .breath-circle-wrap { position: relative; width: 230px; height: 230px; display: flex; align-items: center; justify-content: center; margin: 18px 0 6px; }
+    .breath-circle {
+      width: 110px; height: 110px; border-radius: 50%;
+      background: radial-gradient(circle at 35% 30%, var(--color-gold-light), var(--color-gold) 60%, var(--color-navy) 145%);
+      box-shadow: 0 0 44px rgba(200,124,0,0.35);
+      transition-property: transform; transition-timing-function: linear;
+      transform: scale(1);
+    }
+    :root[data-theme="dark"] .breath-circle { box-shadow: 0 0 54px rgba(250,194,51,0.28); }
+    @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .breath-circle { box-shadow: 0 0 54px rgba(250,194,51,0.28); } }
+    .breath-phase-label {
+      position: absolute; font-family: var(--font-heading); font-weight: 700; font-size: 1.05rem;
+      color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,0.45); pointer-events: none;
+    }
+    .breath-count { font-size: 2rem; font-family: var(--font-heading); color: var(--color-navy); line-height: 1; }
+    :root[data-theme="dark"] .breath-count { color: var(--color-gold-light); }
+    @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .breath-count { color: var(--color-gold-light); } }
+    .breath-round-info { font-size: 0.8rem; color: var(--color-text-muted); margin-top: 6px; }
+    .breath-controls { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; justify-content: center; }
+    .breath-hint { font-size: 0.75rem; color: var(--color-text-muted); margin-top: 16px; max-width: 340px; }
   </style>
 </head>
 <body>
@@ -101,6 +127,7 @@
     import { getCurrentSession, initTheme, toggleTheme } from './js/auth.js';
     import {
       listCoachingContent, createCoachingContent, deleteCoachingContent,
+      BREATHING_TECHNIQUES,
       QUESTIONNAIRES, getQuestionnaire, scoreQuestionnaire,
       insertQuestionnaireResponse, listMyQuestionnaireResponses, listAllQuestionnaireResponses, deleteQuestionnaireResponse,
       listMyGoals, listGoalsForAdmin, createGoal, updateGoal, deleteGoal, getGoalDetail,
@@ -110,7 +137,6 @@
     import { getUnreadCount } from './js/messages.js';
     import { getNewSignupCount } from './js/betrieb.js';
     import { navTabsHtml } from './js/nav.js';
-    import { collapsibleHtml, initCollapsibles } from './js/collapsible.js';
     import { subnavSelectHtml, bindSubnavSelect, setSubnavValue } from './js/subnav.js';
     import { SECTION_INFO } from './js/section-info.js';
 
@@ -209,21 +235,20 @@
           <div class="section-hero">
             <span class="kicker">${escapeHtml(info.title)}</span>
             <h2>${escapeHtml(info.heroLine)}</h2>
-            ${collapsibleHtml(`<p class="lead">${info.clientIntro}</p>`)}
-          </div>
-          <div class="benefit-grid">
-            ${info.benefits.map((b) => `<div class="benefit-card"><h4>${escapeHtml(b.h)}</h4><p>${escapeHtml(b.t)}</p></div>`).join('')}
           </div>
           <div class="science-box">
             <span class="kicker">Wissenschaftlicher Hintergrund</span>
-            ${collapsibleHtml(`<p>${info.scienceText}</p>`, { fadeVar: 'var(--color-bg)' })}
+            <p>${info.scienceText}</p>
+          </div>
+          <p class="lead">${info.clientIntro}</p>
+          <div class="benefit-grid">
+            ${info.benefits.map((b) => `<div class="benefit-card"><h4>${escapeHtml(b.h)}</h4><p>${escapeHtml(b.t)}</p></div>`).join('')}
           </div>
           <a class="btn mt-16" style="display:inline-block; width:auto; padding:12px 24px;" href="messages.html">
             Interesse? Jetzt nachfragen
           </a>
         </div>
       `;
-      initCollapsibles(container);
     }
 
     function renderShell() {
@@ -232,6 +257,7 @@
         { key: 'start', label: 'Start', hidden: true },
         { key: 'content', label: 'Content' },
         ...(isAdmin ? [{ key: 'content-admin', label: 'Content verwalten' }] : []),
+        { key: 'atem', label: 'Atemübungen' },
         { key: 'fragebogen', label: 'Fragebögen' },
         { key: 'ziele', label: 'Ziele (GROW)' },
       ];
@@ -259,27 +285,152 @@
         <div class="section-hero">
           <span class="kicker">${escapeHtml(info.title)}</span>
           <h2>${escapeHtml(info.heroLine)}</h2>
-          ${collapsibleHtml(`<p class="lead">${isAdmin ? info.adminIntro : info.clientIntro}</p>`)}
         </div>
+        <div class="science-box">
+          <span class="kicker">${isAdmin ? 'Akademischer Hintergrund & wissenschaftliche Grundlage' : 'Wissenschaftlicher Hintergrund'}</span>
+          <p>${info.scienceText}</p>
+        </div>
+        <p class="lead">${isAdmin ? info.adminIntro : info.clientIntro}</p>
         ${isAdmin ? '' : `
         <div class="benefit-grid">
           ${info.benefits.map((b) => `<div class="benefit-card"><h4>${escapeHtml(b.h)}</h4><p>${escapeHtml(b.t)}</p></div>`).join('')}
         </div>`}
-        <div class="science-box">
-          <span class="kicker">${isAdmin ? 'Akademischer Hintergrund & wissenschaftliche Grundlage' : 'Wissenschaftlicher Hintergrund'}</span>
-          ${collapsibleHtml(`<p>${info.scienceText}</p>`, { fadeVar: 'var(--color-bg)' })}
-        </div>
       `;
-      initCollapsibles(content);
     }
 
     function renderTab(tab) {
+      stopBreathSession(); // laufende Atemübung beim Tab-Wechsel immer sauber beenden
       const content = document.getElementById('tab-content');
       if (tab === 'start') return renderStartTab(content);
       if (tab === 'content') return renderContentTab(content, false);
       if (tab === 'content-admin') return renderContentTab(content, true);
+      if (tab === 'atem') return renderAtemTab(content);
       if (tab === 'fragebogen') return renderFragebogenTab(content);
       if (tab === 'ziele') return renderZieleTab(content);
+    }
+
+    // =========================================================================
+    // ATEMÜBUNGSTRAINER
+    // =========================================================================
+
+    let breathSessionActive = false;
+    let breathPhaseTimeout = null;
+    let breathTickInterval = null;
+
+    function breathTechniqueCardHtml(t) {
+      return `
+        <div class="card breath-card">
+          <h3 style="margin:0 0 6px; font-size:1rem;">${escapeHtml(t.label)}</h3>
+          <p style="font-size:0.85rem; color:var(--color-text-muted); margin:0;">${escapeHtml(t.shortDesc)}</p>
+          <div class="science-box">
+            <span class="kicker">Wissenschaftlicher Hintergrund</span>
+            <p style="font-size:0.82rem;">${escapeHtml(t.science)}</p>
+            <div class="breath-source">Quelle: ${escapeHtml(t.source)}</div>
+          </div>
+          <button class="btn" style="width:auto; padding:10px 20px;" data-start-breath="${t.key}">Übung starten</button>
+        </div>
+      `;
+    }
+
+    function renderAtemTab(content) {
+      content.innerHTML = `
+        <div class="section-hero">
+          <span class="kicker">${escapeHtml(SECTION_INFO.coaching.title)}</span>
+          <h2>Atemübungstrainer</h2>
+        </div>
+        <p class="lead">
+          Zwei geführte Atemtechniken zur gezielten Beruhigung des Nervensystems – z.B. vor dem Einschlafen,
+          in stressigen Momenten oder als kurze bewusste Pause im Alltag. Der sich ausdehnende und
+          zusammenziehende Kreis gibt den Rhythmus vor: einfach mitatmen, mehr ist nicht nötig.
+        </p>
+        <div class="breath-grid" id="breath-grid">
+          ${BREATHING_TECHNIQUES.map(breathTechniqueCardHtml).join('')}
+        </div>
+        <div id="breath-session-area"></div>
+        <p class="breath-hint">
+          Bei Schwindel, Kurzatmigkeit oder Unwohlsein die Übung sofort abbrechen und normal weiteratmen.
+          Diese Übungen ersetzen keine medizinische Behandlung von Angst- oder Atemwegserkrankungen.
+        </p>
+      `;
+      content.querySelectorAll('[data-start-breath]').forEach((btn) => {
+        btn.addEventListener('click', () => startBreathSession(btn.dataset.startBreath));
+      });
+    }
+
+    function startBreathSession(key) {
+      const t = BREATHING_TECHNIQUES.find((b) => b.key === key);
+      const grid = document.getElementById('breath-grid');
+      const area = document.getElementById('breath-session-area');
+      if (!t || !grid || !area) return;
+
+      grid.classList.add('hidden');
+      area.innerHTML = `
+        <div class="card breath-session">
+          <h3 style="margin:0 0 4px;">${escapeHtml(t.label)}</h3>
+          <div class="breath-circle-wrap">
+            <div class="breath-circle" id="breath-circle"></div>
+            <div class="breath-phase-label" id="breath-phase-label"></div>
+          </div>
+          <div class="breath-count" id="breath-count"></div>
+          <div class="breath-round-info" id="breath-round-info"></div>
+          <div class="breath-controls">
+            <button class="btn secondary" style="width:auto; padding:10px 18px;" id="breath-stop">Beenden</button>
+          </div>
+        </div>
+      `;
+      document.getElementById('breath-stop').addEventListener('click', () => stopBreathSession());
+
+      breathSessionActive = true;
+      let round = 0;
+
+      const runPhase = (phaseIndex) => {
+        if (!breathSessionActive) return;
+        const phase = t.phases[phaseIndex];
+        const circle = document.getElementById('breath-circle');
+        const label = document.getElementById('breath-phase-label');
+        const countEl = document.getElementById('breath-count');
+        if (!circle || !label || !countEl) return;
+
+        label.textContent = phase.name;
+        circle.style.transitionDuration = phase.seconds + 's';
+        void circle.offsetWidth; // Reflow erzwingen, damit die neue Dauer vor der Transform-Änderung greift
+        circle.style.transform = `scale(${phase.scaleTo})`;
+
+        let remaining = phase.seconds;
+        countEl.textContent = remaining;
+        if (breathTickInterval) clearInterval(breathTickInterval);
+        breathTickInterval = setInterval(() => {
+          remaining -= 1;
+          if (remaining > 0) countEl.textContent = remaining;
+        }, 1000);
+
+        if (breathPhaseTimeout) clearTimeout(breathPhaseTimeout);
+        breathPhaseTimeout = setTimeout(() => {
+          clearInterval(breathTickInterval);
+          const next = phaseIndex + 1 < t.phases.length ? phaseIndex + 1 : 0;
+          if (next === 0) {
+            round += 1;
+            const roundInfo = document.getElementById('breath-round-info');
+            if (roundInfo) roundInfo.textContent = `Runde ${round}`;
+          }
+          runPhase(next);
+        }, phase.seconds * 1000);
+      };
+
+      round = 1;
+      const roundInfo = document.getElementById('breath-round-info');
+      if (roundInfo) roundInfo.textContent = `Runde ${round}`;
+      runPhase(0);
+    }
+
+    function stopBreathSession() {
+      breathSessionActive = false;
+      if (breathPhaseTimeout) { clearTimeout(breathPhaseTimeout); breathPhaseTimeout = null; }
+      if (breathTickInterval) { clearInterval(breathTickInterval); breathTickInterval = null; }
+      const area = document.getElementById('breath-session-area');
+      if (area) area.innerHTML = '';
+      const grid = document.getElementById('breath-grid');
+      if (grid) grid.classList.remove('hidden');
     }
 
     // =========================================================================
