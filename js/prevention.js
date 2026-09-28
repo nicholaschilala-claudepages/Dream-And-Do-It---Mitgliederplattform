@@ -107,7 +107,12 @@ export function evaluateStrengthBenchmark(testKey, ageYears, value, sex) {
 
 // ---------------------------------------------------------------------------
 // Testdefinitionen (Protokoll-Texte für die Anzeige) – Kraftausdauer +
-// Beweglichkeit, aus dem vom Nutzer gelieferten Athletikkonzept übernommen.
+// Beweglichkeit. Übungsauswahl/Durchführung ursprünglich aus dem
+// Athletikkonzept übernommen; die ANGEZEIGTEN Quellen (source) verweisen
+// jedoch ausschließlich auf wissenschaftliche Literatur (Nutzer-Feedback
+// Runde 8: "wir verwenden aber nur wissenschaftliche quellen oder keine
+// angabe" – das interne Athletikkonzept-Dokument darf nicht als Quelle
+// angezeigt werden).
 // ---------------------------------------------------------------------------
 
 export const STRENGTH_TESTS = [
@@ -165,7 +170,7 @@ export const MOBILITY_TESTS = [
     typischeFehler: 'Ausweichbewegungen und über die Schmerzgrenze hinaus gehen.',
     abbruchkriterium: 'Bei Schmerz oder deutlichem Unsicherheitsgefühl sofort abbrechen.',
     kontraindikation: 'Nicht bei akuter Gelenkverletzung, frischer Prellung oder unmittelbar nach intensivem Training testen – Ermüdung verfälscht das Bewegungsbild.',
-    source: 'Athletikkonzept-Screening (Beweglichkeit)',
+    source: 'Apley Scratch Test – etablierter klinischer Test der kombinierten Schulterrotation (Innen-/Außenrotation), benannt nach dem Orthopäden A. G. Apley',
     goodImage: 'content/tests/schultertest-normal.jpg',
     limitedImage: 'content/tests/schultertest-eingeschraenkt.jpg',
   },
@@ -178,7 +183,7 @@ export const MOBILITY_TESTS = [
     typischeFehler: 'Ausweichbewegungen und über die Schmerzgrenze hinaus gehen.',
     abbruchkriterium: 'Bei Schmerz oder deutlichem Unsicherheitsgefühl sofort abbrechen.',
     kontraindikation: 'Nicht bei akuter Gelenkverletzung, frischer Prellung oder unmittelbar nach intensivem Training testen – Ermüdung verfälscht das Bewegungsbild.',
-    source: 'Athletikkonzept-Screening (Beweglichkeit)',
+    source: 'Wells, K. F., & Dillon, E. K. (1952). The Sit and Reach – A Test of Back and Leg Flexibility. Research Quarterly, 23(1), 115–118.',
     goodImage: 'content/tests/hamstring-test-gut.jpg',
     limitedImage: 'content/tests/hamstring-test-eingeschraenkt.jpg',
   },
@@ -191,7 +196,7 @@ export const MOBILITY_TESTS = [
     typischeFehler: 'Ausweichbewegungen und über die Schmerzgrenze hinaus gehen.',
     abbruchkriterium: 'Bei Schmerz oder deutlichem Unsicherheitsgefühl sofort abbrechen.',
     kontraindikation: 'Nicht bei akuter Gelenkverletzung, frischer Prellung oder unmittelbar nach intensivem Training testen – Ermüdung verfälscht das Bewegungsbild.',
-    source: 'Athletikkonzept-Screening (Beweglichkeit), angelehnt an den klassischen Thomas-Test zur Hüftbeuger-Verkürzung',
+    source: 'Clapis, P. A., Davis, S. M., & Davis, R. O. (2008). Reliability of inclinometer and goniometric measurements of hip extension flexibility using the modified Thomas test. Physiotherapy Theory and Practice, 24(2), 135–141.',
     goodImage: 'content/tests/thomas-test-normal.jpg',
     limitedImage: 'content/tests/thomas-test-verkuerzt.jpg',
   },

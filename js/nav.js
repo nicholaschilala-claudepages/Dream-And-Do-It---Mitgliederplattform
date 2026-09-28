@@ -20,25 +20,61 @@
 // Seite (z.B. training.html CLIENT_TRAINING_TABS) mit angepasst werden.
 // ============================================================================
 
+// Nutzer-Feedback Runde 8: Bei "Training" führten die Untermenü-Links für
+// Trainer/Admins ins Leere bzw. auf die falsche Ansicht (z.B. "Präventionscheck"),
+// weil admin/training.html eine komplett andere Tab-Struktur nutzt als die
+// Kunden-Ansicht (siehe ADMIN_TRAINING_TABS vs. CLIENT_TRAINING_TABS in
+// training.html). Die Untermenüs sind daher jetzt pro Rolle definiert; bei
+// Ernährung/Coaching ergänzt die Admin-Variante zusätzlich die
+// Verwaltungs-Unterpunkte, die es nur für Trainer/Admins gibt.
 const SECTION_SUBTABS = {
-  training: [
-    { key: 'plan', label: 'Mein Plan' },
-    { key: 'progress', label: 'Meine Entwicklung' },
-    { key: 'praevention', label: 'Präventionscheck' },
-    { key: 'tests', label: 'Tests' },
-  ],
-  nutrition: [
-    { key: 'pal', label: 'PAL-Rechner' },
-    { key: 'bodyfat', label: 'Körperfett-Verlauf' },
-    { key: 'protokoll', label: 'Ernährungsprotokoll' },
-    { key: 'recipes', label: 'Rezepte' },
-  ],
-  coaching: [
-    { key: 'content', label: 'Content' },
-    { key: 'atem', label: 'Atemübungen' },
-    { key: 'fragebogen', label: 'Fragebögen' },
-    { key: 'ziele', label: 'Ziele (GROW)' },
-  ],
+  training: {
+    client: [
+      { key: 'plan', label: 'Mein Plan' },
+      { key: 'progress', label: 'Meine Entwicklung' },
+      { key: 'praevention', label: 'Präventionscheck' },
+      { key: 'tests', label: 'Tests' },
+    ],
+    admin: [
+      { key: 'templates', label: 'Vorlagen bauen' },
+      { key: 'assign', label: 'Vorlage zuweisen' },
+      { key: 'plans', label: 'Einzelplan erstellen' },
+      { key: 'library', label: 'Übungsbibliothek' },
+      { key: 'existing', label: 'Bestehende Pläne' },
+      { key: 'analysis', label: 'Kundenanalyse' },
+    ],
+  },
+  nutrition: {
+    client: [
+      { key: 'pal', label: 'PAL-Rechner' },
+      { key: 'bodyfat', label: 'Körperfett-Verlauf' },
+      { key: 'protokoll', label: 'Ernährungsprotokoll' },
+      { key: 'recipes', label: 'Rezepte' },
+    ],
+    admin: [
+      { key: 'pal', label: 'PAL-Rechner' },
+      { key: 'bodyfat', label: 'Körperfett-Verlauf' },
+      { key: 'protokoll', label: 'Ernährungsprotokoll' },
+      { key: 'recipes', label: 'Rezepte' },
+      { key: 'recipes-admin', label: 'Rezepte verwalten' },
+      { key: 'foods-admin', label: 'Lebensmittel verwalten' },
+    ],
+  },
+  coaching: {
+    client: [
+      { key: 'content', label: 'Content' },
+      { key: 'atem', label: 'Atemübungen' },
+      { key: 'fragebogen', label: 'Fragebögen' },
+      { key: 'ziele', label: 'Ziele (GROW)' },
+    ],
+    admin: [
+      { key: 'content', label: 'Content' },
+      { key: 'content-admin', label: 'Content verwalten' },
+      { key: 'atem', label: 'Atemübungen' },
+      { key: 'fragebogen', label: 'Fragebögen' },
+      { key: 'ziele', label: 'Ziele (GROW)' },
+    ],
+  },
 };
 
 /**
@@ -67,16 +103,17 @@ export function navTabsHtml(profile, opts) {
     tabs.push({ key: 'betrieb', href: 'betrieb.html', label: 'Trainer-Dashboard', badge: newSignups });
   }
 
-  return `<nav class="nav-tabs">${tabs.map((t) => tabHtml(t, currentPage)).join('')}</nav>`;
+  return `<nav class="nav-tabs">${tabs.map((t) => tabHtml(t, currentPage, isAdmin)).join('')}</nav>`;
 }
 
-function tabHtml(t, currentPage) {
+function tabHtml(t, currentPage, isAdmin) {
   const classes = ['nav-tab'];
   if (t.key === currentPage) classes.push('active');
   if (t.locked) classes.push('locked');
   const lockIcon = t.locked ? ' <span class="nav-tab-lock" title="Für dich aktuell noch nicht freigeschaltet">🔒</span>' : '';
   const badge = t.badge > 0 ? `<span class="nav-tab-badge">${t.badge > 9 ? '9+' : t.badge}</span>` : '';
-  const subtabs = !t.locked ? SECTION_SUBTABS[t.key] : null;
+  const sectionSubtabs = !t.locked ? SECTION_SUBTABS[t.key] : null;
+  const subtabs = sectionSubtabs ? (isAdmin ? sectionSubtabs.admin : sectionSubtabs.client) : null;
 
   if (!subtabs) {
     return `<a class="${classes.join(' ')}" href="${t.href}">${escapeHtmlLocal(t.label)}${lockIcon}${badge}</a>`;
