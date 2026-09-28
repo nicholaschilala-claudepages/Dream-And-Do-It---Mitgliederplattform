@@ -104,7 +104,6 @@
     import { getUnreadCount } from './js/messages.js';
     import { getNewSignupCount } from './js/betrieb.js';
     import { navTabsHtml, bindNavSubmenus } from './js/nav.js';
-    import { subnavSelectHtml, bindSubnavSelect, setSubnavValue } from './js/subnav.js';
     import { SECTION_INFO } from './js/section-info.js';
 
     initTheme();
@@ -236,16 +235,15 @@
       ];
       const requestedTab = new URLSearchParams(location.search).get('tab');
       const initialTab = tabs.some((t) => t.key === requestedTab) ? requestedTab : 'start';
-      container.innerHTML = `
-        ${subnavSelectHtml(tabs, initialTab)}
-        <div id="tab-content"></div>
-      `;
-      bindSubnavSelect(container, (key) => renderTab(key));
+      // Nutzer-Feedback Runde 9: die Unterseiten-Auswahl gab es doppelt (einmal
+      // im Kopfzeilen-Dropdown aus js/nav.js, einmal hier als eigenes
+      // Hamburger-Menü) — seit die Kopfzeile jeden Unterpunkt direkt anwählbar
+      // macht, entfällt dieses zweite Menü ersatzlos.
+      container.innerHTML = `<div id="tab-content"></div>`;
       renderTab(initialTab);
     }
 
     function goToTab(tabName) {
-      setSubnavValue(container, tabName);
       renderTab(tabName);
     }
 

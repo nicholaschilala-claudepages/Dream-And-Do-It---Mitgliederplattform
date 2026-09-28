@@ -165,7 +165,6 @@
     import { getUnreadCount } from './js/messages.js';
     import { getNewSignupCount } from './js/betrieb.js';
     import { navTabsHtml, bindNavSubmenus } from './js/nav.js';
-    import { subnavSelectHtml, bindSubnavSelect, setSubnavValue } from './js/subnav.js';
     import { SECTION_INFO } from './js/section-info.js';
     import { listMyBodyMeasurements } from './js/nutrition.js';
     import {
@@ -354,11 +353,11 @@
       // siehe js/nav.js): ?tab=praevention o.ä. öffnet direkt den passenden Tab.
       const requestedTab = new URLSearchParams(location.search).get('tab');
       const initialTab = CLIENT_TRAINING_TABS.some((t) => t.key === requestedTab) ? requestedTab : 'start';
-      container.innerHTML = `
-        ${subnavSelectHtml(CLIENT_TRAINING_TABS, initialTab)}
-        <div id="client-content"><p class="center-text">Lade …</p></div>
-      `;
-      bindSubnavSelect(container, (key) => activateClientTab(key, profile));
+      // Nutzer-Feedback Runde 9: die Unterseiten-Auswahl gab es doppelt (einmal
+      // im Kopfzeilen-Dropdown aus js/nav.js, einmal hier als eigenes
+      // Hamburger-Menü) — seit die Kopfzeile jeden Unterpunkt direkt anwählbar
+      // macht, entfällt dieses zweite Menü ersatzlos.
+      container.innerHTML = `<div id="client-content"><p class="center-text">Lade …</p></div>`;
       activateClientTab(initialTab, profile);
     }
 
@@ -372,7 +371,6 @@
     }
 
     function goToTab(scope, tabName) {
-      setSubnavValue(container, tabName);
       if (scope === 'admin-tab') renderAdminTab(tabName);
       else activateClientTab(tabName, currentProfile);
     }
@@ -655,26 +653,53 @@
       return { ok: 'var(--color-success)', warn: 'var(--color-gold)', alert: 'var(--color-danger)', unknown: 'var(--color-border)' }[sev] || 'var(--color-border)';
     }
 
-    // Anatomische Körper-Illustration (Vorder- + Rückansicht), Nutzer-Feedback
-    // Runde 5: "wie ein echter Mensch, mit weichen Linien" statt einfacher
-    // Strichmännchen-Rechtecke. Muskelgruppen werden über weiche, gerundete
-    // Pfade/Formen angedeutet, Trennlinien zwischen Muskelsegmenten (z.B.
-    // Bauchmuskeln) nutzen die Hintergrundfarbe als "Einschnitt", damit es in
-    // Hell- und Dunkelmodus automatisch passt. Marker sitzen jeweils auf der
-    // anatomisch passenden Ansicht (z.B. Iliopsoas/Hüftbeuger vorne, Hamstring
-    // und unterer Rücken hinten) statt beide Seiten auf ein Bild zu zwingen.
+    // Anatomische Körper-Illustration, Nutzer-Feedback Runde 5: "wie ein
+    // echter Mensch, mit weichen Linien" statt einfacher Strichmännchen.
+    // Runde 9: statt EINER gemischten Vorder-/Rückansicht jetzt VIER Ansichten
+    // – Gelenke (Vorder-/Rückansicht) und Muskeln (Vorder-/Rückansicht)
+    // sauber getrennt, mit anatomisch präzisen Bezeichnungen je Ansicht statt
+    // eines Mischmaschs, damit z.B. "Schulter" eindeutig als Gelenk- ODER
+    // Muskel-Bezug erkennbar ist. Die Körper-Silhouette (frontBodyShape/
+    // backBodyShape) ist für beide Zwecke identisch, nur die aufgesetzten
+    // Marker/Beschriftungen unterscheiden sich. viewBox ist bewusst breiter
+    // als die Figur selbst (-30..230 statt 0..200) und Beschriftungen mittiger
+    // Marker werden konsequent nach rechts herausgeführt (markerDotCenter),
+    // damit auch längere Bezeichnungen (z.B. "Oberschenkelmuskeln li.") nicht
+    // mehr mit der Silhouette kollidieren ("die Bildüberschriften überlagern
+    // das Bild" – Nutzer-Feedback Runde 9).
     function bodySeparatorLines(paths) {
       return paths.map((d) => `<path d="${d}" fill="none" stroke="var(--color-bg)" stroke-width="1.4" stroke-linecap="round" />`).join('');
     }
 
-    function frontBodySvg(markers) {
-      const dot = (cx, cy, sev, title, label) => `
+    // Marker mit seitlich versetzter Beschriftung (linke/rechte Paare) – wandert
+    // je nach Körperseite nach außen, mit Abstand zur Silhouette dank breiterem viewBox.
+    function markerDot(cx, cy, sev, title, label) {
+      const toRight = cx >= 100;
+      return `
         <g>
           <circle cx="${cx}" cy="${cy}" r="7.5" fill="${severityColor(sev)}" stroke="var(--color-bg)" stroke-width="1.5"><title>${escapeHtml(title)}</title></circle>
-          <text x="${cx > 100 ? cx + 11 : cx - 11}" y="${cy + 3}" font-size="7.5" fill="var(--color-text-muted)" text-anchor="${cx > 100 ? 'start' : 'end'}">${escapeHtml(label)}</text>
+          <text x="${toRight ? cx + 11 : cx - 11}" y="${cy + 3}" font-size="7.5" fill="var(--color-text-muted)" text-anchor="${toRight ? 'start' : 'end'}">${escapeHtml(label)}</text>
         </g>`;
+    }
+
+    // Marker auf der Körpermitte (z.B. Brust, Bauch, oberer/unterer Rücken) –
+    // Beschriftung IMMER einheitlich nach rechts herausgeführt (mit dünner
+    // Verbindungslinie zum Punkt), damit sie nie über der Silhouette selbst liegt.
+    function markerDotCenter(cx, cy, sev, title, label) {
       return `
-        <svg viewBox="0 0 200 380" style="width:170px; height:auto; flex-shrink:0;">
+        <g>
+          <line x1="${cx + 6}" y1="${cy}" x2="139" y2="${cy}" stroke="var(--color-text-muted)" stroke-width="1" stroke-dasharray="1.5 2" opacity="0.6" />
+          <circle cx="${cx}" cy="${cy}" r="7.5" fill="${severityColor(sev)}" stroke="var(--color-bg)" stroke-width="1.5"><title>${escapeHtml(title)}</title></circle>
+          <text x="145" y="${cy + 3}" font-size="7.5" fill="var(--color-text-muted)" text-anchor="start">${escapeHtml(label)}</text>
+        </g>`;
+    }
+
+    function viewTitle(text) {
+      return `<text x="100" y="393" font-size="12" font-weight="700" letter-spacing="0.4" fill="var(--color-text)" text-anchor="middle">${escapeHtml(text)}</text>`;
+    }
+
+    function frontBodyShape() {
+      return `
           <!-- Kopf & Hals -->
           <ellipse cx="100" cy="24" rx="16" ry="18" fill="var(--color-border)" />
           <path d="M90,40 Q100,47 110,40 L109,54 Q100,59 91,54 Z" fill="var(--color-border)" />
@@ -714,26 +739,11 @@
           ${bodySeparatorLines([
             'M100,124 L100,180', 'M86,138 L114,138', 'M86,156 L114,156', 'M86,172 L114,172',
             'M100,50 L100,66', 'M60,89 Q60,89 60,89', 'M140,89 Q140,89 140,89',
-          ])}
-          ${dot(100, 48, markers.neck.sev, markers.neck.title, 'Nacken')}
-          ${dot(56, 112, markers.armLeft.sev, markers.armLeft.title, 'Arm li.')}
-          ${dot(144, 112, markers.armRight.sev, markers.armRight.title, 'Arm re.')}
-          ${dot(84, 192, markers.hipLeft.sev, markers.hipLeft.title, 'Hüftbeuger li.')}
-          ${dot(116, 192, markers.hipRight.sev, markers.hipRight.title, 'Hüftbeuger re.')}
-          ${dot(85, 250, markers.thighLeft.sev, markers.thighLeft.title, 'Oberschenkel li.')}
-          ${dot(115, 250, markers.thighRight.sev, markers.thighRight.title, 'Oberschenkel re.')}
-          <text x="100" y="378" font-size="12" font-weight="700" letter-spacing="0.4" fill="var(--color-text)" text-anchor="middle">VORDERANSICHT</text>
-        </svg>`;
+          ])}`;
     }
 
-    function backBodySvg(markers) {
-      const dot = (cx, cy, sev, title, label) => `
-        <g>
-          <circle cx="${cx}" cy="${cy}" r="7.5" fill="${severityColor(sev)}" stroke="var(--color-bg)" stroke-width="1.5"><title>${escapeHtml(title)}</title></circle>
-          <text x="${cx > 100 ? cx + 11 : cx - 11}" y="${cy + 3}" font-size="7.5" fill="var(--color-text-muted)" text-anchor="${cx > 100 ? 'start' : 'end'}">${escapeHtml(label)}</text>
-        </g>`;
+    function backBodyShape() {
       return `
-        <svg viewBox="0 0 200 380" style="width:170px; height:auto; flex-shrink:0;">
           <!-- Hinterkopf & Hals -->
           <ellipse cx="100" cy="24" rx="16" ry="18" fill="var(--color-border)" />
           <path d="M90,40 Q100,47 110,40 L109,54 Q100,59 91,54 Z" fill="var(--color-border)" />
@@ -768,40 +778,99 @@
           <path d="M123,306 Q129,330 122,352 Q115,358 108,350 Q108,328 110,306 Z" fill="var(--color-border)" />
           <path d="M80,353 Q80,368 88,368 L92,368 L90,354 Z" fill="var(--color-border)" />
           <path d="M120,353 Q120,368 112,368 L108,368 L110,354 Z" fill="var(--color-border)" />
-          ${bodySeparatorLines(['M100,128 L100,176'])}
-          ${dot(60, 90, markers.shoulderLeft.sev, markers.shoulderLeft.title, 'Schulter li.')}
-          ${dot(140, 90, markers.shoulderRight.sev, markers.shoulderRight.title, 'Schulter re.')}
-          ${dot(100, 150, markers.sitting.sev, markers.sitting.title, 'Unterer Rücken')}
-          ${dot(100, 250, markers.hamstring.sev, markers.hamstring.title, 'Hamstring')}
-          ${dot(84, 328, markers.calfLeft.sev, markers.calfLeft.title, 'Wade li.')}
-          ${dot(116, 328, markers.calfRight.sev, markers.calfRight.title, 'Wade re.')}
-          <text x="100" y="378" font-size="12" font-weight="700" letter-spacing="0.4" fill="var(--color-text)" text-anchor="middle">RÜCKANSICHT</text>
+          ${bodySeparatorLines(['M100,128 L100,176'])}`;
+    }
+
+    function frontJointsSvg(markers) {
+      return `
+        <svg viewBox="-30 0 260 400" style="width:170px; height:auto; flex-shrink:0;">
+          ${frontBodyShape()}
+          ${markerDot(100, 48, markers.cervicalSpine.sev, markers.cervicalSpine.title, 'Halswirbelsäule')}
+          ${markerDot(58, 78, markers.shoulderLeft.sev, markers.shoulderLeft.title, 'Schulter li.')}
+          ${markerDot(142, 78, markers.shoulderRight.sev, markers.shoulderRight.title, 'Schulter re.')}
+          ${markerDot(85, 300, markers.kneeLeft.sev, markers.kneeLeft.title, 'Knie li.')}
+          ${markerDot(115, 300, markers.kneeRight.sev, markers.kneeRight.title, 'Knie re.')}
+          ${markerDot(80, 363, markers.ankleLeft.sev, markers.ankleLeft.title, 'Fußgelenk li.')}
+          ${markerDot(120, 363, markers.ankleRight.sev, markers.ankleRight.title, 'Fußgelenk re.')}
+          ${viewTitle('GELENKE – VORDERANSICHT')}
+        </svg>`;
+    }
+
+    function backJointsSvg(markers) {
+      return `
+        <svg viewBox="-30 0 260 400" style="width:170px; height:auto; flex-shrink:0;">
+          ${backBodyShape()}
+          ${markerDot(100, 48, markers.neck.sev, markers.neck.title, 'Nacken')}
+          ${markerDot(58, 90, markers.shoulderLeft.sev, markers.shoulderLeft.title, 'Schulter li.')}
+          ${markerDot(142, 90, markers.shoulderRight.sev, markers.shoulderRight.title, 'Schulter re.')}
+          ${markerDotCenter(100, 150, markers.lowerBack.sev, markers.lowerBack.title, 'Unterer Rücken')}
+          ${markerDot(80, 188, markers.hipLeft.sev, markers.hipLeft.title, 'Hüfte li.')}
+          ${markerDot(120, 188, markers.hipRight.sev, markers.hipRight.title, 'Hüfte re.')}
+          ${viewTitle('GELENKE – RÜCKANSICHT')}
+        </svg>`;
+    }
+
+    function frontMusclesSvg(markers) {
+      return `
+        <svg viewBox="-30 0 260 400" style="width:170px; height:auto; flex-shrink:0;">
+          ${frontBodyShape()}
+          ${markerDotCenter(100, 98, markers.chest.sev, markers.chest.title, 'Brustmuskulatur')}
+          ${markerDotCenter(100, 150, markers.abs.sev, markers.abs.title, 'Bauchmuskeln')}
+          ${markerDot(52, 112, markers.armLeft.sev, markers.armLeft.title, 'Muskeln Arm li.')}
+          ${markerDot(148, 112, markers.armRight.sev, markers.armRight.title, 'Muskeln Arm re.')}
+          ${markerDot(85, 250, markers.thighLeft.sev, markers.thighLeft.title, 'Oberschenkel li.')}
+          ${markerDot(115, 250, markers.thighRight.sev, markers.thighRight.title, 'Oberschenkel re.')}
+          ${viewTitle('MUSKELN – VORDERANSICHT')}
+        </svg>`;
+    }
+
+    function backMusclesSvg(markers) {
+      return `
+        <svg viewBox="-30 0 260 400" style="width:170px; height:auto; flex-shrink:0;">
+          ${backBodyShape()}
+          ${markerDotCenter(100, 98, markers.upperBack.sev, markers.upperBack.title, 'Oberer Rücken')}
+          ${markerDotCenter(100, 150, markers.lowerBack.sev, markers.lowerBack.title, 'Unterer Rücken')}
+          ${markerDotCenter(100, 250, markers.hamstring.sev, markers.hamstring.title, 'Beinrückseite')}
+          ${markerDot(84, 328, markers.calfLeft.sev, markers.calfLeft.title, 'Wade li.')}
+          ${markerDot(116, 328, markers.calfRight.sev, markers.calfRight.title, 'Wade re.')}
+          ${viewTitle('MUSKELN – RÜCKANSICHT')}
         </svg>`;
     }
 
     function bodyVisualHtml(markers, notices) {
-      // Vorder- und Rückansicht, jeweils nicht gespiegelt: Bildseiten entsprechen
-      // den Körperseiten. Marker sitzen auf der anatomisch passenden Ansicht.
+      // Vier Ansichten (Runde 9): Gelenke vorne/hinten, Muskeln vorne/hinten –
+      // jeweils nicht gespiegelt, Bildseiten entsprechen den Körperseiten.
       return `
-        <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start;">
-          ${frontBodySvg(markers)}
-          ${backBodySvg(markers)}
-          <div style="flex:1; min-width:240px;">
-            <div class="dysbalance-legend" style="margin-bottom:10px;">
-              <span><i style="background:var(--color-success);"></i> unauffällig</span>
-              <span><i style="background:var(--color-gold);"></i> leichter Hinweis</span>
-              <span><i style="background:var(--color-danger);"></i> deutlicher Hinweis</span>
-              <span><i style="background:var(--color-border);"></i> keine Daten</span>
-            </div>
-            ${notices.length === 0
-              ? '<p style="color:var(--color-text-muted); font-size:0.85rem;">Noch keine auffälligen Befunde bzw. noch keine ausreichenden Daten.</p>'
-              : `<ul style="margin:0; padding-left:18px; font-size:0.85rem;">${notices.map((n) => `<li class="dysbalance-verdict ${n.sev === 'unknown' ? '' : n.sev}" style="margin-bottom:4px;">${escapeHtml(n.text)}</li>`).join('')}</ul>`}
-            <p style="font-size:0.72rem; color:var(--color-text-muted); margin-top:12px;">
-              Vorder- und Rückansicht, jeweils nicht gespiegelt – Bildseiten entsprechen den Körperseiten. Vereinfachte
-              Darstellung der wichtigsten Muskelgruppen, ersetzt keine individuelle physiotherapeutische oder
-              ärztliche Untersuchung.
-            </p>
+        <div>
+          <h3 style="font-size:0.92rem; margin:0 0 10px; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.03em;">Gelenke</h3>
+          <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start;">
+            ${frontJointsSvg(markers)}
+            ${backJointsSvg(markers)}
           </div>
+        </div>
+        <div class="mt-24">
+          <h3 style="font-size:0.92rem; margin:0 0 10px; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.03em;">Muskeln</h3>
+          <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start;">
+            ${frontMusclesSvg(markers)}
+            ${backMusclesSvg(markers)}
+          </div>
+        </div>
+        <div class="mt-24">
+          <div class="dysbalance-legend" style="margin-bottom:10px;">
+            <span><i style="background:var(--color-success);"></i> unauffällig</span>
+            <span><i style="background:var(--color-gold);"></i> leichter Hinweis</span>
+            <span><i style="background:var(--color-danger);"></i> deutlicher Hinweis</span>
+            <span><i style="background:var(--color-border);"></i> keine Daten</span>
+          </div>
+          ${notices.length === 0
+            ? '<p style="color:var(--color-text-muted); font-size:0.85rem;">Noch keine auffälligen Befunde bzw. noch keine ausreichenden Daten.</p>'
+            : `<ul style="margin:0; padding-left:18px; font-size:0.85rem;">${notices.map((n) => `<li class="dysbalance-verdict ${n.sev === 'unknown' ? '' : n.sev}" style="margin-bottom:4px;">${escapeHtml(n.text)}</li>`).join('')}</ul>`}
+          <p style="font-size:0.72rem; color:var(--color-text-muted); margin-top:12px;">
+            Vorder- und Rückansicht, jeweils nicht gespiegelt – Bildseiten entsprechen den Körperseiten. Für Knie,
+            Fußgelenke und oberen Rücken gibt es aktuell keinen eigenen Test, sie werden ehrlich als "keine Daten"
+            ausgewiesen statt geschätzt. Vereinfachte Darstellung, ersetzt keine individuelle physiotherapeutische
+            oder ärztliche Untersuchung.
+          </p>
         </div>
       `;
     }
@@ -1037,6 +1106,23 @@
         if (v === 0) return { sev: 'warn', title: `${label}: normal` };
         return { sev: 'ok', title: `${label}: gut` };
       };
+      // Runde 9: Brustmuskulatur/Bauchmuskeln auf der Muskeln-Vorderansicht
+      // bekommen keinen eigenen neuen Test, sondern nutzen die ohnehin
+      // erfassten Kraftausdauertests als Näherung (Liegestütz beansprucht
+      // primär die Brustmuskulatur, Plank primär die Bauchmuskeln/den Rumpf).
+      const strengthSeverity = (testKey, label) => {
+        const row = latest[testKey];
+        if (!row) return { sev: 'unknown', title: `${label}: keine Daten` };
+        if (ageYears == null) return { sev: 'unknown', title: `${label}: kein Geburtsdatum hinterlegt` };
+        const evalRes = evaluateStrengthBenchmark(testKey, ageYears, row.value, sex);
+        if (!evalRes.bandFound || !evalRes.key) return { sev: 'unknown', title: `${label}: keine Referenzwerte für dieses Alter` };
+        if (evalRes.key === 'below') return { sev: 'alert', title: `${label}: ${evalRes.label}` };
+        if (evalRes.key === 'low') return { sev: 'warn', title: `${label}: ${evalRes.label}` };
+        return { sev: 'ok', title: `${label}: ${evalRes.label}` };
+      };
+      // Für Knie, Fußgelenke und oberen Rücken gibt es aktuell keinen Test –
+      // ehrlich als "keine Daten" ausweisen statt zu schätzen.
+      const noData = (label) => ({ sev: 'unknown', title: `${label}: aktuell kein Test hinterlegt` });
 
       const armSev = latestBodyMeasurement ? asymmetrySeverity(latestBodyMeasurement.arm_left_cm, latestBodyMeasurement.arm_right_cm) : { sev: 'unknown', title: 'Keine Umfangsmessung vorhanden' };
       const thighSev = latestBodyMeasurement ? asymmetrySeverity(latestBodyMeasurement.thigh_left_cm, latestBodyMeasurement.thigh_right_cm) : { sev: 'unknown', title: 'Keine Umfangsmessung vorhanden' };
@@ -1061,19 +1147,41 @@
       const alcoholRow = latest.alcohol_weekly_drinks;
       const alcoholEval = alcoholRow ? evaluateAlcoholRisk(alcoholRow.value, sex) : null;
 
+      // Runde 9: vier Ansichten statt einer gemischten – Gelenke (Vorder-/
+      // Rückansicht) und Muskeln (Vorder-/Rückansicht) getrennt. Halswirbel-
+      // säule/Nacken sowie linker/rechter Schulter-Marker nutzen bewusst
+      // dieselbe zugrundeliegende Auswertung (dieselbe Körperregion, nur aus
+      // zwei Perspektiven gezeigt) – daher tauchen sie in `notices` nur EINMAL
+      // auf, um keine doppelten Hinweise zu erzeugen.
+      const shoulderLeftSev = mobilitySeverity(latest['shoulder_mobility:left'], 'Schulter links');
+      const shoulderRightSev = mobilitySeverity(latest['shoulder_mobility:right'], 'Schulter rechts');
+      const hipLeftSev = mobilitySeverity(latest['thomas_mobility:left'], 'Hüfte links');
+      const hipRightSev = mobilitySeverity(latest['thomas_mobility:right'], 'Hüfte rechts');
+      const hamstringSev = mobilitySeverity(latest.hamstring_mobility, 'Beinrückseite (Hamstring)');
+      const chestSev = strengthSeverity('pushup', 'Brustmuskulatur');
+      const absSev = strengthSeverity('plank', 'Bauchmuskeln');
+
       const markers = {
+        cervicalSpine: sleepSev,
         neck: sleepSev,
-        shoulderLeft: mobilitySeverity(latest['shoulder_mobility:left'], 'Schulter links'),
-        shoulderRight: mobilitySeverity(latest['shoulder_mobility:right'], 'Schulter rechts'),
+        shoulderLeft: shoulderLeftSev,
+        shoulderRight: shoulderRightSev,
+        kneeLeft: noData('Knie links'),
+        kneeRight: noData('Knie rechts'),
+        ankleLeft: noData('Fußgelenk links'),
+        ankleRight: noData('Fußgelenk rechts'),
+        lowerBack: sittingSev,
+        hipLeft: hipLeftSev,
+        hipRight: hipRightSev,
+        chest: chestSev,
+        abs: absSev,
         armLeft: armSev, armRight: armSev,
-        sitting: sittingSev,
-        hipLeft: mobilitySeverity(latest['thomas_mobility:left'], 'Hüftbeuger links'),
-        hipRight: mobilitySeverity(latest['thomas_mobility:right'], 'Hüftbeuger rechts'),
-        hamstring: mobilitySeverity(latest.hamstring_mobility, 'Hamstring'),
         thighLeft: thighSev, thighRight: thighSev,
+        upperBack: noData('Oberer Rücken'),
+        hamstring: hamstringSev,
         calfLeft: calfSev, calfRight: calfSev,
       };
-      const notices = [markers.neck, markers.shoulderLeft, markers.shoulderRight, markers.armLeft, markers.sitting, markers.hipLeft, markers.hipRight, markers.hamstring, markers.thighLeft, markers.calfLeft]
+      const notices = [sleepSev, shoulderLeftSev, shoulderRightSev, sittingSev, hipLeftSev, hipRightSev, chestSev, absSev, armSev, thighSev, hamstringSev, calfSev]
         .filter((m) => m.sev === 'warn' || m.sev === 'alert')
         .map((m) => ({ sev: m.sev, text: m.title }));
 
@@ -1113,7 +1221,7 @@
 
         <div class="card mt-24">
           <h2 style="font-size:1.05rem;">Körperliche Balance &amp; Risikofaktoren</h2>
-          <p style="color:var(--color-text-muted); font-size:0.82rem;">Zusammenfassung aus Umfangsmessungen (Körperfett-Verlauf), Beweglichkeitstests sowie Sitz-/Schlafgewohnheiten. Die Tests selbst trägst du im Reiter „Tests" ein.</p>
+          <p style="color:var(--color-text-muted); font-size:0.82rem;">Zusammenfassung aus Umfangsmessungen (Körperfett-Verlauf), Beweglichkeits- und Kraftausdauertests sowie Sitz-/Schlafgewohnheiten, getrennt nach Gelenken und Muskeln dargestellt. Die Tests selbst trägst du im Reiter „Tests" ein.</p>
           ${bodyVisualHtml(markers, notices)}
         </div>
 
@@ -1350,11 +1458,7 @@
       // Analog zum Kunden-Pfad (renderClientRoot) oben.
       const requestedTab = new URLSearchParams(location.search).get('tab');
       const initialTab = ADMIN_TRAINING_TABS.some((t) => t.key === requestedTab) ? requestedTab : 'start';
-      container.innerHTML = `
-        ${subnavSelectHtml(ADMIN_TRAINING_TABS, initialTab)}
-        <div id="admin-content"><p class="center-text">Lade …</p></div>
-      `;
-      bindSubnavSelect(container, (key) => renderAdminTab(key));
+      container.innerHTML = `<div id="admin-content"><p class="center-text">Lade …</p></div>`;
       renderAdminTab(initialTab);
     }
 
@@ -1817,7 +1921,6 @@
         if (error) { alert('Fehler: ' + error.message); return; }
         alert('Vorlage zugewiesen.');
         renderAdminTab('existing');
-        setSubnavValue(container, 'existing');
       });
     }
 
@@ -1891,7 +1994,6 @@
         if (error) { alert('Fehler: ' + error.message); return; }
         alert('Trainingsplan gespeichert.');
         renderAdminTab('existing');
-        setSubnavValue(container, 'existing');
       });
     }
 
