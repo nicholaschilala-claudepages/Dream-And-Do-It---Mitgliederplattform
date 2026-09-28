@@ -122,6 +122,8 @@ export const STRENGTH_TESTS = [
     kontraindikation: 'Nicht bei akuten Rückenbeschwerden, direkt nach Bauchmuskel-Verletzungen oder starken Schulterschmerzen testen.',
     selbsttest: 'Handy-Stoppuhr starten und saubere Unterarmstütz-Position einnehmen. Bis zum ersten Formverlust (Hüfte sackt/hebt) halten. Zeit notieren und mit der Benchmark-Tabelle vergleichen.',
     source: 'Strand et al. (2014); Topend Sports Normtabellen',
+    ausfuehrungImage: 'content/tests/plank-ausfuehrung.jpg',
+    abbruchImage: 'content/tests/plank-abbruch.jpg',
   },
   {
     key: 'pushup',
@@ -134,6 +136,8 @@ export const STRENGTH_TESTS = [
     kontraindikation: 'Nicht bei akuter Schulter-, Hüft-, Knie-, Sprung- oder Handgelenksverletzung sowie unmittelbar nach intensivem Training testen.',
     selbsttest: 'Saubere Liegestütz-Position einnehmen. So viele Wiederholungen wie möglich ohne Pause ausführen. Bei Formverlust abbrechen, Wiederholungen zählen und notieren.',
     source: 'American College of Sports Medicine (ACSM) – Guidelines for Exercise Testing and Prescription; ACE-Normtabelle nach Mackenzie, "101 Performance Evaluation Tests"',
+    ausfuehrungImage: 'content/tests/liegestuetz-ausfuehrung.jpg',
+    abbruchImage: 'content/tests/liegestuetz-abbruch.jpg',
   },
   {
     key: 'squat',
@@ -146,6 +150,8 @@ export const STRENGTH_TESTS = [
     kontraindikation: 'Nicht bei akuter Schulter-, Hüft-, Knie-, Sprung- oder Handgelenksverletzung sowie unmittelbar nach intensivem Training testen.',
     selbsttest: 'Aufrechten Stand einnehmen. So viele tiefe Kniebeugen wie möglich ohne Pause ausführen. Bei Formverlust abbrechen, Wiederholungen zählen und notieren.',
     source: 'American College of Sports Medicine (ACSM) – Guidelines for Exercise Testing and Prescription; ACE-Normtabelle nach Mackenzie, "101 Performance Evaluation Tests"',
+    ausfuehrungImage: 'content/tests/kniebeuge-ausfuehrung.jpg',
+    abbruchImage: 'content/tests/kniebeuge-abbruch.jpg',
   },
 ];
 
@@ -160,6 +166,8 @@ export const MOBILITY_TESTS = [
     abbruchkriterium: 'Bei Schmerz oder deutlichem Unsicherheitsgefühl sofort abbrechen.',
     kontraindikation: 'Nicht bei akuter Gelenkverletzung, frischer Prellung oder unmittelbar nach intensivem Training testen – Ermüdung verfälscht das Bewegungsbild.',
     source: 'Athletikkonzept-Screening (Beweglichkeit)',
+    goodImage: 'content/tests/schultertest-normal.jpg',
+    limitedImage: 'content/tests/schultertest-eingeschraenkt.jpg',
   },
   {
     key: 'hamstring_mobility',
@@ -171,6 +179,8 @@ export const MOBILITY_TESTS = [
     abbruchkriterium: 'Bei Schmerz oder deutlichem Unsicherheitsgefühl sofort abbrechen.',
     kontraindikation: 'Nicht bei akuter Gelenkverletzung, frischer Prellung oder unmittelbar nach intensivem Training testen – Ermüdung verfälscht das Bewegungsbild.',
     source: 'Athletikkonzept-Screening (Beweglichkeit)',
+    goodImage: 'content/tests/hamstring-test-gut.jpg',
+    limitedImage: 'content/tests/hamstring-test-eingeschraenkt.jpg',
   },
   {
     key: 'thomas_mobility',
@@ -182,8 +192,21 @@ export const MOBILITY_TESTS = [
     abbruchkriterium: 'Bei Schmerz oder deutlichem Unsicherheitsgefühl sofort abbrechen.',
     kontraindikation: 'Nicht bei akuter Gelenkverletzung, frischer Prellung oder unmittelbar nach intensivem Training testen – Ermüdung verfälscht das Bewegungsbild.',
     source: 'Athletikkonzept-Screening (Beweglichkeit), angelehnt an den klassischen Thomas-Test zur Hüftbeuger-Verkürzung',
+    goodImage: 'content/tests/thomas-test-normal.jpg',
+    limitedImage: 'content/tests/thomas-test-verkuerzt.jpg',
   },
 ];
+
+// ---------------------------------------------------------------------------
+// Visuelle +/-/0-Bewertungsanzeige (Beweglichkeitstests) – kompaktes Icon +
+// Farbe, ergänzend zur Textbeschreibung. Wird sowohl beim Eintragen (Auswahl)
+// als auch bei der Anzeige eines gespeicherten Ergebnisses verwendet.
+// ---------------------------------------------------------------------------
+export const MOBILITY_RATING_VISUALS = {
+  '1': { symbol: '+', color: 'var(--color-success)', short: 'gut' },
+  '0': { symbol: '0', color: 'var(--color-gold)', short: 'normal' },
+  '-1': { symbol: '–', color: 'var(--color-danger)', short: 'eingeschränkt' },
+};
 
 export function mobilityRatingLabel(value) {
   const v = Number(value);
@@ -240,6 +263,33 @@ export function isStale(dateStr, days = 84) {
   const diffDays = (Date.now() - d.getTime()) / 86400000;
   return diffDays > days;
 }
+
+// ---------------------------------------------------------------------------
+// Test-Erinnerung – zentrale Ermittlung, welche Tests fehlen oder älter als
+// 12 Wochen sind. Wird an drei Stellen verwendet (Nutzer-Feedback Runde 5):
+// im Tests-Tab des Kunden selbst, als Hinweis-Banner im Nachrichten-Tab und
+// in der Kundendatei der Traineransicht – daher hier zentral statt dreifach
+// dupliziert.
+// ---------------------------------------------------------------------------
+export async function getStaleTestSummary(clientId) {
+  const { data: results, error } = await listPreventionResults(clientId);
+  if (error) return { items: [], count: 0, results: [], error };
+  const latest = latestByKey(results || []);
+  const items = [];
+  [...STRENGTH_TESTS, ...MOBILITY_TESTS].forEach((t) => {
+    const sides = t.hasSide ? ['left', 'right'] : [null];
+    sides.forEach((side) => {
+      const key = side ? `${t.key}:${side}` : t.key;
+      const r = latest[key];
+      const sideLabel = side ? ` (${SIDE_LABEL_LOCAL[side]})` : '';
+      if (!r) items.push({ testKey: t.key, side, label: `${t.label}${sideLabel}`, reason: 'fehlt', text: `${t.label}${sideLabel} – noch kein Test eingetragen` });
+      else if (isStale(r.measured_at)) items.push({ testKey: t.key, side, label: `${t.label}${sideLabel}`, reason: 'veraltet', measuredAt: r.measured_at, text: `${t.label}${sideLabel} – letzter Test vor über 12 Wochen (${r.measured_at})` });
+    });
+  });
+  return { items, count: items.length, results: results || [], latest, error: null };
+}
+
+const SIDE_LABEL_LOCAL = { left: 'links', right: 'rechts' };
 
 // ---------------------------------------------------------------------------
 // Körperzusammensetzung – ACE Body Fat Percentage Categories
