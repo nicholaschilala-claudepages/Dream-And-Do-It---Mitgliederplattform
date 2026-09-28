@@ -722,7 +722,7 @@
           ${dot(116, 192, markers.hipRight.sev, markers.hipRight.title, 'Hüftbeuger re.')}
           ${dot(85, 250, markers.thighLeft.sev, markers.thighLeft.title, 'Oberschenkel li.')}
           ${dot(115, 250, markers.thighRight.sev, markers.thighRight.title, 'Oberschenkel re.')}
-          <text x="100" y="378" font-size="8" fill="var(--color-text-muted)" text-anchor="middle">Vorderansicht</text>
+          <text x="100" y="378" font-size="12" font-weight="700" letter-spacing="0.4" fill="var(--color-text)" text-anchor="middle">VORDERANSICHT</text>
         </svg>`;
     }
 
@@ -775,7 +775,7 @@
           ${dot(100, 250, markers.hamstring.sev, markers.hamstring.title, 'Hamstring')}
           ${dot(84, 328, markers.calfLeft.sev, markers.calfLeft.title, 'Wade li.')}
           ${dot(116, 328, markers.calfRight.sev, markers.calfRight.title, 'Wade re.')}
-          <text x="100" y="378" font-size="8" fill="var(--color-text-muted)" text-anchor="middle">Rückansicht</text>
+          <text x="100" y="378" font-size="12" font-weight="700" letter-spacing="0.4" fill="var(--color-text)" text-anchor="middle">RÜCKANSICHT</text>
         </svg>`;
     }
 
@@ -1015,6 +1015,12 @@
       });
 
       const { total, breakdown } = computePreventionScore({ ageYears, sex, latestResults: latest, bodyFatPercent, balancePairRatios });
+      // Nutzer-Feedback Runde 8: Kraftausdauertests sollen nicht im
+      // Präventionsbereich AUFGELISTET werden (die eigentliche Eingabe/Anzeige
+      // der Tests erfolgt im Tab "Tests"), fließen aber weiterhin in den
+      // Präventions-Score mit ein – daher wird hier nur die Anzeige gefiltert,
+      // `total` bleibt unverändert aus der vollständigen `breakdown` berechnet.
+      const displayBreakdown = breakdown.filter((b) => b.key !== 'strength');
 
       // Körper-Visual: Marker-Schweregrade berechnen
       const asymmetrySeverity = (leftCm, rightCm) => {
@@ -1088,15 +1094,15 @@
               <div style="font-size:0.72rem; color:var(--color-text-muted);">von 100</div>
             </div>
           </div>
-          ${breakdown.length > 0 ? `
+          ${displayBreakdown.length > 0 ? `
           <div class="mt-16">
-            ${breakdown.map((b) => `
+            ${displayBreakdown.map((b) => `
               <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--color-border); font-size:0.85rem;">
                 <span>${escapeHtml(b.label)}${b.note ? ` <span style="color:var(--color-text-muted); font-size:0.78rem;">(${escapeHtml(b.note)})</span>` : ''}</span>
                 <strong>${b.score}</strong>
               </div>
             `).join('')}
-          </div>` : `<p style="color:var(--color-text-muted); font-size:0.85rem; margin-top:12px;">Noch keine Daten für einen Score – trage unten mindestens einen Test ein.</p>`}
+          </div>` : total == null ? `<p style="color:var(--color-text-muted); font-size:0.85rem; margin-top:12px;">Noch keine Daten für einen Score – trage unten mindestens einen Test ein.</p>` : ''}
           <p style="font-size:0.78rem; color:var(--color-text-muted); margin-top:12px;">${ageYears != null ? `Alter: ${ageYears} Jahre` : 'Kein Geburtsdatum hinterlegt – Kraftausdauer-Benchmarks können ohne Alter nicht ausgewertet werden.'}</p>
           <button class="icon-btn" id="pv-edit-birthdate" type="button">Geburtsdatum ${birthDate ? 'ändern' : 'hinterlegen'}</button>
           <form id="pv-birthdate-form" class="hidden mt-16">
@@ -1339,12 +1345,17 @@
     ];
 
     async function renderAdminView() {
+      // Deep-Link aus der Kopfzeilen-Navigation (Reiter "Training" → Untermenü,
+      // siehe js/nav.js): ?tab=templates o.ä. öffnet direkt den passenden Tab.
+      // Analog zum Kunden-Pfad (renderClientRoot) oben.
+      const requestedTab = new URLSearchParams(location.search).get('tab');
+      const initialTab = ADMIN_TRAINING_TABS.some((t) => t.key === requestedTab) ? requestedTab : 'start';
       container.innerHTML = `
-        ${subnavSelectHtml(ADMIN_TRAINING_TABS, 'start')}
+        ${subnavSelectHtml(ADMIN_TRAINING_TABS, initialTab)}
         <div id="admin-content"><p class="center-text">Lade …</p></div>
       `;
       bindSubnavSelect(container, (key) => renderAdminTab(key));
-      renderAdminTab('start');
+      renderAdminTab(initialTab);
     }
 
     async function renderAdminTab(tab) {
