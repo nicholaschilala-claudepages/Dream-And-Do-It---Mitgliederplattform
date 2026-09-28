@@ -433,6 +433,14 @@ a { color: var(--color-gold); }
    + den Unterseiten der Sektion, siehe js/nav.js bindNavSubmenus(). -------- */
 .nav-tab.has-submenu { cursor: pointer; }
 .nav-tab-caret { font-size: 0.68rem; margin-left: -2px; opacity: 0.75; }
+/* Nutzer-Feedback Runde 8: Untermenüs blieben dauerhaft sichtbar, überlagerten
+   sich und den Seiteninhalt, weil die Regel "display:flex" unten das
+   Standardverhalten des [hidden]-Attributs (display:none) überschreibt –
+   Autoren-CSS gewinnt immer gegen die UA-Stylesheet-Regel für [hidden],
+   unabhängig von Spezifität. Ohne diese Override-Regel hatte das JS-Toggle
+   (bindNavSubmenus() setzt panel.hidden = true/false) also keinerlei
+   sichtbaren Effekt. */
+.nav-submenu-panel[hidden] { display: none; }
 .nav-submenu-panel {
   position: absolute;
   top: calc(100% + 6px);
