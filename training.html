@@ -134,6 +134,7 @@
       </div>
       <div style="display:flex; gap:8px;">
         <button class="icon-btn" id="theme-toggle" type="button">Hell/Dunkel</button>
+        <button class="icon-btn" id="logout-btn" type="button">Abmelden</button>
       </div>
     </div>
     <div id="nav-tabs-slot"></div>
@@ -150,7 +151,7 @@
 
   <script type="module">
     import { supabaseClient } from './js/supabase-client.js';
-    import { getCurrentSession, initTheme, toggleTheme } from './js/auth.js';
+    import { getCurrentSession, initTheme, toggleTheme, signOut } from './js/auth.js';
     import {
       listExercises, createExercise, deleteExercise,
       listClients,
@@ -163,12 +164,13 @@
     import { queueTrainingLog, syncQueuedLogs } from './js/offline-queue.js';
     import { getUnreadCount } from './js/messages.js';
     import { getNewSignupCount } from './js/betrieb.js';
-    import { navTabsHtml } from './js/nav.js';
+    import { navTabsHtml, bindNavSubmenus } from './js/nav.js';
     import { subnavSelectHtml, bindSubnavSelect, setSubnavValue } from './js/subnav.js';
     import { SECTION_INFO } from './js/section-info.js';
     import { listMyBodyMeasurements } from './js/nutrition.js';
     import {
       calcAge, updateBirthDate, STRENGTH_TESTS, MOBILITY_TESTS, mobilityRatingLabel,
+      MOBILITY_RATING_VISUALS, getStaleTestSummary,
       evaluateStrengthBenchmark, evaluateBodyFatCategory, evaluateSittingScore,
       insertPreventionResult, listPreventionResults, deletePreventionResult,
       latestByKey, isStale, computePreventionScore,
@@ -179,6 +181,10 @@
 
     initTheme();
     document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      await signOut();
+      window.location.href = 'index.html';
+    });
 
     const container = document.getElementById('app-container');
     let currentProfile = null;
@@ -297,6 +303,7 @@
         unreadMessages,
         newSignups: signupResult.count || 0,
       });
+      bindNavSubmenus(slot);
     }
 
     function renderLockedTeaser() {
@@ -339,15 +346,20 @@
       { key: 'plan', label: 'Mein Plan' },
       { key: 'progress', label: 'Meine Entwicklung' },
       { key: 'praevention', label: 'Präventionscheck' },
+      { key: 'tests', label: 'Tests' },
     ];
 
     async function renderClientRoot(profile) {
+      // Deep-Link aus der Kopfzeilen-Navigation (Reiter "Training" → Untermenü,
+      // siehe js/nav.js): ?tab=praevention o.ä. öffnet direkt den passenden Tab.
+      const requestedTab = new URLSearchParams(location.search).get('tab');
+      const initialTab = CLIENT_TRAINING_TABS.some((t) => t.key === requestedTab) ? requestedTab : 'start';
       container.innerHTML = `
-        ${subnavSelectHtml(CLIENT_TRAINING_TABS, 'start')}
+        ${subnavSelectHtml(CLIENT_TRAINING_TABS, initialTab)}
         <div id="client-content"><p class="center-text">Lade …</p></div>
       `;
       bindSubnavSelect(container, (key) => activateClientTab(key, profile));
-      renderStartTab(document.getElementById('client-content'), false);
+      activateClientTab(initialTab, profile);
     }
 
     function activateClientTab(tabName, profile) {
@@ -355,6 +367,7 @@
       if (tabName === 'progress') renderAnalyticsView(content, profile.id, { isAdminView: false });
       else if (tabName === 'start') renderStartTab(content, false);
       else if (tabName === 'praevention') renderPreventionTab(content, profile, { isAdminView: false });
+      else if (tabName === 'tests') renderTestsTab(content, profile, { isAdminView: false });
       else renderClientView(content, profile);
     }
 
@@ -642,35 +655,137 @@
       return { ok: 'var(--color-success)', warn: 'var(--color-gold)', alert: 'var(--color-danger)', unknown: 'var(--color-border)' }[sev] || 'var(--color-border)';
     }
 
-    function bodyVisualHtml(markers, notices) {
-      // Vorderansicht, nicht gespiegelt: Bildseiten entsprechen den Körperseiten.
-      const dot = (cx, cy, sev, title) => `<circle cx="${cx}" cy="${cy}" r="9" fill="${severityColor(sev)}" stroke="#fff" stroke-width="1.5"><title>${escapeHtml(title)}</title></circle>`;
+    // Anatomische Körper-Illustration (Vorder- + Rückansicht), Nutzer-Feedback
+    // Runde 5: "wie ein echter Mensch, mit weichen Linien" statt einfacher
+    // Strichmännchen-Rechtecke. Muskelgruppen werden über weiche, gerundete
+    // Pfade/Formen angedeutet, Trennlinien zwischen Muskelsegmenten (z.B.
+    // Bauchmuskeln) nutzen die Hintergrundfarbe als "Einschnitt", damit es in
+    // Hell- und Dunkelmodus automatisch passt. Marker sitzen jeweils auf der
+    // anatomisch passenden Ansicht (z.B. Iliopsoas/Hüftbeuger vorne, Hamstring
+    // und unterer Rücken hinten) statt beide Seiten auf ein Bild zu zwingen.
+    function bodySeparatorLines(paths) {
+      return paths.map((d) => `<path d="${d}" fill="none" stroke="var(--color-bg)" stroke-width="1.4" stroke-linecap="round" />`).join('');
+    }
+
+    function frontBodySvg(markers) {
+      const dot = (cx, cy, sev, title, label) => `
+        <g>
+          <circle cx="${cx}" cy="${cy}" r="7.5" fill="${severityColor(sev)}" stroke="var(--color-bg)" stroke-width="1.5"><title>${escapeHtml(title)}</title></circle>
+          <text x="${cx > 100 ? cx + 11 : cx - 11}" y="${cy + 3}" font-size="7.5" fill="var(--color-text-muted)" text-anchor="${cx > 100 ? 'start' : 'end'}">${escapeHtml(label)}</text>
+        </g>`;
       return `
-        <div style="display:flex; gap:24px; flex-wrap:wrap; align-items:flex-start;">
-          <svg viewBox="0 0 200 350" style="width:180px; height:auto; flex-shrink:0;">
-            <circle cx="100" cy="26" r="20" fill="var(--color-border)" />
-            <rect x="68" y="58" width="64" height="100" rx="16" fill="var(--color-border)" />
-            <rect x="48" y="60" width="16" height="90" rx="8" fill="var(--color-border)" />
-            <rect x="136" y="60" width="16" height="90" rx="8" fill="var(--color-border)" />
-            <rect x="72" y="158" width="56" height="30" rx="10" fill="var(--color-border)" />
-            <rect x="72" y="188" width="24" height="80" rx="10" fill="var(--color-border)" />
-            <rect x="104" y="188" width="24" height="80" rx="10" fill="var(--color-border)" />
-            <rect x="74" y="270" width="20" height="68" rx="8" fill="var(--color-border)" />
-            <rect x="106" y="270" width="20" height="68" rx="8" fill="var(--color-border)" />
-            ${dot(100, 52, markers.neck.sev, markers.neck.title)}
-            ${dot(64, 66, markers.shoulderLeft.sev, markers.shoulderLeft.title)}
-            ${dot(136, 66, markers.shoulderRight.sev, markers.shoulderRight.title)}
-            ${dot(56, 104, markers.armLeft.sev, markers.armLeft.title)}
-            ${dot(144, 104, markers.armRight.sev, markers.armRight.title)}
-            ${dot(100, 150, markers.sitting.sev, markers.sitting.title)}
-            ${dot(84, 173, markers.hipLeft.sev, markers.hipLeft.title)}
-            ${dot(116, 173, markers.hipRight.sev, markers.hipRight.title)}
-            ${dot(100, 200, markers.hamstring.sev, markers.hamstring.title)}
-            ${dot(84, 228, markers.thighLeft.sev, markers.thighLeft.title)}
-            ${dot(116, 228, markers.thighRight.sev, markers.thighRight.title)}
-            ${dot(84, 305, markers.calfLeft.sev, markers.calfLeft.title)}
-            ${dot(116, 305, markers.calfRight.sev, markers.calfRight.title)}
-          </svg>
+        <svg viewBox="0 0 200 380" style="width:170px; height:auto; flex-shrink:0;">
+          <!-- Kopf & Hals -->
+          <ellipse cx="100" cy="24" rx="16" ry="18" fill="var(--color-border)" />
+          <path d="M90,40 Q100,47 110,40 L109,54 Q100,59 91,54 Z" fill="var(--color-border)" />
+          <!-- Trapezius / Schulterlinie -->
+          <path d="M58,72 Q80,48 100,50 Q120,48 142,72 L128,84 Q100,66 72,84 Z" fill="var(--color-border)" />
+          <!-- Deltamuskeln -->
+          <circle cx="60" cy="76" r="13" fill="var(--color-border)" />
+          <circle cx="140" cy="76" r="13" fill="var(--color-border)" />
+          <!-- Brustmuskeln -->
+          <path d="M75,82 Q66,102 76,122 Q90,129 96,114 Q95,94 88,82 Z" fill="var(--color-border)" />
+          <path d="M125,82 Q134,102 124,122 Q110,129 104,114 Q105,94 112,82 Z" fill="var(--color-border)" />
+          <!-- Bizeps/Oberarm -->
+          <path d="M46,78 Q40,110 44,146 L60,146 Q64,110 60,78 Z" fill="var(--color-border)" />
+          <path d="M154,78 Q160,110 156,146 L140,146 Q136,110 140,78 Z" fill="var(--color-border)" />
+          <!-- Unterarme -->
+          <path d="M45,148 Q41,178 46,206 L59,206 Q61,178 58,148 Z" fill="var(--color-border)" />
+          <path d="M155,148 Q159,178 154,206 L141,206 Q139,178 142,148 Z" fill="var(--color-border)" />
+          <ellipse cx="52" cy="212" rx="8" ry="9" fill="var(--color-border)" />
+          <ellipse cx="148" cy="212" rx="8" ry="9" fill="var(--color-border)" />
+          <!-- Bauch (Rectus abdominis) -->
+          <rect x="84" y="122" width="32" height="58" rx="10" fill="var(--color-border)" />
+          <!-- Schräge Bauchmuskeln -->
+          <path d="M76,124 Q70,148 78,172 L84,168 Q80,146 84,126 Z" fill="var(--color-border)" />
+          <path d="M124,124 Q130,148 122,172 L116,168 Q120,146 116,126 Z" fill="var(--color-border)" />
+          <!-- Becken/Hüfte -->
+          <path d="M78,182 Q100,175 122,182 L118,204 Q100,212 82,204 Z" fill="var(--color-border)" />
+          <!-- Oberschenkel (Quadrizeps) -->
+          <path d="M80,206 Q71,250 75,296 Q88,306 96,296 Q99,250 95,206 Z" fill="var(--color-border)" />
+          <path d="M120,206 Q129,250 125,296 Q112,306 104,296 Q101,250 105,206 Z" fill="var(--color-border)" />
+          <ellipse cx="85" cy="300" rx="9" ry="8" fill="var(--color-border)" />
+          <ellipse cx="115" cy="300" rx="9" ry="8" fill="var(--color-border)" />
+          <!-- Schienbein/Unterschenkel -->
+          <path d="M78,306 Q73,336 78,362 L92,362 Q90,336 90,306 Z" fill="var(--color-border)" />
+          <path d="M122,306 Q127,336 122,362 L108,362 Q110,336 110,306 Z" fill="var(--color-border)" />
+          <path d="M76,363 Q76,372 84,372 L92,372 L90,364 Z" fill="var(--color-border)" />
+          <path d="M124,363 Q124,372 116,372 L108,372 L110,364 Z" fill="var(--color-border)" />
+          ${bodySeparatorLines([
+            'M100,124 L100,180', 'M86,138 L114,138', 'M86,156 L114,156', 'M86,172 L114,172',
+            'M100,50 L100,66', 'M60,89 Q60,89 60,89', 'M140,89 Q140,89 140,89',
+          ])}
+          ${dot(100, 48, markers.neck.sev, markers.neck.title, 'Nacken')}
+          ${dot(56, 112, markers.armLeft.sev, markers.armLeft.title, 'Arm li.')}
+          ${dot(144, 112, markers.armRight.sev, markers.armRight.title, 'Arm re.')}
+          ${dot(84, 192, markers.hipLeft.sev, markers.hipLeft.title, 'Hüftbeuger li.')}
+          ${dot(116, 192, markers.hipRight.sev, markers.hipRight.title, 'Hüftbeuger re.')}
+          ${dot(85, 250, markers.thighLeft.sev, markers.thighLeft.title, 'Oberschenkel li.')}
+          ${dot(115, 250, markers.thighRight.sev, markers.thighRight.title, 'Oberschenkel re.')}
+          <text x="100" y="378" font-size="8" fill="var(--color-text-muted)" text-anchor="middle">Vorderansicht</text>
+        </svg>`;
+    }
+
+    function backBodySvg(markers) {
+      const dot = (cx, cy, sev, title, label) => `
+        <g>
+          <circle cx="${cx}" cy="${cy}" r="7.5" fill="${severityColor(sev)}" stroke="var(--color-bg)" stroke-width="1.5"><title>${escapeHtml(title)}</title></circle>
+          <text x="${cx > 100 ? cx + 11 : cx - 11}" y="${cy + 3}" font-size="7.5" fill="var(--color-text-muted)" text-anchor="${cx > 100 ? 'start' : 'end'}">${escapeHtml(label)}</text>
+        </g>`;
+      return `
+        <svg viewBox="0 0 200 380" style="width:170px; height:auto; flex-shrink:0;">
+          <!-- Hinterkopf & Hals -->
+          <ellipse cx="100" cy="24" rx="16" ry="18" fill="var(--color-border)" />
+          <path d="M90,40 Q100,47 110,40 L109,54 Q100,59 91,54 Z" fill="var(--color-border)" />
+          <!-- Trapezius (breite Raute Nacken bis Mitte Rücken) -->
+          <path d="M100,42 L142,72 Q124,116 100,128 Q76,116 58,72 Z" fill="var(--color-border)" />
+          <!-- hintere Deltamuskeln -->
+          <circle cx="60" cy="76" r="13" fill="var(--color-border)" />
+          <circle cx="140" cy="76" r="13" fill="var(--color-border)" />
+          <!-- Latissimus (breiter Rücken, V-Form) -->
+          <path d="M68,86 Q52,112 62,152 Q78,160 92,144 Q92,110 84,86 Z" fill="var(--color-border)" />
+          <path d="M132,86 Q148,112 138,152 Q122,160 108,144 Q108,110 116,86 Z" fill="var(--color-border)" />
+          <!-- Trizeps/Oberarm -->
+          <path d="M46,78 Q40,110 44,146 L60,146 Q64,110 60,78 Z" fill="var(--color-border)" />
+          <path d="M154,78 Q160,110 156,146 L140,146 Q136,110 140,78 Z" fill="var(--color-border)" />
+          <path d="M45,148 Q41,178 46,206 L59,206 Q61,178 58,148 Z" fill="var(--color-border)" />
+          <path d="M155,148 Q159,178 154,206 L141,206 Q139,178 142,148 Z" fill="var(--color-border)" />
+          <ellipse cx="52" cy="212" rx="8" ry="9" fill="var(--color-border)" />
+          <ellipse cx="148" cy="212" rx="8" ry="9" fill="var(--color-border)" />
+          <!-- Unterer Rücken (Erector spinae) -->
+          <rect x="90" y="128" width="8" height="48" rx="4" fill="var(--color-border)" />
+          <rect x="102" y="128" width="8" height="48" rx="4" fill="var(--color-border)" />
+          <!-- Gesäßmuskulatur -->
+          <path d="M76,178 Q70,204 84,214 Q100,219 100,198 Q100,184 92,178 Z" fill="var(--color-border)" />
+          <path d="M124,178 Q130,204 116,214 Q100,219 100,198 Q100,184 108,178 Z" fill="var(--color-border)" />
+          <!-- Hamstrings (Oberschenkelrückseite) -->
+          <path d="M80,214 Q71,254 75,296 Q88,308 96,298 Q99,254 95,214 Z" fill="var(--color-border)" />
+          <path d="M120,214 Q129,254 125,296 Q112,308 104,298 Q101,254 105,214 Z" fill="var(--color-border)" />
+          <ellipse cx="85" cy="300" rx="9" ry="8" fill="var(--color-border)" />
+          <ellipse cx="115" cy="300" rx="9" ry="8" fill="var(--color-border)" />
+          <!-- Waden (Gastrocnemius, Muskelbauch weiter oben) -->
+          <path d="M77,306 Q71,330 78,352 Q85,358 92,350 Q92,328 90,306 Z" fill="var(--color-border)" />
+          <path d="M123,306 Q129,330 122,352 Q115,358 108,350 Q108,328 110,306 Z" fill="var(--color-border)" />
+          <path d="M80,353 Q80,368 88,368 L92,368 L90,354 Z" fill="var(--color-border)" />
+          <path d="M120,353 Q120,368 112,368 L108,368 L110,354 Z" fill="var(--color-border)" />
+          ${bodySeparatorLines(['M100,128 L100,176'])}
+          ${dot(60, 90, markers.shoulderLeft.sev, markers.shoulderLeft.title, 'Schulter li.')}
+          ${dot(140, 90, markers.shoulderRight.sev, markers.shoulderRight.title, 'Schulter re.')}
+          ${dot(100, 150, markers.sitting.sev, markers.sitting.title, 'Unterer Rücken')}
+          ${dot(100, 250, markers.hamstring.sev, markers.hamstring.title, 'Hamstring')}
+          ${dot(84, 328, markers.calfLeft.sev, markers.calfLeft.title, 'Wade li.')}
+          ${dot(116, 328, markers.calfRight.sev, markers.calfRight.title, 'Wade re.')}
+          <text x="100" y="378" font-size="8" fill="var(--color-text-muted)" text-anchor="middle">Rückansicht</text>
+        </svg>`;
+    }
+
+    function bodyVisualHtml(markers, notices) {
+      // Vorder- und Rückansicht, jeweils nicht gespiegelt: Bildseiten entsprechen
+      // den Körperseiten. Marker sitzen auf der anatomisch passenden Ansicht.
+      return `
+        <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start;">
+          ${frontBodySvg(markers)}
+          ${backBodySvg(markers)}
           <div style="flex:1; min-width:240px;">
             <div class="dysbalance-legend" style="margin-bottom:10px;">
               <span><i style="background:var(--color-success);"></i> unauffällig</span>
@@ -682,8 +797,9 @@
               ? '<p style="color:var(--color-text-muted); font-size:0.85rem;">Noch keine auffälligen Befunde bzw. noch keine ausreichenden Daten.</p>'
               : `<ul style="margin:0; padding-left:18px; font-size:0.85rem;">${notices.map((n) => `<li class="dysbalance-verdict ${n.sev === 'unknown' ? '' : n.sev}" style="margin-bottom:4px;">${escapeHtml(n.text)}</li>`).join('')}</ul>`}
             <p style="font-size:0.72rem; color:var(--color-text-muted); margin-top:12px;">
-              Vorderansicht, nicht gespiegelt – Bildseiten entsprechen den Körperseiten. Ersetzt keine individuelle
-              physiotherapeutische oder ärztliche Untersuchung.
+              Vorder- und Rückansicht, jeweils nicht gespiegelt – Bildseiten entsprechen den Körperseiten. Vereinfachte
+              Darstellung der wichtigsten Muskelgruppen, ersetzt keine individuelle physiotherapeutische oder
+              ärztliche Untersuchung.
             </p>
           </div>
         </div>
@@ -721,6 +837,11 @@
           </div>
           <details class="qn-details mt-16"><summary>Testprotokoll ansehen (Ausführung, Abbruchkriterium, Kontraindikation)</summary>
             <div style="padding:10px 0 0; font-size:0.85rem;">
+              ${(t.ausfuehrungImage || t.abbruchImage) ? `
+              <div class="grid-2" style="margin-bottom:12px;">
+                ${t.ausfuehrungImage ? `<div class="pv-test-img-wrap"><img src="${t.ausfuehrungImage}" alt="Saubere Ausführung: ${escapeHtml(t.label)}" style="width:100%; border-radius:10px; display:block;" loading="lazy" onerror="this.closest('.pv-test-img-wrap').style.display='none'" /><div style="font-size:0.72rem; color:var(--color-success); margin-top:4px; text-align:center;">✓ Saubere Ausführung</div></div>` : ''}
+                ${t.abbruchImage ? `<div class="pv-test-img-wrap"><img src="${t.abbruchImage}" alt="Abbruchpunkt: ${escapeHtml(t.label)}" style="width:100%; border-radius:10px; display:block;" loading="lazy" onerror="this.closest('.pv-test-img-wrap').style.display='none'" /><div style="font-size:0.72rem; color:var(--color-danger); margin-top:4px; text-align:center;">✕ Abbruchpunkt (Formverlust)</div></div>` : ''}
+              </div>` : ''}
               <p><strong>Ausführung:</strong> ${escapeHtml(t.ausfuehrung)}</p>
               <p><strong>Typische Fehler:</strong> ${escapeHtml(t.typischeFehler)}</p>
               <p><strong>Abbruchkriterium:</strong> ${escapeHtml(t.abbruchkriterium)}</p>
@@ -761,11 +882,23 @@
           <h3 style="margin:0; font-size:1rem;">${escapeHtml(t.label)}</h3>
           <details class="qn-details mt-16"><summary>Testprotokoll ansehen (Ausführung, Abbruchkriterium, Kontraindikation)</summary>
             <div style="padding:10px 0 0; font-size:0.85rem;">
+              ${(t.goodImage || t.limitedImage) ? `
+              <div class="grid-2" style="margin-bottom:12px;">
+                ${t.goodImage ? `<div class="pv-test-img-wrap"><img src="${t.goodImage}" alt="Gut/normal: ${escapeHtml(t.label)}" style="width:100%; border-radius:10px; display:block;" loading="lazy" onerror="this.closest('.pv-test-img-wrap').style.display='none'" /><div style="font-size:0.72rem; color:var(--color-success); margin-top:4px; text-align:center;">+ / 0 – gut bzw. normal</div></div>` : ''}
+                ${t.limitedImage ? `<div class="pv-test-img-wrap"><img src="${t.limitedImage}" alt="Eingeschränkt: ${escapeHtml(t.label)}" style="width:100%; border-radius:10px; display:block;" loading="lazy" onerror="this.closest('.pv-test-img-wrap').style.display='none'" /><div style="font-size:0.72rem; color:var(--color-danger); margin-top:4px; text-align:center;">– eingeschränkt</div></div>` : ''}
+              </div>` : ''}
               <p><strong>Ausführung:</strong> ${escapeHtml(t.ausfuehrung)}</p>
               <p><strong>Typische Fehler:</strong> ${escapeHtml(t.typischeFehler)}</p>
               <p><strong>Abbruchkriterium:</strong> ${escapeHtml(t.abbruchkriterium)}</p>
               <p style="color:var(--color-danger);"><strong>Kontraindikation:</strong> ${escapeHtml(t.kontraindikation)}</p>
-              <p style="color:var(--color-text-muted); font-size:0.78rem;">Bewertungsskala: – (schlecht) · 0 (normal) · + (gut) — ${escapeHtml(t.ratingLabels['-1'])}; ${escapeHtml(t.ratingLabels['0'])}; ${escapeHtml(t.ratingLabels['1'])}.</p>
+              <div class="rating-scale-legend" style="display:flex; gap:10px; flex-wrap:wrap; margin:8px 0;">
+                ${['1', '0', '-1'].map((k) => `
+                  <span style="display:flex; align-items:center; gap:5px; font-size:0.75rem; color:var(--color-text-muted);">
+                    <span style="display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:50%; background:${MOBILITY_RATING_VISUALS[k].color}; color:#fff; font-weight:700; font-size:0.8rem;">${MOBILITY_RATING_VISUALS[k].symbol}</span>
+                    ${escapeHtml(t.ratingLabels[k])}
+                  </span>
+                `).join('')}
+              </div>
               <p style="color:var(--color-text-muted); font-size:0.78rem;">Quelle: ${escapeHtml(t.source)}</p>
             </div>
           </details>
@@ -777,8 +910,8 @@
                 <div class="result-box">
                   ${side ? `<div style="font-size:0.78rem; color:var(--color-text-muted); margin-bottom:4px;">Seite: ${SIDE_LABEL[side]}</div>` : ''}
                   ${row ? `
-                    <div class="big" style="font-size:1.4rem;">${rating.symbol}</div>
-                    <div style="font-size:0.8rem;">${escapeHtml(t.ratingLabels[String(Math.sign(row.value))] || '')}</div>
+                    <div style="display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:50%; background:${MOBILITY_RATING_VISUALS[String(Math.sign(row.value))].color}; color:#fff; font-weight:700; font-size:1.2rem;">${rating.symbol}</div>
+                    <div style="font-size:0.8rem; margin-top:6px;">${escapeHtml(t.ratingLabels[String(Math.sign(row.value))] || '')}</div>
                     <div style="font-size:0.72rem; color:var(--color-text-muted); margin-top:4px;">${formatDateOnly(row.measured_at)} · ${row.measured_by === 'trainer' ? 'Trainer/Coach' : 'Kunde selbst'}${isStale(row.measured_at) ? ' · <span style="color:var(--color-gold);">älter als 12 Wochen</span>' : ''}</div>
                   ` : '<p style="color:var(--color-text-muted); font-size:0.82rem; margin:0;">Noch kein Test.</p>'}
                 </div>
@@ -883,19 +1016,6 @@
 
       const { total, breakdown } = computePreventionScore({ ageYears, sex, latestResults: latest, bodyFatPercent, balancePairRatios });
 
-      // Erinnerung: Daten älter als 12 Wochen bzw. noch nie erfasst
-      const staleItems = [];
-      [...STRENGTH_TESTS, ...MOBILITY_TESTS].forEach((t) => {
-        const sides = t.hasSide ? ['left', 'right'] : [null];
-        sides.forEach((side) => {
-          const key = side ? `${t.key}:${side}` : t.key;
-          const r = latest[key];
-          const sideLabel = side ? ` (${SIDE_LABEL[side]})` : '';
-          if (!r) staleItems.push(`${t.label}${sideLabel} – noch kein Test eingetragen`);
-          else if (isStale(r.measured_at)) staleItems.push(`${t.label}${sideLabel} – letzter Test vor über 12 Wochen (${formatDateOnly(r.measured_at)})`);
-        });
-      });
-
       // Körper-Visual: Marker-Schweregrade berechnen
       const asymmetrySeverity = (leftCm, rightCm) => {
         if (leftCm == null || rightCm == null) return { sev: 'unknown', title: 'Keine Umfangsmessung vorhanden' };
@@ -985,25 +1105,11 @@
           </form>
         </div>
 
-        ${staleItems.length > 0 ? `
-        <div class="card mt-24" style="border-color: rgba(200,124,0,0.4);">
-          <h3 style="font-size:0.95rem; margin:0 0 8px; color:var(--color-gold);">Erinnerung: Tests aktualisieren</h3>
-          <ul style="margin:0; padding-left:18px; font-size:0.85rem; color:var(--color-text-muted);">
-            ${staleItems.map((i) => `<li>${escapeHtml(i)}</li>`).join('')}
-          </ul>
-        </div>` : ''}
-
         <div class="card mt-24">
           <h2 style="font-size:1.05rem;">Körperliche Balance &amp; Risikofaktoren</h2>
-          <p style="color:var(--color-text-muted); font-size:0.82rem;">Zusammenfassung aus Umfangsmessungen (Körperfett-Verlauf), Beweglichkeitstests sowie Sitz-/Schlafgewohnheiten.</p>
+          <p style="color:var(--color-text-muted); font-size:0.82rem;">Zusammenfassung aus Umfangsmessungen (Körperfett-Verlauf), Beweglichkeitstests sowie Sitz-/Schlafgewohnheiten. Die Tests selbst trägst du im Reiter „Tests" ein.</p>
           ${bodyVisualHtml(markers, notices)}
         </div>
-
-        <h2 class="mt-24" style="font-size:1.1rem;">Kraftausdauertests</h2>
-        ${STRENGTH_TESTS.map((t) => strengthTestCardHtml(t, latest[t.key], ageYears, sex, results)).join('')}
-
-        <h2 class="mt-24" style="font-size:1.1rem;">Beweglichkeitstests</h2>
-        ${MOBILITY_TESTS.map((t) => mobilityTestCardHtml(t, latest, results)).join('')}
 
         <div class="card mt-24">
           <h2 style="font-size:1.05rem;">Sitzverhalten &amp; Schlafseite</h2>
@@ -1126,6 +1232,94 @@
           });
           if (error) { alert('Fehler: ' + error.message); submitBtn.disabled = false; return; }
           renderPreventionSection(el, clientId, { isAdminView });
+        });
+      });
+    }
+
+    // =========================================================================
+    // TESTS (eigene Kategorie, Nutzer-Feedback Runde 5 – vorher Teil des
+    // Präventionscheck-Tabs). Kraftausdauer- und Beweglichkeitstests inkl.
+    // Erklärbildern, +/-/0-Bewertungsvisualisierung und der Erinnerung an
+    // fällige/veraltete Tests (erscheint zusätzlich als Banner im Nachrichten-
+    // Tab und in der Kundendatei der Traineransicht, siehe js/prevention.js
+    // getStaleTestSummary()).
+    // =========================================================================
+
+    function renderTestsTab(content, profile, { isAdminView }) {
+      renderTestsSection(content, profile.id, { isAdminView });
+    }
+
+    async function renderTestsSection(el, clientId, { isAdminView }) {
+      el.innerHTML = '<p class="center-text">Lade Tests …</p>';
+
+      const [{ data: profileRow }, { data: bodyMeasurements }, { data: allResults, error: resultsError }] = await Promise.all([
+        supabaseClient.from('profiles').select('birth_date').eq('id', clientId).maybeSingle(),
+        listMyBodyMeasurements(clientId),
+        listPreventionResults(clientId),
+      ]);
+      if (resultsError) { el.innerHTML = `<div class="msg error">${escapeHtml(resultsError.message)}</div>`; return; }
+
+      const birthDate = profileRow ? profileRow.birth_date : null;
+      const ageYears = calcAge(birthDate);
+      const latestBodyMeasurement = (bodyMeasurements || [])[(bodyMeasurements || []).length - 1] || null;
+      const sex = latestBodyMeasurement ? latestBodyMeasurement.sex : null;
+
+      const results = allResults || [];
+      const latest = latestByKey(results);
+
+      // Erinnerung: Daten älter als 12 Wochen bzw. noch nie erfasst – erscheint
+      // hier direkt am Test, zusätzlich als Banner im Nachrichten-Tab und in
+      // der Kundendatei der Traineransicht (dieselbe Berechnung, siehe
+      // js/prevention.js getStaleTestSummary()).
+      const staleItems = [];
+      [...STRENGTH_TESTS, ...MOBILITY_TESTS].forEach((t) => {
+        const sides = t.hasSide ? ['left', 'right'] : [null];
+        sides.forEach((side) => {
+          const key = side ? `${t.key}:${side}` : t.key;
+          const r = latest[key];
+          const sideLabel = side ? ` (${SIDE_LABEL[side]})` : '';
+          if (!r) staleItems.push(`${t.label}${sideLabel} – noch kein Test eingetragen`);
+          else if (isStale(r.measured_at)) staleItems.push(`${t.label}${sideLabel} – letzter Test vor über 12 Wochen (${formatDateOnly(r.measured_at)})`);
+        });
+      });
+
+      el.innerHTML = `
+        ${staleItems.length > 0 ? `
+        <div class="card" style="border-color: rgba(200,124,0,0.4);">
+          <h3 style="font-size:0.95rem; margin:0 0 8px; color:var(--color-gold);">Erinnerung: Tests aktualisieren</h3>
+          <p style="color:var(--color-text-muted); font-size:0.78rem; margin:0 0 8px;">Diesen Hinweis siehst du auch als Banner im Nachrichten-Tab${isAdminView ? ', dein Trainer sieht ihn ebenfalls in deiner Kundendatei' : ''}.</p>
+          <ul style="margin:0; padding-left:18px; font-size:0.85rem; color:var(--color-text-muted);">
+            ${staleItems.map((i) => `<li>${escapeHtml(i)}</li>`).join('')}
+          </ul>
+        </div>` : `
+        <div class="card">
+          <p style="color:var(--color-success); font-size:0.85rem; margin:0;">✓ Alle Tests sind aktuell (nicht älter als 12 Wochen).</p>
+        </div>`}
+
+        <h2 class="mt-24" style="font-size:1.1rem;">Kraftausdauertests</h2>
+        ${STRENGTH_TESTS.map((t) => strengthTestCardHtml(t, latest[t.key], ageYears, sex, results)).join('')}
+
+        <h2 class="mt-24" style="font-size:1.1rem;">Beweglichkeitstests</h2>
+        ${MOBILITY_TESTS.map((t) => mobilityTestCardHtml(t, latest, results)).join('')}
+      `;
+
+      el.querySelectorAll('.pv-entry-form').forEach((form) => {
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const testKey = form.dataset.testKey;
+          const sideSelect = form.querySelector('.pv-side');
+          const submitBtn = form.querySelector('button[type="submit"]');
+          submitBtn.disabled = true;
+          const { error } = await insertPreventionResult({
+            clientId,
+            testKey,
+            side: sideSelect ? sideSelect.value : null,
+            value: parseFloat(form.querySelector('.pv-value').value),
+            measuredBy: form.querySelector('.pv-measured-by').value,
+            measuredAt: form.querySelector('.pv-date').value,
+          });
+          if (error) { alert('Fehler: ' + error.message); submitBtn.disabled = false; return; }
+          renderTestsSection(el, clientId, { isAdminView });
         });
       });
     }
@@ -1915,6 +2109,9 @@
 
           <h2 class="mt-24" style="font-size:1.15rem;">Präventionscheck</h2>
           <div id="prevention-section"></div>
+
+          <h2 class="mt-24" style="font-size:1.15rem;">Tests &amp; Erinnerung (Kundendatei)</h2>
+          <div id="tests-section"></div>
         `;
 
         document.getElementById('af-apply').addEventListener('click', () => {
@@ -1944,6 +2141,8 @@
         renderDysbalanceSection(logs);
         const preventionEl = document.getElementById('prevention-section');
         if (preventionEl) renderPreventionSection(preventionEl, clientId, { isAdminView });
+        const testsEl = document.getElementById('tests-section');
+        if (testsEl) renderTestsSection(testsEl, clientId, { isAdminView });
       }
 
       function renderProgressChart(logs) {

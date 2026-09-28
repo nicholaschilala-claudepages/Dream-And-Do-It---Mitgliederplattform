@@ -38,6 +38,7 @@
       </div>
       <div style="display:flex; gap:8px;">
         <button class="icon-btn" id="theme-toggle" type="button">Hell/Dunkel</button>
+        <button class="icon-btn" id="logout-btn" type="button">Abmelden</button>
       </div>
     </div>
     <div id="nav-tabs-slot"></div>
@@ -49,17 +50,21 @@
 
   <script type="module">
     import { supabaseClient } from './js/supabase-client.js';
-    import { getCurrentSession, initTheme, toggleTheme, requestPasswordReset } from './js/auth.js';
+    import { getCurrentSession, initTheme, toggleTheme, requestPasswordReset, signOut } from './js/auth.js';
     import {
       listClientOverview, setClientLock, setClientModuleAccess, getReportData, listClientDevices, deleteClientDevice, setClientMaxDevices, markNewSignupsSeen,
       listRecipesWithAccess, listCoachingContentWithAccess, setRecipeAccess, setCoachingContentAccess, setAllRecipeAccess, setAllCoachingContentAccess,
     } from './js/betrieb.js';
     import { getUnreadCount } from './js/messages.js';
-    import { navTabsHtml } from './js/nav.js';
+    import { navTabsHtml, bindNavSubmenus } from './js/nav.js';
     import { subnavSelectHtml, bindSubnavSelect } from './js/subnav.js';
 
     initTheme();
     document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      await signOut();
+      window.location.href = 'index.html';
+    });
 
     const container = document.getElementById('app-container');
     let currentProfile = null;
@@ -124,6 +129,7 @@
         unreadMessages,
         newSignups: 0,
       });
+      bindNavSubmenus(slot);
     }
 
     const BETRIEB_TABS = [

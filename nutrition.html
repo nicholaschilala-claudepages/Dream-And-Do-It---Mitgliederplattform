@@ -77,6 +77,7 @@
       </div>
       <div style="display:flex; gap:8px;">
         <button class="icon-btn" id="theme-toggle" type="button">Hell/Dunkel</button>
+        <button class="icon-btn" id="logout-btn" type="button">Abmelden</button>
       </div>
     </div>
     <div id="nav-tabs-slot"></div>
@@ -88,7 +89,7 @@
 
   <script type="module">
     import { supabaseClient } from './js/supabase-client.js';
-    import { getCurrentSession, initTheme, toggleTheme } from './js/auth.js';
+    import { getCurrentSession, initTheme, toggleTheme, signOut } from './js/auth.js';
     import {
       PAL_LEVELS, PAL_INTENSITY_LEVELS, calculateEffectivePal, calculateBmr, calculateTee,
       calculateFatFreeMass, calculateBmrKatchMcArdle,
@@ -102,12 +103,16 @@
     import { listClients, listSessions } from './js/training.js';
     import { getUnreadCount } from './js/messages.js';
     import { getNewSignupCount } from './js/betrieb.js';
-    import { navTabsHtml } from './js/nav.js';
+    import { navTabsHtml, bindNavSubmenus } from './js/nav.js';
     import { subnavSelectHtml, bindSubnavSelect, setSubnavValue } from './js/subnav.js';
     import { SECTION_INFO } from './js/section-info.js';
 
     initTheme();
     document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      await signOut();
+      window.location.href = 'index.html';
+    });
 
     const container = document.getElementById('app-container');
     let currentProfile = null;
@@ -177,6 +182,7 @@
         unreadMessages,
         newSignups: signupResult.count || 0,
       });
+      bindNavSubmenus(slot);
     }
 
     function renderLockedTeaser() {
@@ -228,12 +234,14 @@
         ...(isAdmin ? [{ key: 'recipes-admin', label: 'Rezepte verwalten' }] : []),
         ...(isAdmin ? [{ key: 'foods-admin', label: 'Lebensmittel verwalten' }] : []),
       ];
+      const requestedTab = new URLSearchParams(location.search).get('tab');
+      const initialTab = tabs.some((t) => t.key === requestedTab) ? requestedTab : 'start';
       container.innerHTML = `
-        ${subnavSelectHtml(tabs, 'start')}
+        ${subnavSelectHtml(tabs, initialTab)}
         <div id="tab-content"></div>
       `;
       bindSubnavSelect(container, (key) => renderTab(key));
-      renderTab('start');
+      renderTab(initialTab);
     }
 
     function goToTab(tabName) {

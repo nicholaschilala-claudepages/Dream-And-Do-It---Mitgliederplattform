@@ -41,6 +41,7 @@
       </div>
       <div style="display:flex; gap:8px;">
         <button class="icon-btn" id="theme-toggle" type="button">Hell/Dunkel</button>
+        <button class="icon-btn" id="logout-btn" type="button">Abmelden</button>
       </div>
     </div>
     <div id="nav-tabs-slot"></div>
@@ -52,13 +53,18 @@
 
   <script type="module">
     import { supabaseClient } from './js/supabase-client.js';
-    import { getCurrentSession, initTheme, toggleTheme } from './js/auth.js';
+    import { getCurrentSession, initTheme, toggleTheme, signOut } from './js/auth.js';
     import { getAdminId, listConversation, sendMessage, markConversationRead, listClientsWithMessageInfo, getUnreadCount } from './js/messages.js';
     import { getNewSignupCount } from './js/betrieb.js';
-    import { navTabsHtml } from './js/nav.js';
+    import { navTabsHtml, bindNavSubmenus } from './js/nav.js';
+    import { getStaleTestSummary } from './js/prevention.js';
 
     initTheme();
     document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      await signOut();
+      window.location.href = 'index.html';
+    });
 
     const container = document.getElementById('app-container');
     let currentProfile = null;
@@ -117,11 +123,33 @@
         unreadMessages,
         newSignups: signupResult.count || 0,
       });
+      bindNavSubmenus(slot);
     }
 
     // =========================================================================
     // KUNDEN-ANSICHT: Ein Chat mit dem Coach
     // =========================================================================
+
+    // Reines Hinweis-Banner (kein echter Nachrichteneintrag) – erscheint, wenn
+    // fällige/veraltete Präventions-Tests vorliegen. Wird bei jedem Aufruf neu
+    // berechnet, es wird nichts gespeichert; verschwindet automatisch, sobald
+    // die Tests aktualisiert sind. Nutzer-Feedback Runde 5.
+    async function staleTestBannerHtml(profile) {
+      if (!profile.training_enabled) return '';
+      const { count, error } = await getStaleTestSummary(profile.id);
+      if (error || !count) return '';
+      return `
+        <div class="card" style="margin-bottom:16px; border-color: rgba(200,124,0,0.4);">
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:space-between;">
+            <div>
+              <strong style="color:var(--color-gold);">⏰ Erinnerung: ${count} Test${count > 1 ? 's' : ''} fällig</strong>
+              <p style="color:var(--color-text-muted); font-size:0.82rem; margin:4px 0 0;">Ein oder mehrere Präventions-Tests fehlen noch oder sind älter als 12 Wochen.</p>
+            </div>
+            <a class="btn secondary small-btn" style="width:auto; padding:8px 16px;" href="training.html">Zu den Tests</a>
+          </div>
+        </div>
+      `;
+    }
 
     async function renderClientView() {
       container.innerHTML = '<p class="center-text">Lade …</p>';
@@ -131,7 +159,10 @@
         return;
       }
 
+      const banner = await staleTestBannerHtml(currentProfile);
+
       container.innerHTML = `
+        ${banner}
         <div class="card">
           <h2 style="font-size:1.05rem;">Nachrichten mit deinem Coach</h2>
           <div class="thread mt-16" id="thread"></div>

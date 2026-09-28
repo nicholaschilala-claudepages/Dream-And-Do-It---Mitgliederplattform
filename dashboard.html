@@ -37,7 +37,7 @@
     import { requireAuth, signOut, initTheme, toggleTheme } from './js/auth.js';
     import { getUnreadCount } from './js/messages.js';
     import { getNewSignupCount } from './js/betrieb.js';
-    import { navTabsHtml } from './js/nav.js';
+    import { navTabsHtml, bindNavSubmenus } from './js/nav.js';
     import { SECTION_INFO, welcomeParagraphs } from './js/section-info.js';
     import { collapsibleHtml, initCollapsibles } from './js/collapsible.js';
 
@@ -80,6 +80,7 @@
         unreadMessages,
         newSignups: signupResult.count || 0,
       });
+      bindNavSubmenus(slot);
     }
 
     function renderLocked() {
