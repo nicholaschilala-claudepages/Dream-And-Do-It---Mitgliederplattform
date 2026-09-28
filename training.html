@@ -650,7 +650,10 @@
     }
 
     function severityColor(sev) {
-      return { ok: 'var(--color-success)', warn: 'var(--color-gold)', alert: 'var(--color-danger)', unknown: 'var(--color-border)' }[sev] || 'var(--color-border)';
+      // Nutzer-Feedback Runde 10: "keine Daten" hellblau statt grau, damit sich
+      // der Marker sichtbar vom (ebenfalls grauen) Körper abhebt, aber klar vom
+      // Ampelsystem (grün/gold/rot) der echten Bewertungen unterscheidet.
+      return { ok: 'var(--color-success)', warn: 'var(--color-gold)', alert: 'var(--color-danger)', unknown: 'var(--color-info)' }[sev] || 'var(--color-info)';
     }
 
     // Anatomische Körper-Illustration, Nutzer-Feedback Runde 5: "wie ein
@@ -661,36 +664,36 @@
     // eines Mischmaschs, damit z.B. "Schulter" eindeutig als Gelenk- ODER
     // Muskel-Bezug erkennbar ist. Die Körper-Silhouette (frontBodyShape/
     // backBodyShape) ist für beide Zwecke identisch, nur die aufgesetzten
-    // Marker/Beschriftungen unterscheiden sich. viewBox ist bewusst breiter
-    // als die Figur selbst (-30..230 statt 0..200) und Beschriftungen mittiger
-    // Marker werden konsequent nach rechts herausgeführt (markerDotCenter),
-    // damit auch längere Bezeichnungen (z.B. "Oberschenkelmuskeln li.") nicht
-    // mehr mit der Silhouette kollidieren ("die Bildüberschriften überlagern
-    // das Bild" – Nutzer-Feedback Runde 9).
+    // Marker/Beschriftungen unterscheiden sich.
+    // Runde 10: ALLE Beschriftungen (nicht nur mittige) liegen jetzt konsequent
+    // auf zwei festen "Schienen" links/rechts AUSSERHALB der Silhouette
+    // (LEFT_RAIL_X/RIGHT_RAIL_X), verbunden per gestrichelter Linie mit dem
+    // jeweiligen Punkt – vorher wanderte eine seitlich versetzte Beschriftung
+    // (z.B. "Hüfte li.") nur 11 Einheiten vom Punkt weg und konnte so mit dem
+    // an der Seite herabhängenden Arm kollidieren. viewBox ist entsprechend
+    // breiter (-50..250 statt -30..230), damit auch längere Bezeichnungen
+    // (z.B. "Muskeln Arm li.") auf der Schiene noch Platz haben.
     function bodySeparatorLines(paths) {
       return paths.map((d) => `<path d="${d}" fill="none" stroke="var(--color-bg)" stroke-width="1.4" stroke-linecap="round" />`).join('');
     }
 
-    // Marker mit seitlich versetzter Beschriftung (linke/rechte Paare) – wandert
-    // je nach Körperseite nach außen, mit Abstand zur Silhouette dank breiterem viewBox.
-    function markerDot(cx, cy, sev, title, label) {
-      const toRight = cx >= 100;
-      return `
-        <g>
-          <circle cx="${cx}" cy="${cy}" r="7.5" fill="${severityColor(sev)}" stroke="var(--color-bg)" stroke-width="1.5"><title>${escapeHtml(title)}</title></circle>
-          <text x="${toRight ? cx + 11 : cx - 11}" y="${cy + 3}" font-size="7.5" fill="var(--color-text-muted)" text-anchor="${toRight ? 'start' : 'end'}">${escapeHtml(label)}</text>
-        </g>`;
-    }
+    const LEFT_RAIL_X = 26;
+    const RIGHT_RAIL_X = 174;
 
-    // Marker auf der Körpermitte (z.B. Brust, Bauch, oberer/unterer Rücken) –
-    // Beschriftung IMMER einheitlich nach rechts herausgeführt (mit dünner
-    // Verbindungslinie zum Punkt), damit sie nie über der Silhouette selbst liegt.
-    function markerDotCenter(cx, cy, sev, title, label) {
+    // Einheitlicher Marker: Punkt + gestrichelte Verbindungslinie + Beschriftung
+    // auf der linken/rechten Schiene. `side` ist 'left' oder 'right' – mittige
+    // Marker (z.B. Brust, Bauch, oberer/unterer Rücken) nutzen 'right', damit
+    // auch sie der einheitlichen Regel "immer außerhalb, immer per Linie
+    // verbunden" folgen statt einer Sonderbehandlung.
+    function markerDot(cx, cy, sev, title, label, side) {
+      const rail = side === 'left' ? LEFT_RAIL_X : RIGHT_RAIL_X;
+      const anchor = side === 'left' ? 'end' : 'start';
+      const lineStartX = side === 'left' ? cx - 7 : cx + 7;
       return `
         <g>
-          <line x1="${cx + 6}" y1="${cy}" x2="139" y2="${cy}" stroke="var(--color-text-muted)" stroke-width="1" stroke-dasharray="1.5 2" opacity="0.6" />
+          <line x1="${lineStartX}" y1="${cy}" x2="${rail}" y2="${cy}" stroke="var(--color-text-muted)" stroke-width="1" stroke-dasharray="1.5 2" opacity="0.6" />
           <circle cx="${cx}" cy="${cy}" r="7.5" fill="${severityColor(sev)}" stroke="var(--color-bg)" stroke-width="1.5"><title>${escapeHtml(title)}</title></circle>
-          <text x="145" y="${cy + 3}" font-size="7.5" fill="var(--color-text-muted)" text-anchor="start">${escapeHtml(label)}</text>
+          <text x="${rail}" y="${cy + 3}" font-size="7.5" fill="var(--color-text-muted)" text-anchor="${anchor}">${escapeHtml(label)}</text>
         </g>`;
     }
 
@@ -783,56 +786,56 @@
 
     function frontJointsSvg(markers) {
       return `
-        <svg viewBox="-30 0 260 400" style="width:170px; height:auto; flex-shrink:0;">
+        <svg viewBox="-50 0 300 400" style="width:190px; height:auto; flex-shrink:0;">
           ${frontBodyShape()}
-          ${markerDot(100, 48, markers.cervicalSpine.sev, markers.cervicalSpine.title, 'Halswirbelsäule')}
-          ${markerDot(58, 78, markers.shoulderLeft.sev, markers.shoulderLeft.title, 'Schulter li.')}
-          ${markerDot(142, 78, markers.shoulderRight.sev, markers.shoulderRight.title, 'Schulter re.')}
-          ${markerDot(85, 300, markers.kneeLeft.sev, markers.kneeLeft.title, 'Knie li.')}
-          ${markerDot(115, 300, markers.kneeRight.sev, markers.kneeRight.title, 'Knie re.')}
-          ${markerDot(80, 363, markers.ankleLeft.sev, markers.ankleLeft.title, 'Fußgelenk li.')}
-          ${markerDot(120, 363, markers.ankleRight.sev, markers.ankleRight.title, 'Fußgelenk re.')}
+          ${markerDot(100, 48, markers.cervicalSpine.sev, markers.cervicalSpine.title, 'Halswirbelsäule', 'right')}
+          ${markerDot(58, 78, markers.shoulderLeft.sev, markers.shoulderLeft.title, 'Schulter li.', 'left')}
+          ${markerDot(142, 78, markers.shoulderRight.sev, markers.shoulderRight.title, 'Schulter re.', 'right')}
+          ${markerDot(85, 300, markers.kneeLeft.sev, markers.kneeLeft.title, 'Knie li.', 'left')}
+          ${markerDot(115, 300, markers.kneeRight.sev, markers.kneeRight.title, 'Knie re.', 'right')}
+          ${markerDot(80, 363, markers.ankleLeft.sev, markers.ankleLeft.title, 'Fußgelenk li.', 'left')}
+          ${markerDot(120, 363, markers.ankleRight.sev, markers.ankleRight.title, 'Fußgelenk re.', 'right')}
           ${viewTitle('GELENKE – VORDERANSICHT')}
         </svg>`;
     }
 
     function backJointsSvg(markers) {
       return `
-        <svg viewBox="-30 0 260 400" style="width:170px; height:auto; flex-shrink:0;">
+        <svg viewBox="-50 0 300 400" style="width:190px; height:auto; flex-shrink:0;">
           ${backBodyShape()}
-          ${markerDot(100, 48, markers.neck.sev, markers.neck.title, 'Nacken')}
-          ${markerDot(58, 90, markers.shoulderLeft.sev, markers.shoulderLeft.title, 'Schulter li.')}
-          ${markerDot(142, 90, markers.shoulderRight.sev, markers.shoulderRight.title, 'Schulter re.')}
-          ${markerDotCenter(100, 150, markers.lowerBack.sev, markers.lowerBack.title, 'Unterer Rücken')}
-          ${markerDot(80, 188, markers.hipLeft.sev, markers.hipLeft.title, 'Hüfte li.')}
-          ${markerDot(120, 188, markers.hipRight.sev, markers.hipRight.title, 'Hüfte re.')}
+          ${markerDot(100, 48, markers.neck.sev, markers.neck.title, 'Nacken', 'right')}
+          ${markerDot(58, 90, markers.shoulderLeft.sev, markers.shoulderLeft.title, 'Schulter li.', 'left')}
+          ${markerDot(142, 90, markers.shoulderRight.sev, markers.shoulderRight.title, 'Schulter re.', 'right')}
+          ${markerDot(100, 150, markers.lowerBack.sev, markers.lowerBack.title, 'Unterer Rücken', 'right')}
+          ${markerDot(80, 188, markers.hipLeft.sev, markers.hipLeft.title, 'Hüfte li.', 'left')}
+          ${markerDot(120, 188, markers.hipRight.sev, markers.hipRight.title, 'Hüfte re.', 'right')}
           ${viewTitle('GELENKE – RÜCKANSICHT')}
         </svg>`;
     }
 
     function frontMusclesSvg(markers) {
       return `
-        <svg viewBox="-30 0 260 400" style="width:170px; height:auto; flex-shrink:0;">
+        <svg viewBox="-50 0 300 400" style="width:190px; height:auto; flex-shrink:0;">
           ${frontBodyShape()}
-          ${markerDotCenter(100, 98, markers.chest.sev, markers.chest.title, 'Brustmuskulatur')}
-          ${markerDotCenter(100, 150, markers.abs.sev, markers.abs.title, 'Bauchmuskeln')}
-          ${markerDot(52, 112, markers.armLeft.sev, markers.armLeft.title, 'Muskeln Arm li.')}
-          ${markerDot(148, 112, markers.armRight.sev, markers.armRight.title, 'Muskeln Arm re.')}
-          ${markerDot(85, 250, markers.thighLeft.sev, markers.thighLeft.title, 'Oberschenkel li.')}
-          ${markerDot(115, 250, markers.thighRight.sev, markers.thighRight.title, 'Oberschenkel re.')}
+          ${markerDot(100, 98, markers.chest.sev, markers.chest.title, 'Brustmuskulatur', 'right')}
+          ${markerDot(100, 150, markers.abs.sev, markers.abs.title, 'Bauchmuskeln', 'right')}
+          ${markerDot(52, 112, markers.armLeft.sev, markers.armLeft.title, 'Muskeln Arm li.', 'left')}
+          ${markerDot(148, 112, markers.armRight.sev, markers.armRight.title, 'Muskeln Arm re.', 'right')}
+          ${markerDot(85, 250, markers.thighLeft.sev, markers.thighLeft.title, 'Oberschenkel li.', 'left')}
+          ${markerDot(115, 250, markers.thighRight.sev, markers.thighRight.title, 'Oberschenkel re.', 'right')}
           ${viewTitle('MUSKELN – VORDERANSICHT')}
         </svg>`;
     }
 
     function backMusclesSvg(markers) {
       return `
-        <svg viewBox="-30 0 260 400" style="width:170px; height:auto; flex-shrink:0;">
+        <svg viewBox="-50 0 300 400" style="width:190px; height:auto; flex-shrink:0;">
           ${backBodyShape()}
-          ${markerDotCenter(100, 98, markers.upperBack.sev, markers.upperBack.title, 'Oberer Rücken')}
-          ${markerDotCenter(100, 150, markers.lowerBack.sev, markers.lowerBack.title, 'Unterer Rücken')}
-          ${markerDotCenter(100, 250, markers.hamstring.sev, markers.hamstring.title, 'Beinrückseite')}
-          ${markerDot(84, 328, markers.calfLeft.sev, markers.calfLeft.title, 'Wade li.')}
-          ${markerDot(116, 328, markers.calfRight.sev, markers.calfRight.title, 'Wade re.')}
+          ${markerDot(100, 98, markers.upperBack.sev, markers.upperBack.title, 'Oberer Rücken', 'right')}
+          ${markerDot(100, 150, markers.lowerBack.sev, markers.lowerBack.title, 'Unterer Rücken', 'right')}
+          ${markerDot(100, 250, markers.hamstring.sev, markers.hamstring.title, 'Beinrückseite', 'right')}
+          ${markerDot(84, 328, markers.calfLeft.sev, markers.calfLeft.title, 'Wade li.', 'left')}
+          ${markerDot(116, 328, markers.calfRight.sev, markers.calfRight.title, 'Wade re.', 'right')}
           ${viewTitle('MUSKELN – RÜCKANSICHT')}
         </svg>`;
     }
@@ -860,7 +863,7 @@
             <span><i style="background:var(--color-success);"></i> unauffällig</span>
             <span><i style="background:var(--color-gold);"></i> leichter Hinweis</span>
             <span><i style="background:var(--color-danger);"></i> deutlicher Hinweis</span>
-            <span><i style="background:var(--color-border);"></i> keine Daten</span>
+            <span><i style="background:var(--color-info);"></i> keine Daten</span>
           </div>
           ${notices.length === 0
             ? '<p style="color:var(--color-text-muted); font-size:0.85rem;">Noch keine auffälligen Befunde bzw. noch keine ausreichenden Daten.</p>'
@@ -1436,6 +1439,45 @@
           renderTestsSection(el, clientId, { isAdminView });
         });
       });
+    }
+
+    // Nutzer-Feedback Runde 10: in "Meine Entwicklung" (renderAnalyticsView,
+    // auch von der Trainer-Kundenanalyse genutzt) wurde bisher die komplette
+    // renderTestsSection() eingebettet – samt Eingabeformularen. Das war eine
+    // ungewollte Dopplung, da Tests bereits im eigenen Reiter "Tests"
+    // eingetragen werden. Hier bleibt nur der reine Status-/Erinnerungs-
+    // Hinweis (dieselbe "älter als 12 Wochen"-Logik wie in renderTestsSection),
+    // ohne Testkarten oder Formulare – Eintragen ist an dieser Stelle bewusst
+    // nicht mehr möglich.
+    async function renderTestsReminder(el, clientId, { isAdminView }) {
+      el.innerHTML = '<p class="center-text">Lade …</p>';
+      const { data: allResults, error: resultsError } = await listPreventionResults(clientId);
+      if (resultsError) { el.innerHTML = `<div class="msg error">${escapeHtml(resultsError.message)}</div>`; return; }
+
+      const latest = latestByKey(allResults || []);
+      const staleItems = [];
+      [...STRENGTH_TESTS, ...MOBILITY_TESTS].forEach((t) => {
+        const sides = t.hasSide ? ['left', 'right'] : [null];
+        sides.forEach((side) => {
+          const key = side ? `${t.key}:${side}` : t.key;
+          const r = latest[key];
+          const sideLabel = side ? ` (${SIDE_LABEL[side]})` : '';
+          if (!r) staleItems.push(`${t.label}${sideLabel} – noch kein Test eingetragen`);
+          else if (isStale(r.measured_at)) staleItems.push(`${t.label}${sideLabel} – letzter Test vor über 12 Wochen (${formatDateOnly(r.measured_at)})`);
+        });
+      });
+
+      el.innerHTML = staleItems.length > 0 ? `
+        <div class="card" style="border-color: rgba(200,124,0,0.4);">
+          <h3 style="font-size:0.95rem; margin:0 0 8px; color:var(--color-gold);">Erinnerung: Tests aktualisieren</h3>
+          <p style="color:var(--color-text-muted); font-size:0.78rem; margin:0 0 8px;">Eintragen kannst du die Tests im Reiter „Tests"${isAdminView ? ' – bzw. der Kunde selbst in seiner eigenen Ansicht' : ''}.</p>
+          <ul style="margin:0; padding-left:18px; font-size:0.85rem; color:var(--color-text-muted);">
+            ${staleItems.map((i) => `<li>${escapeHtml(i)}</li>`).join('')}
+          </ul>
+        </div>` : `
+        <div class="card">
+          <p style="color:var(--color-success); font-size:0.85rem; margin:0;">✓ Alle Tests sind aktuell (nicht älter als 12 Wochen).</p>
+        </div>`;
     }
 
     // =========================================================================
@@ -2223,7 +2265,8 @@
           <h2 class="mt-24" style="font-size:1.15rem;">Präventionscheck</h2>
           <div id="prevention-section"></div>
 
-          <h2 class="mt-24" style="font-size:1.15rem;">Tests &amp; Erinnerung (Kundendatei)</h2>
+          <h2 class="mt-24" style="font-size:1.15rem;">Tests – Erinnerung</h2>
+          <p style="color:var(--color-text-muted); font-size:0.82rem; margin:-4px 0 12px;">Nur ein Status-Hinweis – Tests selbst werden im eigenen Reiter „Tests" eingetragen, nicht hier.</p>
           <div id="tests-section"></div>
         `;
 
@@ -2255,7 +2298,7 @@
         const preventionEl = document.getElementById('prevention-section');
         if (preventionEl) renderPreventionSection(preventionEl, clientId, { isAdminView });
         const testsEl = document.getElementById('tests-section');
-        if (testsEl) renderTestsSection(testsEl, clientId, { isAdminView });
+        if (testsEl) renderTestsReminder(testsEl, clientId, { isAdminView });
       }
 
       function renderProgressChart(logs) {
