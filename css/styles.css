@@ -19,6 +19,10 @@
   --color-border: #e2e4e0;
   --color-danger: #b3261e;
   --color-success: #2f6f4f;
+  /* Nutzer-Feedback Runde 10: "keine Daten"-Markierungen im Körper-Visual
+     sollen sich hellblau vom Körper abheben, aber klar vom Ampelsystem
+     (success/gold/danger) unterscheiden. */
+  --color-info: #4F9FD6;
 
   --font-heading: 'Cinzel', 'Trajan Pro', serif;
   --font-body: 'Source Serif 4', Georgia, serif;
@@ -773,4 +777,64 @@ a { color: var(--color-gold); }
   color: var(--color-danger);
   border-color: rgba(180,40,40,0.25);
 }
+
+/* Kraft-Rekord-Tracker & Streak-Zähler (Runde 15) */
+.records-summary-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.streak-tile {
+  flex: 1;
+  min-width: 150px;
+  background: rgba(200,124,0,0.08);
+  border: 1px solid rgba(200,124,0,0.25);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.streak-tile .streak-number {
+  display: block;
+  font-family: var(--font-display, inherit);
+  font-size: 1.7rem;
+  font-weight: 700;
+  color: var(--color-gold);
+  line-height: 1.1;
+}
+.streak-tile .streak-label {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+.pr-feed { display: flex; flex-direction: column; gap: 8px; }
+.pr-feed-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(200,124,0,0.06);
+  font-size: 0.85rem;
+}
+.pr-feed-item .pr-feed-icon { flex-shrink: 0; }
+.pr-feed-item .pr-feed-date {
+  margin-left: auto;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+.pr-badge {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 20px;
+  background: rgba(200,124,0,0.15);
+  color: var(--color-gold);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+tr.pr-row td:first-child { border-left: 3px solid var(--color-gold); }
 .mt-24 { margin-top: 24px; }
