@@ -34,6 +34,7 @@ const SECTION_SUBTABS = {
       { key: 'progress', label: 'Meine Entwicklung' },
       { key: 'praevention', label: 'Präventionscheck' },
       { key: 'tests', label: 'Tests' },
+      { key: 'monatsbericht', label: 'Monatsbericht' },
     ],
     admin: [
       { key: 'templates', label: 'Vorlagen bauen' },
@@ -73,6 +74,24 @@ const SECTION_SUBTABS = {
       { key: 'atem', label: 'Atemübungen' },
       { key: 'fragebogen', label: 'Fragebögen' },
       { key: 'ziele', label: 'Ziele (GROW)' },
+    ],
+  },
+  // Nutzer-Feedback Runde 13: betrieb.html hatte noch sein eigenes
+  // Hamburger-Menü (js/subnav.js, BETRIEB_TABS) statt wie Training/Ernährung/
+  // Coaching im Kopfzeilen-Dropdown zu erscheinen — genau die doppelte
+  // Menüführung, die Runde 5/9 für die anderen Sektionen bereits beseitigt
+  // hat. betrieb.html ist ausschließlich für Admins sichtbar, daher hier
+  // client === admin (wird nie im Kunden-Zweig gebraucht).
+  betrieb: {
+    client: [
+      { key: 'fruehwarn', label: 'Frühwarnsystem' },
+      { key: 'report', label: 'Wochenreport' },
+      { key: 'geraete', label: 'Geräte' },
+    ],
+    admin: [
+      { key: 'fruehwarn', label: 'Frühwarnsystem' },
+      { key: 'report', label: 'Wochenreport' },
+      { key: 'geraete', label: 'Geräte' },
     ],
   },
 };

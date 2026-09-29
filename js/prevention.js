@@ -192,13 +192,53 @@ export const MOBILITY_TESTS = [
     label: 'Iliopsoas-Test (Thomas-Test)',
     hasSide: true,
     ratingLabels: { '1': 'Normal – anderes Bein bleibt flach', '0': 'Leicht eingeschränkt', '-1': 'Verkürzt – gestrecktes Bein hebt ab' },
-    ausfuehrung: 'In ruhiger Umgebung, ohne Zeitdruck testen. Beide Seiten nacheinander testen.',
+    ausfuehrung: 'In ruhiger Umgebung, ohne Zeitdruck testen. Beide Seiten nacheinander testen. Da man in Rückenlage das eigene gestrecktes Bein selbst schlecht beobachten kann, am besten ein Handyvideo von der Seite aufnehmen oder einen Spiegel seitlich aufstellen, um zuverlässig zu erkennen, ob das Bein abhebt.',
     typischeFehler: 'Ausweichbewegungen und über die Schmerzgrenze hinaus gehen.',
     abbruchkriterium: 'Bei Schmerz oder deutlichem Unsicherheitsgefühl sofort abbrechen.',
     kontraindikation: 'Nicht bei akuter Gelenkverletzung, frischer Prellung oder unmittelbar nach intensivem Training testen – Ermüdung verfälscht das Bewegungsbild.',
     source: 'Clapis, P. A., Davis, S. M., & Davis, R. O. (2008). Reliability of inclinometer and goniometric measurements of hip extension flexibility using the modified Thomas test. Physiotherapy Theory and Practice, 24(2), 135–141.',
     goodImage: 'content/tests/thomas-test-normal.jpg',
     limitedImage: 'content/tests/thomas-test-verkuerzt.jpg',
+  },
+  // Nutzer-Feedback Runde 14: drei neue, vom Nutzer freigegebene Tests für die
+  // neuen Körper-Visualisierungspunkte (Handgelenke, Ellbogen, zweiter Punkt
+  // Beinrückseite). Auf ausdrücklichen Wunsch bewusst so gestaltet, dass sie
+  // ohne Hilfsperson zuverlässig durchführbar sind (Handgelenk: ohnehin allein
+  // machbar; Ellbogen: Hinweis auf Spiegel/Foto für den Seitenvergleich;
+  // Beinrückseite: wandgestützte AKE-Variante statt der Standardausführung mit
+  // Partner, der die Hüfte bei 90° fixiert).
+  {
+    key: 'wrist_extension',
+    label: 'Handgelenk-Streck-Test (Wandtest)',
+    hasSide: true,
+    ratingLabels: { '1': 'Gut – Oberkörper nahezu senkrecht bei flacher Handfläche', '0': 'Normal – leichte Einschränkung', '-1': 'Eingeschränkt – Handfläche hebt schnell ab bzw. deutliche Spannung' },
+    ausfuehrung: 'Handfläche flach gegen eine Wand pressen, Finger zeigen nach unten, Arm gestreckt. Langsam den Oberkörper der Wand annähern, so weit wie möglich, ohne dass die Handfläche den Wandkontakt verliert. Beide Seiten nacheinander testen.',
+    typischeFehler: 'Handgelenk zur Seite verdrehen statt gerade zu strecken; über die Schmerzgrenze hinaus gehen.',
+    abbruchkriterium: 'Bei Schmerz oder deutlichem Unsicherheitsgefühl sofort abbrechen.',
+    kontraindikation: 'Nicht bei akuter Handgelenks-/Unterarmverletzung, frischer Prellung oder unmittelbar nach intensivem Training testen.',
+    source: 'Klinischer Screening-Test für Handgelenksextension (Prayer-Stretch-Variante); ROM-Referenzwerte für eine normale Handgelenksextension (ca. 70–80°) nach American Academy of Orthopaedic Surgeons (AAOS), Joint Motion: Method of Measuring and Recording.',
+  },
+  {
+    key: 'elbow_extension',
+    label: 'Ellbogen-Streckungs-Test',
+    hasSide: true,
+    ratingLabels: { '1': 'Gut – vollständige, seitengleiche Streckung', '0': 'Normal – minimales Streckdefizit (unter ca. 10°)', '-1': 'Eingeschränkt – deutliches Streckdefizit oder Seitenunterschied' },
+    ausfuehrung: 'Arm seitlich am Körper vollständig entspannt hängen lassen, Handfläche nach vorne. Im Seitenvergleich beobachten, ob der Ellbogen vollständig durchgestreckt werden kann. Da man das selbst nur schwer sieht, am besten vor einem Spiegel stehen oder ein Handyfoto von vorne machen und beide Arme vergleichen.',
+    typischeFehler: 'Schulter mitbewegen statt den Arm wirklich locker hängen zu lassen; Einschätzung ohne Spiegel/Foto rein nach Gefühl.',
+    abbruchkriterium: 'Bei Schmerz oder deutlichem Unsicherheitsgefühl sofort abbrechen.',
+    kontraindikation: 'Nicht bei akuter Ellbogenverletzung, frischer Prellung oder unmittelbar nach intensivem Arm-/Oberkörpertraining testen.',
+    source: 'Standard-orthopädische Untersuchungstechnik nach der Neutral-Null-Methode (Bewegungsausmaß-Dokumentation in der Orthopädie/Physiotherapie).',
+  },
+  {
+    key: 'ake_hamstring',
+    label: 'Beinrückseite je Seite (Aktive Kniestreckung, wandgestützt)',
+    hasSide: true,
+    ratingLabels: { '1': 'Gut – nahezu volle Streckung (Knie kommt nah an die Wand-Senkrechte)', '0': 'Normal – moderates Streckdefizit', '-1': 'Eingeschränkt – deutliches Streckdefizit' },
+    ausfuehrung: 'Ergänzt den bestehenden beidseitigen Sit-and-Reach-Test um eine seitengetrennte Messung. Rückenlage auf dem Boden, Gesäß nah an einer Wand oder einem Türrahmen, das zu testende Bein senkrecht an der Wand anlehnen (Hüfte dadurch automatisch bei ca. 90°, ohne dass jemand festhalten muss). Das andere Bein bleibt flach am Boden gestreckt. Das angelehnte Knie dann aktiv so weit wie möglich strecken (Ferse gleitet die Wand hinauf) und den verbleibenden Abstand/Winkel zur Wand-Senkrechten grob einschätzen – am besten mit einem Handyfoto von der Seite dokumentieren, dann ist der Seiten- und Verlaufsvergleich zuverlässiger. Beide Seiten nacheinander testen.',
+    typischeFehler: 'Gesäß von der Wand wegrutschen lassen (verfälscht den 90°-Hüftwinkel); das andere Bein vom Boden abheben; über die Schmerzgrenze hinaus gehen.',
+    abbruchkriterium: 'Bei Schmerz oder deutlichem Unsicherheitsgefühl sofort abbrechen.',
+    kontraindikation: 'Nicht bei akuter Knie-/Hüftverletzung, frischer Prellung oder unmittelbar nach intensivem Beintraining testen – Ermüdung verfälscht das Bewegungsbild.',
+    source: 'Gajdosik, R. L., & Lusin, G. (1983). Hamstring muscle tightness: reliability of an active-knee-extension test. Physical Therapy, 63(7), 1085–1090 (Active Knee Extension/AKE-Test); wandgestützte Fixierung der Hüfte bei 90° als alltagstaugliche Selbsttest-Variante ohne Hilfsperson.',
   },
 ];
 
