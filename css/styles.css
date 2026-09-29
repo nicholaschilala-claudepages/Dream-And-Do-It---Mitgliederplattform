@@ -837,4 +837,37 @@ a { color: var(--color-gold); }
   vertical-align: middle;
 }
 tr.pr-row td:first-child { border-left: 3px solid var(--color-gold); }
+
+/* Achievements/Erfolge (Runde 16) */
+.achievements-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 10px;
+}
+.achievement-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+  padding: 12px 8px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(200,124,0,0.2);
+  background: rgba(200,124,0,0.06);
+}
+.achievement-badge.earned {
+  border-color: rgba(200,124,0,0.45);
+  background: rgba(200,124,0,0.12);
+}
+.achievement-badge.locked { opacity: 0.5; filter: grayscale(0.6); }
+.achievement-badge .achievement-icon { font-size: 1.6rem; line-height: 1; }
+.achievement-badge .achievement-title {
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.achievement-badge .achievement-progress {
+  font-size: 0.68rem;
+  color: var(--color-text-muted);
+}
 .mt-24 { margin-top: 24px; }
