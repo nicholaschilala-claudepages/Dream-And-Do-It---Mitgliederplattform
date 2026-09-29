@@ -79,6 +79,51 @@ export const BREATHING_TECHNIQUES = [
       { name: 'Ausatmen', seconds: 6, scaleTo: 1 },
     ],
   },
+  /**
+   * Lippenbremse (Pursed-Lip Breathing): kurz durch die Nase einatmen, danach
+   * doppelt so lang durch leicht gespitzte Lippen ausatmen (wie sanftes
+   * Auspusten einer Kerze). Eine der am besten belegten und in Leitlinien
+   * empfohlenen Atemtechniken für Menschen mit Atemwegserkrankungen (z.B.
+   * COPD) – Runde 16, auf Nutzerwunsch ergänzt.
+   * Referenz: GOLD (Global Initiative for Chronic Obstructive Lung Disease),
+   * "Global Strategy for Prevention, Diagnosis and Management of COPD",
+   * 2025 Report – nennt Atemtechnik-Training als Bestandteil der
+   * nichtmedikamentösen Versorgung; Netzwerk-Metaanalyse: "Effects of
+   * Breathing Exercises in Patients With COPD" (2023), Archives of Physical
+   * Medicine and Rehabilitation – Lippenbremse zählt zu den wirksamsten
+   * Einzeltechniken zur Reduktion von Atemnot.
+   */
+  {
+    key: 'pursed_lip',
+    label: 'Lippenbremse (Pursed-Lip Breathing)',
+    shortDesc: '2 Sekunden ruhig durch die Nase einatmen, 4 Sekunden langsam durch leicht gespitzte Lippen ausatmen – wie beim sanften Auspusten einer Kerze. Eine der am besten untersuchten Techniken zur Linderung von Atemnot.',
+    science: 'Die verlängerte, gebremste Ausatmung durch die gespitzten Lippen erzeugt einen leichten Gegendruck, der die Atemwege länger offen hält und ein vorzeitiges Kollabieren der kleinen Bronchien verhindert. Dadurch kann mehr verbrauchte Luft aus der Lunge entweichen (weniger "Air Trapping"), die Atemfrequenz sinkt und die Atmung wird insgesamt ökonomischer. Leitlinien zur Behandlung chronisch-obstruktiver Lungenerkrankungen (COPD) empfehlen Atemtechnik-Training als festen Bestandteil der nichtmedikamentösen Versorgung; eine Netzwerk-Metaanalyse aus 2023 zählt die Lippenbremse zu den wirksamsten Einzeltechniken zur Reduktion von Atemnot und Verbesserung der Belastungstoleranz.',
+    source: 'GOLD Global Strategy for COPD, 2025 Report; "Effects of Breathing Exercises in Patients With COPD: A Network Meta-analysis" (2023), Archives of Physical Medicine and Rehabilitation',
+    disclaimer: 'Diese Übung kann eine ärztlich verordnete Atemtherapie/pneumologische Reha bei diagnostizierten Atemwegserkrankungen (z.B. COPD, Asthma) ergänzen, aber nicht ersetzen. Bei diagnostizierter Atemwegserkrankung bitte vorher mit Arzt/Ärztin oder Pneumologie-Praxis absprechen.',
+    phases: [
+      { name: 'Einatmen (Nase)', seconds: 2, scaleTo: 1.35 },
+      { name: 'Ausatmen (Lippenbremse)', seconds: 4, scaleTo: 1 },
+    ],
+  },
+  /**
+   * Zwerchfellatmung (Bauchatmung): tief in den Bauch statt in die obere
+   * Brust einatmen, eine Hand auf dem Bauch spürt die Wölbung. Trainiert das
+   * Zwerchfell als primären Atemmuskel und reduziert die Atemarbeit der
+   * (bei Atemwegserkrankungen oft überlasteten) Atemhilfsmuskulatur im
+   * Schulter-/Nackenbereich. Runde 16, auf Nutzerwunsch ergänzt.
+   */
+  {
+    key: 'diaphragmatic',
+    label: 'Zwerchfellatmung (Bauchatmung)',
+    shortDesc: '4 Sekunden tief in den Bauch einatmen (eine Hand auf dem Bauch spürt die Wölbung, die Schultern bleiben ruhig), 6 Sekunden langsam ausatmen. Trainiert das Zwerchfell als effizientesten Atemmuskel.',
+    science: 'Bei vielen Menschen – verstärkt bei Atemwegserkrankungen wie COPD – übernimmt zunehmend die Atemhilfsmuskulatur in Schulter und Nacken einen Teil der Atemarbeit, was ineffizient ist und zu schnellerer Ermüdung führt. Gezieltes Training der Zwerchfellatmung lenkt die Atembewegung zurück in den Bauchraum, wo das Zwerchfell als größter und effizientester Atemmuskel wieder die Hauptarbeit übernimmt. Atemtechnik-Training – einschließlich Zwerchfellatmung – ist laut aktueller COPD-Leitlinie (GOLD) und einer Netzwerk-Metaanalyse (2023) mit einer Verbesserung von Atemnot, Belastungstoleranz und Lebensqualität assoziiert, wenn auch die Evidenz für die Sauerstoffsättigung selbst schwächer ausfällt als für diese Symptommaße.',
+    source: 'GOLD Global Strategy for COPD, 2025 Report; "Effects of Breathing Exercises in Patients With COPD: A Network Meta-analysis" (2023), Archives of Physical Medicine and Rehabilitation',
+    disclaimer: 'Diese Übung kann eine ärztlich verordnete Atemtherapie/pneumologische Reha bei diagnostizierten Atemwegserkrankungen (z.B. COPD, Asthma) ergänzen, aber nicht ersetzen. Bei diagnostizierter Atemwegserkrankung bitte vorher mit Arzt/Ärztin oder Pneumologie-Praxis absprechen.',
+    phases: [
+      { name: 'Einatmen (Bauch wölbt sich)', seconds: 4, scaleTo: 1.55 },
+      { name: 'Ausatmen', seconds: 6, scaleTo: 1 },
+    ],
+  },
 ];
 
 // ---------------------------------------------------------------------------

@@ -160,6 +160,102 @@ export const STRENGTH_TESTS = [
   },
 ];
 
+// ---------------------------------------------------------------------------
+// Cardio-Fitness-Test (Runde 16) – Cooper-12-Minuten-Lauf ODER Rockport-
+// Gehtest, beide münden in einen geschätzten VO2max-Wert (ml/kg/min), der
+// wie die übrigen Kraftausdauertests im Präventionscheck geloggt wird
+// (test_key 'cardio_fitness' in prevention_test_results; value = der
+// berechnete VO2max, die gewählten Rohdaten/das Protokoll werden zusätzlich
+// als Klartext in notes gespeichert – kein Schema-Umbau nötig).
+//
+// Begründung für die Aufnahme: Mandsager et al. (2018), JAMA Network Open,
+// fanden in einer Kohorte von 122.007 Personen einen durchgehenden,
+// nahezu linearen Zusammenhang zwischen kardiorespiratorischer Fitness und
+// Gesamtmortalität, ohne erkennbare Obergrenze des Nutzens.
+// ---------------------------------------------------------------------------
+
+/**
+ * Cooper, K. H. (1968). "A Means of Assessing Maximal Oxygen Intake."
+ * JAMA, 203(3), 201–204. 12-Minuten-Lauftest: möglichst weite Strecke in
+ * 12 Minuten zurücklegen, VO2max aus der Distanz schätzen.
+ */
+export function computeCooperVO2max(distanceMeters) {
+  if (!distanceMeters || distanceMeters <= 0) return null;
+  const vo2max = (distanceMeters - 504.9) / 44.73;
+  return vo2max > 0 ? Math.round(vo2max * 10) / 10 : null;
+}
+
+/**
+ * Kline, G. M. et al. (1987). "Estimation of VO2max from a one-mile track
+ * walk, gender, age, and body weight." Medicine & Science in Sports &
+ * Exercise, 19(3), 253–259. 1-Meile-Gehtest (zügig gehen, nicht laufen):
+ * Zeit und Puls direkt am Ziel messen.
+ */
+export function computeRockportVO2max({ weightKg, ageYears, sex, timeMinutes, heartRateBpm }) {
+  if (!weightKg || !ageYears || !timeMinutes || !heartRateBpm) return null;
+  const weightLb = weightKg * 2.20462;
+  const genderValue = sex === 'female' ? 0 : 1;
+  const vo2max = 132.853
+    - (0.0769 * weightLb)
+    - (0.3877 * ageYears)
+    + (6.315 * genderValue)
+    - (3.2649 * timeMinutes)
+    - (0.1565 * heartRateBpm);
+  return vo2max > 0 ? Math.round(vo2max * 10) / 10 : null;
+}
+
+/**
+ * Einstufungs-Tabelle: Cooper Institute, "Physical Fitness Specialist
+ * Certification Manual" (rev. 1997), Dallas TX – zitiert nach Heyward, V.H.
+ * (1998), "Advanced Fitness Assessment & Exercise Prescription", 3. Aufl.,
+ * S. 48. Hinweis zur Transparenz: VO2max-Normtabellen unterscheiden sich je
+ * nach Quelle spürbar (das aktuelle ACSM-Regelwerk nutzt inzwischen
+ * perzentilbasierte Referenzwerte aus der FRIEND-Registry, Kaminsky et al.
+ * 2022, Mayo Clinic Proceedings). Die hier hinterlegte Cooper-Institute-
+ * Tabelle ist eine der am häufigsten zitierten kategorialen Einstufungen und
+ * dient der eigenen Verlaufskontrolle, nicht einer diagnostischen Aussage.
+ * Werte je Altersband = untere Grenze der jeweiligen Kategorie (ml/kg/min).
+ */
+const VO2MAX_BANDS_MALE = [
+  { minAge: 20, maxAge: 29, schlecht: 33.0, maessig: 36.5, gut: 42.5, ausgezeichnet: 46.5, superior: 52.5 },
+  { minAge: 30, maxAge: 39, schlecht: 31.5, maessig: 35.5, gut: 41.0, ausgezeichnet: 45.0, superior: 49.5 },
+  { minAge: 40, maxAge: 49, schlecht: 30.2, maessig: 33.6, gut: 39.0, ausgezeichnet: 43.8, superior: 48.1 },
+  { minAge: 50, maxAge: 59, schlecht: 26.1, maessig: 31.0, gut: 35.8, ausgezeichnet: 41.0, superior: 45.4 },
+  { minAge: 60, maxAge: 120, schlecht: 20.5, maessig: 26.1, gut: 32.3, ausgezeichnet: 36.5, superior: 44.3 },
+];
+
+const VO2MAX_BANDS_FEMALE = [
+  { minAge: 20, maxAge: 29, schlecht: 23.6, maessig: 29.0, gut: 33.0, ausgezeichnet: 37.0, superior: 41.1 },
+  { minAge: 30, maxAge: 39, schlecht: 22.8, maessig: 27.0, gut: 31.5, ausgezeichnet: 35.7, superior: 40.1 },
+  { minAge: 40, maxAge: 49, schlecht: 21.0, maessig: 24.5, gut: 29.0, ausgezeichnet: 32.9, superior: 37.0 },
+  { minAge: 50, maxAge: 59, schlecht: 20.2, maessig: 22.8, gut: 27.0, ausgezeichnet: 31.5, superior: 35.8 },
+  { minAge: 60, maxAge: 120, schlecht: 17.5, maessig: 20.2, gut: 24.5, ausgezeichnet: 30.3, superior: 31.5 },
+];
+
+export function evaluateCardioFitness(ageYears, sex, vo2max) {
+  if (ageYears == null || vo2max == null) return { key: null, label: 'Keine Auswertung möglich', bandFound: false };
+  const bands = sex === 'female' ? VO2MAX_BANDS_FEMALE : VO2MAX_BANDS_MALE;
+  const band = bands.find((b) => ageYears >= b.minAge && ageYears <= b.maxAge);
+  if (!band) return { key: null, label: 'Keine Referenzwerte für dieses Alter hinterlegt', bandFound: false };
+  let key, label;
+  if (vo2max >= band.superior) { key = 'top'; label = 'Superior'; }
+  else if (vo2max >= band.ausgezeichnet) { key = 'high'; label = 'Ausgezeichnet'; }
+  else if (vo2max >= band.gut) { key = 'mid'; label = 'Gut'; }
+  else if (vo2max >= band.maessig) { key = 'low'; label = 'Mäßig'; }
+  else if (vo2max >= band.schlecht) { key = 'poor'; label = 'Schlecht'; }
+  else { key = 'below'; label = 'Sehr schlecht'; }
+  return { key, label, bandFound: true, genderNote: sex == null ? 'Ohne hinterlegtes Geschlecht wird die männliche Referenztabelle verwendet.' : null };
+}
+
+// Nur für die "aktuell/veraltet"-Vollständigkeitsprüfung (getStaleTestSummary,
+// renderTestsSection/renderTestsReminder in training.html) – die eigentliche
+// Test-Karte mit den beiden Protokoll-Formularen wird in training.html
+// eigenständig gerendert (cardioTestCardHtml), nicht generisch wie bei
+// STRENGTH_TESTS/MOBILITY_TESTS.
+export const CARDIO_TESTS = [
+  { key: 'cardio_fitness', label: 'Herz-Kreislauf-Fitness (VO2max)', hasSide: false },
+];
+
 export const MOBILITY_TESTS = [
   {
     key: 'shoulder_mobility',
@@ -321,7 +417,7 @@ export async function getStaleTestSummary(clientId) {
   if (error) return { items: [], count: 0, results: [], error };
   const latest = latestByKey(results || []);
   const items = [];
-  [...STRENGTH_TESTS, ...MOBILITY_TESTS].forEach((t) => {
+  [...STRENGTH_TESTS, ...MOBILITY_TESTS, ...CARDIO_TESTS].forEach((t) => {
     const sides = t.hasSide ? ['left', 'right'] : [null];
     sides.forEach((side) => {
       const key = side ? `${t.key}:${side}` : t.key;
@@ -335,6 +431,20 @@ export async function getStaleTestSummary(clientId) {
 }
 
 const SIDE_LABEL_LOCAL = { left: 'links', right: 'rechts' };
+
+/**
+ * Runde 16: reine Vollständigkeitsprüfung für das "Präventionscheck
+ * komplett"-Achievement (js/achievements.js) – anders als getStaleTestSummary()
+ * interessiert hier NUR, ob jeder Test schon mindestens einmal eingetragen
+ * wurde, nicht ob er noch aktuell (< 12 Wochen) ist.
+ */
+export function isPreventionCheckComplete(results) {
+  const latest = latestByKey(results || []);
+  return [...STRENGTH_TESTS, ...MOBILITY_TESTS, ...CARDIO_TESTS].every((t) => {
+    const sides = t.hasSide ? ['left', 'right'] : [null];
+    return sides.every((side) => !!latest[side ? `${t.key}:${side}` : t.key]);
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Körperzusammensetzung – ACE Body Fat Percentage Categories
