@@ -40,6 +40,13 @@
     import { navTabsHtml, bindNavSubmenus } from './js/nav.js';
     import { SECTION_INFO, welcomeParagraphs } from './js/section-info.js';
     import { collapsibleHtml, initCollapsibles } from './js/collapsible.js';
+    // Nutzer-Feedback Runde 14: Geburtsdatum wird jetzt auf der Startseite
+    // erfasst (statt nur im Präventionscheck) und von dort für PAL-Rechner
+    // & Präventionscheck wiederverwendet; die Ziele (GROW) bekommen eine
+    // kompakte Karte direkt nach der Begrüßung statt nur als Unterseite.
+    import { supabaseClient } from './js/supabase-client.js';
+    import { calcAge, updateBirthDate } from './js/prevention.js';
+    import { listMyGoals } from './js/coaching.js';
 
     initTheme();
     document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
@@ -183,7 +190,29 @@
           ${welcomeHtml}
         </div>
 
-        <div class="benefit-grid">
+        <div class="card mt-24" id="grow-summary-card">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+            <h3 style="font-size:1rem; margin:0;">Deine Ziele (GROW)</h3>
+            <a class="icon-btn" style="text-decoration:none;" href="coaching.html?tab=ziele">Alle Ziele öffnen →</a>
+          </div>
+          <div id="grow-summary-list" class="mt-16"><p class="center-text" style="font-size:0.85rem;">Lade Ziele …</p></div>
+        </div>
+
+        <div class="card mt-24" id="birthdate-card">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+            <div>
+              <h3 style="font-size:1rem; margin:0 0 2px;">Geburtsdatum</h3>
+              <p style="color:var(--color-text-muted); font-size:0.82rem; margin:0;">Wird für den PAL-Rechner und den Präventionscheck verwendet – hier einmal eintragen, überall automatisch übernommen.</p>
+            </div>
+          </div>
+          <div id="birthdate-display" class="mt-16"><p class="center-text" style="font-size:0.85rem;">Lade …</p></div>
+          <form id="birthdate-form" class="hidden mt-16">
+            <div class="field"><label>Geburtsdatum</label><input type="date" id="birthdate-input" required /></div>
+            <button class="btn secondary small-btn" type="submit">Speichern</button>
+          </form>
+        </div>
+
+        <div class="benefit-grid mt-24">
           ${modules.map((m) => {
             const info = SECTION_INFO[m.key];
             return `
@@ -203,6 +232,81 @@
       // wurde entfernt — sie duplizierte nur die neue Kopfzeilen-Reiterleiste
       // (siehe #nav-tabs-slot / js/nav.js), die jetzt auf jeder Seite verfügbar ist.
       initCollapsibles(container);
+      renderGrowSummary(profile);
+      renderBirthdateCard(profile);
+    }
+
+    // Nutzer-Feedback Runde 14: kompakte Ziele-Karte direkt auf der Startseite
+    // (nach der Begrüßung) statt nur als Unterseite in Coaching – der volle
+    // GROW-Editor bleibt weiterhin dort, hier nur eine Kurzübersicht + Link.
+    async function renderGrowSummary(profile) {
+      const listEl = document.getElementById('grow-summary-list');
+      if (!listEl) return;
+      const { data: goals, error } = await listMyGoals(profile.id);
+      if (error) { listEl.innerHTML = `<div class="msg error">${escapeHtml(error.message)}</div>`; return; }
+
+      const active = (goals || []).filter((g) => g.status === 'active');
+      const shown = (active.length > 0 ? active : (goals || [])).slice(0, 3);
+
+      if (shown.length === 0) {
+        listEl.innerHTML = `<p style="color:var(--color-text-muted); font-size:0.85rem; margin:0;">Noch keine Ziele hinterlegt – leg dein erstes Ziel im Bereich <a href="coaching.html?tab=ziele">Coaching &amp; Ziele (GROW)</a> an.</p>`;
+        return;
+      }
+
+      listEl.innerHTML = `<ul style="margin:0; padding-left:18px; font-size:0.88rem;">
+        ${shown.map((g) => `<li style="margin-bottom:6px;">
+          <strong>${escapeHtml(g.title)}</strong>
+          ${g.target_date ? ` <span style="color:var(--color-text-muted); font-size:0.78rem;">– Zieltermin: ${new Date(g.target_date).toLocaleDateString('de-DE')}</span>` : ''}
+          ${g.status === 'achieved' ? ' <span class="status-pill-inline" style="color:var(--color-success);">erreicht</span>' : ''}
+        </li>`).join('')}
+      </ul>`;
+    }
+
+    // Nutzer-Feedback Runde 14: Geburtsdatum wird hier auf der Startseite
+    // erfasst/geändert und von PAL-Rechner (nutrition.html) sowie
+    // Präventionscheck (training.html) über profiles.birth_date wiederverwendet.
+    async function renderBirthdateCard(profile) {
+      const displayEl = document.getElementById('birthdate-display');
+      const formEl = document.getElementById('birthdate-form');
+      if (!displayEl) return;
+
+      const { data: profileRow, error } = await supabaseClient.from('profiles').select('birth_date').eq('id', profile.id).maybeSingle();
+      if (error) { displayEl.innerHTML = `<div class="msg error">${escapeHtml(error.message)}</div>`; return; }
+
+      const birthDate = profileRow ? profileRow.birth_date : null;
+      const ageYears = calcAge(birthDate);
+
+      displayEl.innerHTML = birthDate
+        ? `<div class="result-box"><div class="big" style="font-size:1.2rem;">${new Date(birthDate).toLocaleDateString('de-DE')}</div><div style="font-size:0.78rem; color:var(--color-text-muted); margin-top:2px;">Alter: ${ageYears} Jahre</div></div>
+           <button class="icon-btn mt-16" id="birthdate-edit-btn" type="button">Ändern</button>`
+        : `<p style="color:var(--color-gold); font-size:0.85rem; margin:0 0 10px;">Noch kein Geburtsdatum hinterlegt.</p>
+           <button class="icon-btn" id="birthdate-edit-btn" type="button">Geburtsdatum eintragen</button>`;
+
+      if (birthDate) {
+        document.getElementById('birthdate-input').value = birthDate;
+      }
+
+      const editBtn = document.getElementById('birthdate-edit-btn');
+      if (editBtn && formEl) {
+        editBtn.addEventListener('click', () => formEl.classList.toggle('hidden'));
+      }
+      // formEl bleibt über mehrere renderBirthdateCard()-Aufrufe hinweg dasselbe
+      // DOM-Element (nur displayEl wird neu geschrieben) – der Submit-Listener
+      // wird daher per Flag nur EINMAL angehängt, sonst würden sich bei
+      // wiederholtem Speichern doppelte Listener aufsummieren.
+      if (formEl && !formEl.dataset.wired) {
+        formEl.dataset.wired = '1';
+        formEl.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const submitBtn = formEl.querySelector('button[type="submit"]');
+          submitBtn.disabled = true;
+          const { error: saveError } = await updateBirthDate(profile.id, document.getElementById('birthdate-input').value);
+          if (saveError) { alert('Fehler: ' + saveError.message); submitBtn.disabled = false; return; }
+          formEl.classList.add('hidden');
+          submitBtn.disabled = false;
+          renderBirthdateCard(profile);
+        });
+      }
     }
 
     function escapeHtml(str) {

@@ -83,15 +83,20 @@
     .breath-source { font-size: 0.7rem; color: var(--color-text-muted); margin-top: 6px; }
     .breath-session { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 28px 12px; }
     .breath-circle-wrap { position: relative; width: 230px; height: 230px; display: flex; align-items: center; justify-content: center; margin: 18px 0 6px; }
+    /* Nutzer-Feedback Runde 14: statt eines schlichten Kreises jetzt ein
+       Mandala/Blüten-Motiv, das sich beim Atmen ausdehnt/zusammenzieht –
+       dieselbe transform:scale()-Logik wie zuvor (siehe startBreathSession()
+       in coaching.html), nur dass hier eine Blüten-SVG statt eines reinen
+       Kreis-Backgrounds skaliert wird. */
     .breath-circle {
-      width: 110px; height: 110px; border-radius: 50%;
-      background: radial-gradient(circle at 35% 30%, var(--color-gold-light), var(--color-gold) 60%, var(--color-navy) 145%);
-      box-shadow: 0 0 44px rgba(200,124,0,0.35);
+      width: 110px; height: 110px;
       transition-property: transform; transition-timing-function: linear;
       transform: scale(1);
+      filter: drop-shadow(0 0 22px rgba(200,124,0,0.4));
     }
-    :root[data-theme="dark"] .breath-circle { box-shadow: 0 0 54px rgba(250,194,51,0.28); }
-    @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .breath-circle { box-shadow: 0 0 54px rgba(250,194,51,0.28); } }
+    .breath-circle svg { display: block; width: 100%; height: 100%; overflow: visible; }
+    :root[data-theme="dark"] .breath-circle { filter: drop-shadow(0 0 26px rgba(250,194,51,0.32)); }
+    @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .breath-circle { filter: drop-shadow(0 0 26px rgba(250,194,51,0.32)); } }
     .breath-phase-label {
       position: absolute; font-family: var(--font-heading); font-weight: 700; font-size: 1.05rem;
       color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,0.45); pointer-events: none;
@@ -360,6 +365,32 @@
       });
     }
 
+    // Nutzer-Feedback Runde 14: Mandala/Blüten-Visualisierung statt eines
+    // reinen Kreises für die Atemübung – acht Blütenblätter um eine Mitte,
+    // die als Ganzes (per CSS transform:scale() auf dem umgebenden
+    // .breath-circle-Element) beim Ein-/Ausatmen wächst bzw. schrumpft.
+    function breathMandalaSvg() {
+      const petalAngles = [0, 45, 90, 135, 180, 225, 270, 315];
+      return `
+        <svg viewBox="0 0 100 100">
+          <defs>
+            <radialGradient id="mandala-petal" cx="50%" cy="28%" r="75%">
+              <stop offset="0%" stop-color="var(--color-gold-light)" />
+              <stop offset="100%" stop-color="var(--color-gold)" />
+            </radialGradient>
+            <radialGradient id="mandala-petal-inner" cx="50%" cy="35%" r="70%">
+              <stop offset="0%" stop-color="var(--color-gold-light)" />
+              <stop offset="100%" stop-color="var(--color-navy)" />
+            </radialGradient>
+          </defs>
+          ${petalAngles.map((angle) => `<ellipse cx="50" cy="30" rx="10" ry="21" fill="url(#mandala-petal)" opacity="0.9" transform="rotate(${angle} 50 50)" />`).join('')}
+          ${petalAngles.map((angle) => `<ellipse cx="50" cy="38" rx="6" ry="13" fill="url(#mandala-petal-inner)" opacity="0.85" transform="rotate(${angle + 22.5} 50 50)" />`).join('')}
+          <circle cx="50" cy="50" r="12" fill="var(--color-navy)" />
+          <circle cx="50" cy="50" r="5" fill="var(--color-gold-light)" />
+        </svg>
+      `;
+    }
+
     function startBreathSession(key) {
       const t = BREATHING_TECHNIQUES.find((b) => b.key === key);
       const grid = document.getElementById('breath-grid');
@@ -371,7 +402,7 @@
         <div class="card breath-session">
           <h3 style="margin:0 0 4px;">${escapeHtml(t.label)}</h3>
           <div class="breath-circle-wrap">
-            <div class="breath-circle" id="breath-circle"></div>
+            <div class="breath-circle" id="breath-circle">${breathMandalaSvg()}</div>
             <div class="breath-phase-label" id="breath-phase-label"></div>
           </div>
           <div class="breath-count" id="breath-count"></div>

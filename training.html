@@ -9,6 +9,10 @@
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
   <link rel="stylesheet" href="css/styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <!-- Runde 15: für den On-Demand-Monatsbericht (js/monthly-report.js) — analog
+       zum bestehenden Wochenreport in betrieb.html, per CDN wie überall sonst
+       in dieser Plattform, kein zusätzlicher Build-Schritt nötig. -->
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <style>
     :root { --chart-teal: #1479a3; }
     .plan-card { margin-bottom: 20px; }
@@ -123,6 +127,28 @@
     }
     .qn-details summary:hover { text-decoration: underline; }
     .qn-details[open] summary { margin-bottom: 4px; }
+
+    /* Nutzer-Feedback Runde 14: Trainingstagebuch zeigt nur noch ganze
+       Trainingseinheiten (anklickbar/aufklappbar) statt einer flachen Liste
+       aller Einzelsätze. */
+    .diary-session { border: 1px solid var(--color-border); border-radius: 10px; margin-bottom: 10px; overflow: hidden; }
+    .diary-session summary { cursor: pointer; padding: 12px 14px; list-style: none; }
+    .diary-session summary::-webkit-details-marker { display: none; }
+    .diary-session summary::before { content: '▸ '; color: var(--color-gold); }
+    .diary-session[open] summary::before { content: '▾ '; }
+    .diary-session-summary { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+    .diary-session-body { padding: 0 14px 14px; border-top: 1px solid var(--color-border); }
+    .diary-exercise { margin-top: 12px; }
+    .diary-exercise-name { font-weight: 600; font-size: 0.88rem; margin-bottom: 4px; }
+
+    /* Nutzer-Feedback Runde 14: Schnell-Logging per Button. */
+    .quick-log-btn { margin-left: 8px; }
+
+    /* Nutzer-Feedback Runde 14: Verlaufsgrafen ("Meine Entwicklung") je
+       Gelenk/Muskelgruppe sowie Gesamt-Trends für Beweglichkeit/Kraftausdauer. */
+    .trend-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; margin-top: 10px; }
+    .trend-card { border: 1px solid var(--color-border); border-radius: 10px; padding: 12px 14px; }
+    .trend-title { font-size: 0.85rem; font-weight: 600; margin-bottom: 4px; }
   </style>
 </head>
 <body>
@@ -155,18 +181,20 @@
     import {
       listExercises, createExercise, deleteExercise,
       listClients,
-      listTemplates, getTemplate, createTemplate, deleteTemplate,
+      listTemplates, getTemplate, createTemplate, updateTemplate, deleteTemplate,
       listMyActivePlans, listPlansForAdmin, getPlanForAdmin, createPlan, assignTemplateToClient,
       addExerciseToPlan, removePlanExercise, setPlanActive,
-      insertTrainingLog, listMyTrainingLogs, listLogsForPlanExercises,
-      getActiveSession, startSession, endSession, listLogsForAnalytics,
+      insertTrainingLog, insertTrainingLogs, listMyTrainingLogs, listMyRecentSessions, listLogsForPlanExercises,
+      getActiveSession, startSession, endSession, listLogsForAnalytics, listSessions,
+      listAllTrainingLogsForRecords, computePersonalRecords, prLogIdSet, computeTrainingStreak,
     } from './js/training.js';
     import { queueTrainingLog, syncQueuedLogs } from './js/offline-queue.js';
     import { getUnreadCount } from './js/messages.js';
     import { getNewSignupCount } from './js/betrieb.js';
     import { navTabsHtml, bindNavSubmenus } from './js/nav.js';
     import { SECTION_INFO } from './js/section-info.js';
-    import { listMyBodyMeasurements } from './js/nutrition.js';
+    import { listMyBodyMeasurements, listNutritionLogs, getLatestEnergyTarget } from './js/nutrition.js';
+    import { buildMonthlyReportPdf } from './js/monthly-report.js';
     import {
       calcAge, updateBirthDate, STRENGTH_TESTS, MOBILITY_TESTS, mobilityRatingLabel,
       MOBILITY_RATING_VISUALS, getStaleTestSummary,
@@ -223,6 +251,16 @@
     lightboxOverlay.addEventListener('click', () => lightboxOverlay.classList.remove('open'));
 
     const CATEGORY_ORDER = ['Mobilisation', 'Kraft', 'Bodyweight', 'Cardio'];
+    // Nutzer-Feedback Runde 13: einzige zulässige Muskelgruppen (vorher 76
+    // verschiedene Freitext-Varianten je nach Insert-Charge) — nur für
+    // Kraft/Bodyweight relevant, siehe sql/033_muskelgruppen_konsolidierung.sql.
+    // 'muscle_group' bei diesen Übungen ist jetzt eine kommagetrennte Liste
+    // aus dieser festen Liste (mehrere Einträge möglich, z.B. Bankdrücken →
+    // 'Brust, Trizeps, Schulter').
+    const CANONICAL_MUSCLE_GROUPS = [
+      'Ganzkörper', 'Schulter', 'Trizeps', 'Bizeps', 'Brust', 'Trapez',
+      'Latissimus', 'Rückenstrecker', 'Bauchmuskeln', 'Gesäß', 'Oberschenkel', 'Waden',
+    ];
     const MOVEMENT_PATTERN_LABELS = {
       push_oberkoerper: 'Push (Oberkörper)',
       pull_oberkoerper: 'Pull (Oberkörper)',
@@ -346,6 +384,7 @@
       { key: 'progress', label: 'Meine Entwicklung' },
       { key: 'praevention', label: 'Präventionscheck' },
       { key: 'tests', label: 'Tests' },
+      { key: 'monatsbericht', label: 'Monatsbericht' },
     ];
 
     async function renderClientRoot(profile) {
@@ -367,6 +406,7 @@
       else if (tabName === 'start') renderStartTab(content, false);
       else if (tabName === 'praevention') renderPreventionTab(content, profile, { isAdminView: false });
       else if (tabName === 'tests') renderTestsTab(content, profile, { isAdminView: false });
+      else if (tabName === 'monatsbericht') renderMonatsberichtTab(content, profile);
       else renderClientView(content, profile);
     }
 
@@ -414,7 +454,239 @@
       return null;
     }
 
+    // Nutzer-Feedback Runde 14: Hilfsfunktionen fürs Schnell-Logging – Plan-
+    // Vorgaben (die als Freitext wie "60 kg", "8-12" oder "12,10,8" hinterlegt
+    // sind) werden automatisch in konkrete Satz-für-Satz-Werte übersetzt
+    // (Nutzerwunsch: "Plan-Werte automatisch übernehmen"). Die Werte bleiben
+    // danach ganz normal über das Formular bzw. Trainingstagebuch editierbar.
+    function extractLeadingNumber(str) {
+      if (str == null || str === '') return null;
+      const m = String(str).match(/(\d+(?:[.,]\d+)?)/);
+      if (!m) return null;
+      return parseFloat(m[1].replace(',', '.'));
+    }
+
+    function parsePerSetValues(str, setCount) {
+      if (str == null || str === '' || !setCount) return [];
+      const raw = String(str).trim();
+      // Kommagetrennte Werte je Satz, z.B. "12,10,8"
+      if (raw.includes(',')) {
+        const parts = raw.split(',').map((p) => extractLeadingNumber(p)).filter((n) => n != null);
+        if (parts.length > 0) {
+          const out = [];
+          for (let i = 0; i < setCount; i++) out.push(parts[i] != null ? parts[i] : parts[parts.length - 1]);
+          return out;
+        }
+      }
+      // Bereich, z.B. "8-12" – für alle Sätze den unteren (konservativeren) Wert ansetzen
+      const rangeMatch = raw.match(/(\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)/);
+      if (rangeMatch) {
+        const lower = parseFloat(rangeMatch[1].replace(',', '.'));
+        return Array(setCount).fill(lower);
+      }
+      // Einzelner Wert, der für alle Sätze gilt
+      const single = extractLeadingNumber(raw);
+      if (single != null) return Array(setCount).fill(single);
+      return [];
+    }
+
+    // Baut aus den Plan-Vorgaben einer Übung direkt fertige Satz-Einträge –
+    // ein Klick loggt die ganze Übung mit den Plan-Werten als Ist-Werten.
+    function buildQuickLogEntries(pe, clientId, activeSession) {
+      const ex = pe.exercises;
+      const isDurationBased = !!pe.target_duration_seconds;
+      const isDistanceBased = !!pe.target_distance_meters || (ex && ex.category === 'Cardio');
+      const now = new Date().toISOString();
+      const sessionId = activeSession ? activeSession.id : null;
+      const distance = pe.target_distance_meters != null ? extractLeadingNumber(pe.target_distance_meters) : null;
+
+      if (isDurationBased) {
+        return [{
+          client_id: clientId,
+          exercise_id: ex.id,
+          plan_exercise_id: pe.id,
+          session_id: sessionId,
+          performed_at: now,
+          set_number: 1,
+          reps: null,
+          weight_kg: null,
+          duration_seconds: pe.target_duration_seconds || null,
+          distance_meters: distance,
+        }];
+      }
+
+      const setCount = pe.target_sets || 1;
+      const repsPerSet = parsePerSetValues(pe.target_reps, setCount);
+      const weightPerSet = parsePerSetValues(pe.target_weight_hint, setCount);
+
+      const entries = [];
+      for (let i = 0; i < setCount; i++) {
+        entries.push({
+          client_id: clientId,
+          exercise_id: ex.id,
+          plan_exercise_id: pe.id,
+          session_id: sessionId,
+          performed_at: now,
+          set_number: i + 1,
+          reps: repsPerSet[i] != null ? Math.round(repsPerSet[i]) : null,
+          weight_kg: weightPerSet[i] != null ? weightPerSet[i] : null,
+          duration_seconds: null,
+          distance_meters: isDistanceBased ? distance : null,
+        });
+      }
+      return entries;
+    }
+
+    // Nutzer-Feedback Runde 14: nach Trainingseinheiten gruppiertes
+    // Trainingstagebuch statt einer flachen Liste aller Einzel-Sätze – jede
+    // Einheit ist per Klick auf/zuklappbar, darunter die Übungen mit ihren
+    // Sätzen. Logs ohne session_id (z.B. vor Einführung dieser Zuordnung
+    // erfasst) werden nach Kalendertag gruppiert, damit auch ältere Einträge
+    // sinnvoll dargestellt bleiben.
+    function renderTrainingDiaryHtml(logs, sessions, prLogIds) {
+      if (!logs || logs.length === 0) {
+        return '<p style="color:var(--color-text-muted);">Noch keine Einträge vorhanden.</p>';
+      }
+
+      const sessionsById = {};
+      for (const s of sessions || []) sessionsById[s.id] = s;
+
+      const groups = new Map();
+      for (const log of logs) {
+        const key = log.session_id ? `s:${log.session_id}` : `d:${formatDateOnly(log.performed_at)}`;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(log);
+      }
+
+      const groupEntries = Array.from(groups.entries()).map(([key, groupLogs]) => {
+        const latestTime = groupLogs.reduce((max, l) => (l.performed_at > max ? l.performed_at : max), groupLogs[0].performed_at);
+        return { key, groupLogs, latestTime };
+      }).sort((a, b) => (a.latestTime < b.latestTime ? 1 : -1));
+
+      return groupEntries.map(({ key, groupLogs }) => {
+        const sessionId = key.startsWith('s:') ? key.slice(2) : null;
+        const session = sessionId ? sessionsById[sessionId] : null;
+
+        const dateLabel = formatDate(groupLogs[0].performed_at);
+        const titleParts = [];
+        if (session && session.training_plans && session.training_plans.title) titleParts.push(session.training_plans.title);
+        if (session && session.training_plan_days && session.training_plan_days.label) titleParts.push(session.training_plan_days.label);
+        const title = titleParts.length > 0 ? titleParts.join(' · ') : (sessionId ? 'Trainingseinheit' : 'Einträge ohne Einheit');
+
+        const byExercise = new Map();
+        for (const log of groupLogs) {
+          const exId = log.exercise_id || 'unbekannt';
+          if (!byExercise.has(exId)) byExercise.set(exId, { name: log.exercises ? log.exercises.name : 'Unbekannte Übung', logs: [] });
+          byExercise.get(exId).logs.push(log);
+        }
+
+        const exerciseCount = byExercise.size;
+        const setCount = groupLogs.length;
+        const calories = session && session.calories_burned ? ` · ${session.calories_burned} kcal` : '';
+
+        const exercisesHtml = Array.from(byExercise.values()).map((exGroup) => {
+          const sortedLogs = exGroup.logs.slice().sort((a, b) => (a.set_number || 0) - (b.set_number || 0));
+          return `<div class="diary-exercise">
+            <div class="diary-exercise-name">${escapeHtml(exGroup.name)}</div>
+            <table class="log-table"><thead><tr><th>Satz</th><th>Wdh.</th><th>Gewicht</th><th>Dauer</th><th>Distanz</th></tr></thead><tbody>
+              ${sortedLogs.map((l) => {
+                const isPr = prLogIds && prLogIds.has(l.id);
+                return `<tr${isPr ? ' class="pr-row"' : ''}>
+                <td>${l.set_number ?? '–'}</td>
+                <td>${l.reps ?? '–'}${isPr ? ' <span class="pr-badge" title="Neuer persönlicher Rekord">🏆 PR</span>' : ''}</td>
+                <td>${l.weight_kg != null ? l.weight_kg + ' kg' : '–'}</td>
+                <td>${l.duration_seconds != null ? formatDuration(l.duration_seconds) : '–'}</td>
+                <td>${l.distance_meters != null ? l.distance_meters + ' m' : '–'}</td>
+              </tr>`;
+              }).join('')}
+            </tbody></table>
+          </div>`;
+        }).join('');
+
+        return `<details class="diary-session">
+          <summary>
+            <div class="diary-session-summary">
+              <strong>${escapeHtml(dateLabel)}</strong> · ${escapeHtml(title)}
+              <span style="color:var(--color-text-muted); font-size:0.82rem;"> — ${exerciseCount} Übung${exerciseCount === 1 ? '' : 'en'}, ${setCount} Satz/Sätze${calories}</span>
+            </div>
+          </summary>
+          <div class="diary-session-body">
+            ${exercisesHtml}
+          </div>
+        </details>`;
+      }).join('');
+    }
+
+    // Kraft-Rekord-Tracker & Streak-Zähler (Runde 15): baut die Karte "Deine
+    // Rekorde & deine Serie" — Streak-Kacheln oben, darunter ein Feed der
+    // zuletzt aufgestellten persönlichen Rekorde. Reine Darstellungsfunktion,
+    // die Berechnung übernehmen computePersonalRecords()/computeTrainingStreak()
+    // aus js/training.js auf Basis der ohnehin geloggten Trainingsdaten — für
+    // den Kunden entsteht kein zusätzlicher Erfassungsaufwand.
+    function prFeedIcon(type) {
+      if (type === 'weight') return '🏋️';
+      if (type === 'e1rm') return '📈';
+      return '🔁';
+    }
+
+    function prFeedLabel(event) {
+      if (event.type === 'weight') {
+        return `Neues Bestgewicht: <strong>${event.weightKg} kg</strong> bei ${event.reps} Wdh. — ${escapeHtml(event.exerciseName)}`;
+      }
+      if (event.type === 'e1rm') {
+        return `Neue geschätzte Maximalkraft (1RM): <strong>${event.value.toFixed(1)} kg</strong> — ${escapeHtml(event.exerciseName)}`;
+      }
+      return `Neue Bestleistung: <strong>${event.reps} Wdh.</strong> — ${escapeHtml(event.exerciseName)}`;
+    }
+
+    function renderRecordsCardHtml(streak, prEvents, prRecords) {
+      const recentPrs = (prEvents || []).slice(0, 6);
+      const exerciseCountWithRecords = (prRecords || []).length;
+      const prFeedHtml = recentPrs.length > 0
+        ? `<div class="pr-feed">${recentPrs.map((e) => `
+            <div class="pr-feed-item">
+              <span class="pr-feed-icon">${prFeedIcon(e.type)}</span>
+              <span>${prFeedLabel(e)}</span>
+              <span class="pr-feed-date">${formatDate(e.performedAt)}</span>
+            </div>`).join('')}</div>`
+        : `<p style="color:var(--color-text-muted); font-size:0.88rem;">Noch keine Rekorde erkannt — sobald du Gewicht oder Wiederholungen steigerst, taucht dein erster Rekord automatisch hier auf.</p>`;
+
+      const streakNote = streak.currentStreak > 0
+        ? (streak.currentWeekActive ? 'Diese Woche schon aktiv — weiter so!' : 'Diese Woche noch keine Einheit geloggt.')
+        : 'Starte diese Woche mit einer Einheit, um eine neue Serie zu beginnen.';
+
+      return `<div class="card mt-24">
+        <h2 style="font-size:1.05rem;">Deine Rekorde &amp; deine Serie</h2>
+        <div class="records-summary-row">
+          <div class="streak-tile">
+            <span class="streak-number">${streak.currentStreak}</span>
+            <span class="streak-label">Woche${streak.currentStreak === 1 ? '' : 'n'} am Stück trainiert</span>
+          </div>
+          <div class="streak-tile">
+            <span class="streak-number">${streak.longestStreak}</span>
+            <span class="streak-label">Beste Serie bisher</span>
+          </div>
+        </div>
+        <p style="color:var(--color-text-muted); font-size:0.8rem; margin-top:-10px; margin-bottom:16px;">${escapeHtml(streakNote)} Zählt: mind. 1 Trainingseinheit pro Kalenderwoche.</p>
+        <h3 style="font-size:0.92rem; margin-bottom:10px;">Zuletzt aufgestellte Rekorde${exerciseCountWithRecords > 0 ? ` <span style="color:var(--color-text-muted); font-weight:400; font-size:0.78rem;">(Bestleistungen in ${exerciseCountWithRecords} Übung${exerciseCountWithRecords === 1 ? '' : 'en'})</span>` : ''}</h3>
+        ${prFeedHtml}
+      </div>`;
+    }
+
+    // Nutzer-Feedback Runde 14: Wurde direkt nacheinander ein zweiter Satz
+    // geloggt bevor der erste renderClientView()-Aufruf fertig neu geladen
+    // hatte, liefen zwei überlappende renderClientView()-Aufrufe parallel.
+    // Da beide unabhängig voneinander die Logs neu abfragen und derjenige,
+    // der zuletzt fertig wird, den DOM-Inhalt überschreibt, konnte der
+    // LANGSAMERE (ältere) Aufruf den neueren Stand überschreiben — sichtbar
+    // z.B. als "1/2 Sätze", obwohl beide Sätze bereits gespeichert waren.
+    // Fix: ein Generationszähler sorgt dafür, dass nur der zuletzt gestartete
+    // Aufruf seinen Ladezustand tatsächlich ins DOM schreibt; ein durch einen
+    // neueren Aufruf überholter Lauf bricht vor dem finalen Schreiben ab.
+    let clientViewRenderGeneration = 0;
+
     async function renderClientView(content, profile) {
+      const myGeneration = ++clientViewRenderGeneration;
       content.innerHTML = `<p class="center-text">Lade deinen Trainingsplan …</p>`;
 
       const [{ data: plans, error: plansError }, { data: activeSession }] = await Promise.all([
@@ -422,21 +694,36 @@
         getActiveSession(profile.id),
       ]);
       if (plansError) {
-        content.innerHTML = `<div class="msg error">Trainingsplan konnte nicht geladen werden: ${escapeHtml(plansError.message)}</div>`;
+        if (myGeneration === clientViewRenderGeneration) {
+          content.innerHTML = `<div class="msg error">Trainingsplan konnte nicht geladen werden: ${escapeHtml(plansError.message)}</div>`;
+        }
         return;
       }
 
       const allPlanExerciseIds = (plans || []).flatMap((p) => (p.plan_exercises || []).map((pe) => pe.id));
-      const [{ data: logsForStatus }, { data: recentLogs }, queuedCount] = await Promise.all([
+      // Nutzer-Feedback Runde 14: flache Liste aller Plan-Übungen (mit Plan-Id)
+      // fürs Schnell-Logging einer ganzen Einheit auf einen Klick.
+      const allPlanExercisesFlat = (plans || []).flatMap((p) => (p.plan_exercises || []).map((pe) => ({ ...pe, __planId: p.id })));
+      const [{ data: logsForStatus }, { data: recentLogs }, { data: recentSessions }, queuedCount, { data: allLogsForRecords }] = await Promise.all([
         listLogsForPlanExercises(profile.id, allPlanExerciseIds),
         listMyTrainingLogs(profile.id),
+        listMyRecentSessions(profile.id),
         (async () => (await (await import('./js/offline-queue.js')).getQueuedLogs()).length)(),
+        listAllTrainingLogsForRecords(profile.id),
       ]);
 
       const logsByPlanExercise = {};
       for (const log of logsForStatus || []) {
         (logsByPlanExercise[log.plan_exercise_id] = logsByPlanExercise[log.plan_exercise_id] || []).push(log);
       }
+
+      // Kraft-Rekord-Tracker & Streak-Zähler (Runde 15): aus der kompletten
+      // Trainingshistorie (nicht nur den letzten Einträgen) berechnet, damit
+      // auch ältere Bestleistungen erkannt werden. Reine Berechnung ohne
+      // zusätzliche Erfassung — nutzt ausschließlich bereits geloggte Sätze.
+      const { records: prRecords, prEvents } = computePersonalRecords(allLogsForRecords || []);
+      const prLogIds = prLogIdSet(prEvents);
+      const trainingStreak = computeTrainingStreak((allLogsForRecords || []).map((l) => l.performed_at));
 
       let html = '';
 
@@ -454,6 +741,7 @@
         html += `<div class="session-banner active">
           <div><strong>Trainingseinheit läuft</strong> · gestartet ${startedLabel}</div>
           <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <button class="btn secondary small-btn quick-log-btn" id="quick-log-session-btn" type="button">Ganze Einheit schnell loggen</button>
             <input type="number" id="end-session-calories" min="0" step="1" placeholder="kcal verbrannt (optional)" style="width:180px; padding:6px 8px; border-radius:6px; border:1px solid var(--color-border); background:var(--color-bg); color:var(--color-text); font-size:0.82rem;" />
             <button class="btn secondary small-btn" id="end-session-btn" type="button">Einheit beenden</button>
           </div>
@@ -500,21 +788,15 @@
 
       html += `<div class="card mt-24">
         <h2 style="font-size:1.05rem;">Mein Trainingstagebuch</h2>
-        ${!recentLogs || recentLogs.length === 0
-          ? '<p style="color:var(--color-text-muted);">Noch keine Einträge vorhanden.</p>'
-          : `<table class="log-table"><thead><tr><th>Datum</th><th>Übung</th><th>Satz</th><th>Wdh.</th><th>Gewicht</th><th>Dauer</th><th>Distanz</th></tr></thead><tbody>
-              ${recentLogs.map((l) => `<tr>
-                <td>${formatDate(l.performed_at)}</td>
-                <td>${escapeHtml(l.exercises ? l.exercises.name : '–')}</td>
-                <td>${l.set_number ?? '–'}</td>
-                <td>${l.reps ?? '–'}</td>
-                <td>${l.weight_kg != null ? l.weight_kg + ' kg' : '–'}</td>
-                <td>${l.duration_seconds != null ? formatDuration(l.duration_seconds) : '–'}</td>
-                <td>${l.distance_meters != null ? l.distance_meters + ' m' : '–'}</td>
-              </tr>`).join('')}
-            </tbody></table>`
-        }
+        ${renderTrainingDiaryHtml(recentLogs, recentSessions, prLogIds)}
       </div>`;
+
+      html += renderRecordsCardHtml(trainingStreak, prEvents, prRecords);
+
+      // Ein inzwischen neuer gestarteter Render (z.B. durch einen zweiten,
+      // schneller abgeschlossenen Satz-Log) hat Vorrang — dieser hier ist
+      // überholt und darf den aktuelleren Stand nicht mehr überschreiben.
+      if (myGeneration !== clientViewRenderGeneration) return;
 
       content.innerHTML = html;
 
@@ -591,6 +873,61 @@
           }
         });
       });
+
+      // Nutzer-Feedback Runde 14: Schnell-Logging je Übung – übernimmt die
+      // Plan-Vorgaben (Sätze/Wdh./Gewicht bzw. Dauer/Distanz) automatisch als
+      // Ist-Werte, damit nicht jeder Satz einzeln eingetippt werden muss.
+      content.querySelectorAll('.quick-log-btn[data-plan-exercise-id]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const peId = btn.dataset.planExerciseId;
+          const pe = allPlanExercisesFlat.find((p) => p.id === peId);
+          if (!pe) return;
+          const originalText = btn.textContent;
+          btn.disabled = true;
+          btn.textContent = 'Speichert …';
+          const entries = buildQuickLogEntries(pe, profile.id, activeSession);
+          const { error } = await insertTrainingLogs(entries);
+          if (error) {
+            alert('Fehler beim Schnell-Loggen: ' + error.message);
+            btn.disabled = false;
+            btn.textContent = originalText;
+            return;
+          }
+          renderClientView(content, profile);
+        });
+      });
+
+      // Nutzer-Feedback Runde 14: Schnell-Logging der ganzen Einheit – loggt
+      // alle Übungen des zur laufenden Einheit gehörenden Trainingstages (bzw.
+      // aller zugewiesenen Übungen, falls kein fester Tag gewählt wurde) auf
+      // einmal mit den Plan-Vorgaben.
+      const quickLogSessionBtn = document.getElementById('quick-log-session-btn');
+      if (quickLogSessionBtn) {
+        quickLogSessionBtn.addEventListener('click', async () => {
+          let targets = allPlanExercisesFlat;
+          if (activeSession && activeSession.plan_day_id) {
+            targets = targets.filter((pe) => pe.plan_day_id === activeSession.plan_day_id);
+          } else if (activeSession && activeSession.plan_id) {
+            targets = targets.filter((pe) => pe.__planId === activeSession.plan_id);
+          }
+          if (targets.length === 0) {
+            alert('Für diese Einheit konnten keine Übungen gefunden werden.');
+            return;
+          }
+          const originalText = quickLogSessionBtn.textContent;
+          quickLogSessionBtn.disabled = true;
+          quickLogSessionBtn.textContent = 'Speichert …';
+          const allEntries = targets.flatMap((pe) => buildQuickLogEntries(pe, profile.id, activeSession));
+          const { error } = await insertTrainingLogs(allEntries);
+          if (error) {
+            alert('Fehler beim Schnell-Loggen der Einheit: ' + error.message);
+            quickLogSessionBtn.disabled = false;
+            quickLogSessionBtn.textContent = originalText;
+            return;
+          }
+          renderClientView(content, profile);
+        });
+      }
     }
 
     function renderExerciseRow(pe, logsForThis, activeSession) {
@@ -628,6 +965,7 @@
                  <input class="f-weight" type="number" min="0" step="0.5" placeholder="kg" />` : ''}
             ${isDistanceBased ? `<input class="f-distance" type="number" min="0" step="1" placeholder="Distanz (m)" />` : ''}
             <button class="btn secondary small-btn" type="submit">Eintragen</button>
+            ${(pe.target_sets || pe.target_duration_seconds) ? `<button class="btn secondary small-btn quick-log-btn" type="button" data-plan-exercise-id="${pe.id}" title="Übernimmt die Plan-Vorgaben als Ist-Werte – danach editierbar">Übung schnell loggen</button>` : ''}
           </form>
         </div>
       </div>`;
@@ -791,6 +1129,10 @@
           ${markerDot(100, 48, markers.cervicalSpine.sev, markers.cervicalSpine.title, 'Halswirbelsäule', 'right')}
           ${markerDot(58, 78, markers.shoulderLeft.sev, markers.shoulderLeft.title, 'Schulter li.', 'left')}
           ${markerDot(142, 78, markers.shoulderRight.sev, markers.shoulderRight.title, 'Schulter re.', 'right')}
+          ${markerDot(52, 147, markers.elbowLeft.sev, markers.elbowLeft.title, 'Ellbogen li.', 'left')}
+          ${markerDot(148, 147, markers.elbowRight.sev, markers.elbowRight.title, 'Ellbogen re.', 'right')}
+          ${markerDot(52, 208, markers.wristLeft.sev, markers.wristLeft.title, 'Handgelenk li.', 'left')}
+          ${markerDot(148, 208, markers.wristRight.sev, markers.wristRight.title, 'Handgelenk re.', 'right')}
           ${markerDot(85, 300, markers.kneeLeft.sev, markers.kneeLeft.title, 'Knie li.', 'left')}
           ${markerDot(115, 300, markers.kneeRight.sev, markers.kneeRight.title, 'Knie re.', 'right')}
           ${markerDot(80, 363, markers.ankleLeft.sev, markers.ankleLeft.title, 'Fußgelenk li.', 'left')}
@@ -833,7 +1175,8 @@
           ${backBodyShape()}
           ${markerDot(100, 98, markers.upperBack.sev, markers.upperBack.title, 'Oberer Rücken', 'right')}
           ${markerDot(100, 150, markers.lowerBack.sev, markers.lowerBack.title, 'Unterer Rücken', 'right')}
-          ${markerDot(100, 250, markers.hamstring.sev, markers.hamstring.title, 'Beinrückseite', 'right')}
+          ${markerDot(85, 250, markers.hamstringLeft.sev, markers.hamstringLeft.title, 'Beinrückseite li.', 'left')}
+          ${markerDot(115, 250, markers.hamstringRight.sev, markers.hamstringRight.title, 'Beinrückseite re.', 'right')}
           ${markerDot(84, 328, markers.calfLeft.sev, markers.calfLeft.title, 'Wade li.', 'left')}
           ${markerDot(116, 328, markers.calfRight.sev, markers.calfRight.title, 'Wade re.', 'right')}
           ${viewTitle('MUSKELN – RÜCKANSICHT')}
@@ -871,8 +1214,10 @@
           <p style="font-size:0.72rem; color:var(--color-text-muted); margin-top:12px;">
             Vorder- und Rückansicht, jeweils nicht gespiegelt – Bildseiten entsprechen den Körperseiten. Für Knie,
             Fußgelenke und oberen Rücken gibt es aktuell keinen eigenen Test, sie werden ehrlich als "keine Daten"
-            ausgewiesen statt geschätzt. Vereinfachte Darstellung, ersetzt keine individuelle physiotherapeutische
-            oder ärztliche Untersuchung.
+            ausgewiesen statt geschätzt. Handgelenke, Ellbogen und die seitengetrennte Beinrückseite lassen sich im
+            Reiter „Tests" eintragen (Handgelenk-Streck-Test, Ellbogen-Streckungs-Test, wandgestützter AKE-Test) –
+            alle drei ohne Hilfsperson durchführbar.
+            Vereinfachte Darstellung, ersetzt keine individuelle physiotherapeutische oder ärztliche Untersuchung.
           </p>
         </div>
       `;
@@ -1050,7 +1395,13 @@
       `;
     }
 
-    async function renderPreventionSection(el, clientId, { isAdminView }) {
+    // Nutzer-Feedback Runde 14: `hideLifestyleForms` blendet die Selbstauskunft-
+    // Formulare zu Sitzverhalten/Schlafseite/Ernährung/Rauchen/Alkohol aus –
+    // diese Fragen sollen NUR noch im Präventionscheck-Tab erscheinen, nicht
+    // mehr zusätzlich im Bereich "Meine Entwicklung" (renderAnalyticsView).
+    // Die zugrundeliegenden Werte fließen unabhängig davon weiterhin in Score
+    // und Körper-Visualisierung ein, nur die Eingabe-Karten werden versteckt.
+    async function renderPreventionSection(el, clientId, { isAdminView, hideLifestyleForms } = {}) {
       el.innerHTML = '<p class="center-text">Lade Präventionscheck …</p>';
 
       const twelveWeeksAgo = new Date(Date.now() - 84 * 86400000).toISOString();
@@ -1126,6 +1477,13 @@
       // Für Knie, Fußgelenke und oberen Rücken gibt es aktuell keinen Test –
       // ehrlich als "keine Daten" ausweisen statt zu schätzen.
       const noData = (label) => ({ sev: 'unknown', title: `${label}: aktuell kein Test hinterlegt` });
+      // Nutzer-Feedback Runde 14: neue Mess-/Visualisierungspunkte (Handgelenke,
+      // Ellbogen, zweiter Punkt Beinrückseite) – nach Absegnung durch den Nutzer
+      // ("Beide anpassen (empfohlen)") jetzt mit echten, evidenzbasierten Tests
+      // hinterlegt (wrist_extension, elbow_extension, ake_hamstring in
+      // js/prevention.js), inkl. wandgestützter AKE-Variante und Spiegel-/
+      // Handyfoto-Hinweis beim Thomas-Test, damit alle Tests ohne Hilfsperson
+      // durchführbar sind.
 
       const armSev = latestBodyMeasurement ? asymmetrySeverity(latestBodyMeasurement.arm_left_cm, latestBodyMeasurement.arm_right_cm) : { sev: 'unknown', title: 'Keine Umfangsmessung vorhanden' };
       const thighSev = latestBodyMeasurement ? asymmetrySeverity(latestBodyMeasurement.thigh_left_cm, latestBodyMeasurement.thigh_right_cm) : { sev: 'unknown', title: 'Keine Umfangsmessung vorhanden' };
@@ -1161,6 +1519,12 @@
       const hipLeftSev = mobilitySeverity(latest['thomas_mobility:left'], 'Hüfte links');
       const hipRightSev = mobilitySeverity(latest['thomas_mobility:right'], 'Hüfte rechts');
       const hamstringSev = mobilitySeverity(latest.hamstring_mobility, 'Beinrückseite (Hamstring)');
+      const akeLeftSev = mobilitySeverity(latest['ake_hamstring:left'], 'Beinrückseite links');
+      const akeRightSev = mobilitySeverity(latest['ake_hamstring:right'], 'Beinrückseite rechts');
+      const wristLeftSev = mobilitySeverity(latest['wrist_extension:left'], 'Handgelenk links');
+      const wristRightSev = mobilitySeverity(latest['wrist_extension:right'], 'Handgelenk rechts');
+      const elbowLeftSev = mobilitySeverity(latest['elbow_extension:left'], 'Ellbogen links');
+      const elbowRightSev = mobilitySeverity(latest['elbow_extension:right'], 'Ellbogen rechts');
       const chestSev = strengthSeverity('pushup', 'Brustmuskulatur');
       const absSev = strengthSeverity('plank', 'Bauchmuskeln');
 
@@ -1181,10 +1545,19 @@
         armLeft: armSev, armRight: armSev,
         thighLeft: thighSev, thighRight: thighSev,
         upperBack: noData('Oberer Rücken'),
-        hamstring: hamstringSev,
+        // Runde 14: zweiter Punkt für die Beinrückseite (Rückansicht) – zeigt
+        // jetzt den seitengetrennten, wandgestützten AKE-Test (ergänzt den
+        // weiterhin genutzten bilateralen Sit-and-Reach-Test, der in den Score
+        // eingeht, hier aber nicht separat als Marker auftaucht).
+        hamstringLeft: akeLeftSev, hamstringRight: akeRightSev,
         calfLeft: calfSev, calfRight: calfSev,
+        // Runde 14: neue Punkte Handgelenke & Ellbogen (Vorderansicht).
+        wristLeft: wristLeftSev,
+        wristRight: wristRightSev,
+        elbowLeft: elbowLeftSev,
+        elbowRight: elbowRightSev,
       };
-      const notices = [sleepSev, shoulderLeftSev, shoulderRightSev, sittingSev, hipLeftSev, hipRightSev, chestSev, absSev, armSev, thighSev, hamstringSev, calfSev]
+      const notices = [sleepSev, shoulderLeftSev, shoulderRightSev, sittingSev, hipLeftSev, hipRightSev, chestSev, absSev, armSev, thighSev, hamstringSev, calfSev, akeLeftSev, akeRightSev, wristLeftSev, wristRightSev, elbowLeftSev, elbowRightSev]
         .filter((m) => m.sev === 'warn' || m.sev === 'alert')
         .map((m) => ({ sev: m.sev, text: m.title }));
 
@@ -1199,6 +1572,20 @@
                 Sitzverhalten, Ernährung, Rauchen und Alkohol. Fehlende Kategorien werden ausgeschlossen, die übrigen
                 Gewichte entsprechend angepasst.
               </p>
+              <details class="qn-details mt-16">
+                <summary>Wie wird der Score berechnet – und warum?</summary>
+                <div style="padding:10px 0 0; font-size:0.82rem; color:var(--color-text-muted); max-width:560px;">
+                  <p style="margin:0 0 8px;">Der Präventions-Score bündelt mehrere Bereiche, die in der Forschung mit Gesundheit, Verletzungsrisiko und Leistungsfähigkeit im Alltag in Verbindung gebracht werden, zu einer einzigen Kennzahl zwischen 0 und 100:</p>
+                  <ul style="margin:0 0 8px; padding-left:18px;">
+                    <li><strong>Kraftausdauer</strong> (z.B. Liegestütz, Plank) – Muskelkraft/-ausdauer gilt als wichtiger Indikator für Alltagsfunktion und Sturz-/Verletzungsrisiko.</li>
+                    <li><strong>Beweglichkeit</strong> (z.B. Schulter, Hüfte, Beinrückseite) – eingeschränkte Beweglichkeit begünstigt Überlastungen und Ausweichbewegungen.</li>
+                    <li><strong>Körperfettanteil</strong> – ein etablierter Risikomarker für kardiometabolische Erkrankungen.</li>
+                    <li><strong>Trainings-Balance</strong> (Push/Pull, vordere/hintere Beinkette, Rumpf) – einseitige Belastung begünstigt muskuläre Dysbalancen.</li>
+                    <li><strong>Lebensstil-Faktoren</strong> (Sitzverhalten, Ernährung, Rauchen, Alkohol) – gut belegte Einflussgrößen auf Herz-Kreislauf-Gesundheit und Rückenbeschwerden.</li>
+                  </ul>
+                  <p style="margin:0;">Jeder Bereich wird zunächst einzeln bewertet (0–100) und anschließend gewichtet gemittelt. Fehlt ein Bereich komplett (z.B. noch kein Test eingetragen), wird er ausgeschlossen und die Gewichte der übrigen Bereiche entsprechend hochskaliert – der Score bleibt so auch bei unvollständigen Daten aussagekräftig, beruht dann aber auf weniger Informationen. Die einzelnen Werte findest du in der Aufschlüsselung unten bzw. im Reiter „Tests".</p>
+                </div>
+              </details>
             </div>
             <div class="result-box" style="text-align:center; min-width:120px;">
               <div class="big" style="font-size:2.2rem;">${total != null ? total : '–'}</div>
@@ -1228,6 +1615,9 @@
           ${bodyVisualHtml(markers, notices)}
         </div>
 
+        ${hideLifestyleForms ? `
+        <p style="color:var(--color-text-muted); font-size:0.82rem; margin:16px 0 0;">Fragen zu Sitzverhalten, Ernährung, Rauchen und Alkohol trägst du im Reiter „Präventionscheck" ein – sie fließen von dort auch weiterhin in den Score und die Visualisierung oben ein.</p>
+        ` : `
         <div class="card mt-24">
           <h2 style="font-size:1.05rem;">Sitzverhalten &amp; Schlafseite</h2>
           <p style="color:var(--color-text-muted); font-size:0.82rem;">Selbstauskunft – möglichst ehrlich einschätzen, ein grober Durchschnittswert reicht.</p>
@@ -1308,6 +1698,7 @@
             </div>
           </div>
         </div>
+        `}
       `;
 
       el.querySelectorAll('.nq-answer').forEach((sel) => {
@@ -1328,7 +1719,7 @@
           e.preventDefault();
           const { error } = await updateBirthDate(clientId, document.getElementById('pv-birthdate-input').value);
           if (error) { alert('Fehler: ' + error.message); return; }
-          renderPreventionSection(el, clientId, { isAdminView });
+          renderPreventionSection(el, clientId, { isAdminView, hideLifestyleForms });
         });
       }
 
@@ -1348,8 +1739,298 @@
             measuredAt: form.querySelector('.pv-date').value,
           });
           if (error) { alert('Fehler: ' + error.message); submitBtn.disabled = false; return; }
-          renderPreventionSection(el, clientId, { isAdminView });
+          renderPreventionSection(el, clientId, { isAdminView, hideLifestyleForms });
         });
+      });
+    }
+
+    // =========================================================================
+    // VERLAUFSGRAFEN ("Meine Entwicklung", Nutzer-Feedback Runde 14) – neben
+    // den Körper-Visualisierungen (Präventionscheck-Ausschnitt oben) zeigt
+    // dieser Abschnitt, wie sich Beweglichkeit und Kraftausdauer über die Zeit
+    // entwickeln, sowohl insgesamt als auch je Gelenk/Muskelgruppe. Nutzt die
+    // VOLLSTÄNDIGE Testhistorie aus prevention_test_results (nicht nur den
+    // jeweils letzten Wert wie beim Präventions-Score).
+    // =========================================================================
+
+    // Baut aus mehreren Einzeltests einen Gesamt-Trend: bei jedem neuen
+    // Testergebnis wird ein Schnappschuss aus dem jeweils aktuellsten
+    // bekannten Wert JEDES Tests der Gruppe gebildet (carry-forward), damit
+    // der Gesamtverlauf auch dann sinnvoll ist, wenn nicht alle Tests am
+    // selben Tag erhoben wurden.
+    function buildCompositeTrend(results, testKeys, toScore) {
+      const relevant = (results || [])
+        .filter((r) => testKeys.includes(r.side ? `${r.test_key}:${r.side}` : r.test_key))
+        .slice()
+        .sort((a, b) => (a.measured_at < b.measured_at ? -1 : a.measured_at > b.measured_at ? 1 : 0));
+
+      const current = {};
+      const points = [];
+      for (const r of relevant) {
+        const key = r.side ? `${r.test_key}:${r.side}` : r.test_key;
+        const score = toScore(key, r.value);
+        if (score == null) continue;
+        current[key] = score;
+        const values = Object.values(current);
+        const avg = values.reduce((a, b) => a + b, 0) / values.length;
+        points.push({ date: r.measured_at, value: avg });
+      }
+      return points;
+    }
+
+    // Einfache SVG-Trendlinie – bewusst ohne Tooltip-JS-Wiring (nutzt natives
+    // <title> je Punkt), da hier ggf. viele kleine Charts gleichzeitig
+    // gerendert werden und dafür kein Live-Update nötig ist wie beim
+    // Übungsverlauf in der Analyse oben.
+    function renderTrendChartHtml(points, { unit = '', minY = null, maxY = null, height = 90, formatValue = null } = {}) {
+      if (!points || points.length < 2) {
+        return `<p style="color:var(--color-text-muted); font-size:0.78rem; margin:4px 0 0;">Noch nicht genug Datenpunkte für einen Verlauf (mind. 2 nötig).</p>`;
+      }
+      const width = 300, padding = 10;
+      const values = points.map((p) => p.value);
+      const minV = minY != null ? minY : Math.min(...values);
+      const maxV = maxY != null ? maxY : Math.max(...values);
+      const range = (maxV - minV) || 1;
+      const coords = points.map((p, i) => ({
+        x: padding + (i / (points.length - 1 || 1)) * (width - padding * 2),
+        y: height - padding - ((p.value - minV) / range) * (height - padding * 2),
+        date: p.date, value: p.value,
+      }));
+      const pathD = coords.map((p, i) => (i === 0 ? 'M' : 'L') + p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' ');
+      const first = points[0], last = points[points.length - 1];
+      const trendLabel = last.value > first.value ? '↑ verbessert' : last.value < first.value ? '↓ verschlechtert' : '→ unverändert';
+      const trendCls = last.value > first.value ? 'ok' : last.value < first.value ? 'under' : 'over';
+      const fmt = (v) => (formatValue ? formatValue(v) : v.toFixed(1) + unit);
+      return `
+        <svg viewBox="0 0 ${width} ${height}" style="width:100%; max-width:300px; height:auto; overflow:visible;">
+          <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="var(--color-border)" stroke-width="1" />
+          <path d="${pathD}" fill="none" stroke="var(--color-gold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          ${coords.map((p) => `<circle cx="${p.x}" cy="${p.y}" r="3.5" fill="var(--color-gold)"><title>${escapeHtml(formatDateOnly(p.date))}: ${escapeHtml(fmt(p.value))}</title></circle>`).join('')}
+        </svg>
+        <div style="font-size:0.72rem; color:var(--color-text-muted); margin-top:2px;">
+          ${escapeHtml(formatDateOnly(first.date))} – ${escapeHtml(formatDateOnly(last.date))}
+          <span class="status-pill ${trendCls}" style="margin-left:6px;">${trendLabel}</span>
+        </div>
+      `;
+    }
+
+    async function renderTrendsSection(el, clientId) {
+      el.innerHTML = '<p class="center-text">Lade Verlaufsdaten …</p>';
+
+      const [{ data: profileRow }, { data: bodyMeasurements }, { data: allResults, error }] = await Promise.all([
+        supabaseClient.from('profiles').select('birth_date').eq('id', clientId).maybeSingle(),
+        listMyBodyMeasurements(clientId),
+        listPreventionResults(clientId),
+      ]);
+      if (error) { el.innerHTML = `<div class="msg error">${escapeHtml(error.message)}</div>`; return; }
+
+      const birthDate = profileRow ? profileRow.birth_date : null;
+      const ageYears = calcAge(birthDate);
+      const latestBodyMeasurement = (bodyMeasurements || [])[(bodyMeasurements || []).length - 1] || null;
+      const sex = latestBodyMeasurement ? latestBodyMeasurement.sex : null;
+      const results = allResults || [];
+
+      const mobilityScoreOf = (value) => ({ '-1': 40, '0': 70, '1': 100 }[String(Math.sign(value))] ?? 70);
+      const strengthScoreOf = (testKey, value) => {
+        if (ageYears == null) return null;
+        const evalRes = evaluateStrengthBenchmark(testKey, ageYears, value, sex);
+        if (!evalRes.bandFound || !evalRes.key) return null;
+        return { top: 100, mid: 80, low: 60, below: 35 }[evalRes.key] ?? null;
+      };
+
+      const mobilityKeys = [];
+      MOBILITY_TESTS.forEach((t) => {
+        if (t.hasSide) { mobilityKeys.push(`${t.key}:left`, `${t.key}:right`); } else { mobilityKeys.push(t.key); }
+      });
+      const strengthKeys = STRENGTH_TESTS.map((t) => t.key);
+
+      const mobilityComposite = buildCompositeTrend(results, mobilityKeys, (key, value) => mobilityScoreOf(value));
+      const strengthComposite = buildCompositeTrend(results, strengthKeys, (key, value) => strengthScoreOf(key, value));
+
+      function perTestPoints(testKey, side) {
+        return results
+          .filter((r) => r.test_key === testKey && (side ? r.side === side : true))
+          .map((r) => ({ date: r.measured_at, value: r.value }));
+      }
+
+      const mobilityChartsArr = [];
+      MOBILITY_TESTS.forEach((t) => {
+        const sides = t.hasSide ? ['left', 'right'] : [null];
+        sides.forEach((side) => {
+          const pts = perTestPoints(t.key, side);
+          if (pts.length === 0) return;
+          mobilityChartsArr.push(`<div class="trend-card">
+            <div class="trend-title">${escapeHtml(t.label)}${side ? ` (${SIDE_LABEL[side]})` : ''}</div>
+            ${renderTrendChartHtml(pts, { minY: -1, maxY: 1, formatValue: (v) => mobilityRatingLabel(v).text })}
+          </div>`);
+        });
+      });
+
+      const strengthChartsArr = [];
+      STRENGTH_TESTS.forEach((t) => {
+        const pts = perTestPoints(t.key, null);
+        if (pts.length === 0) return;
+        strengthChartsArr.push(`<div class="trend-card">
+          <div class="trend-title">${escapeHtml(t.label)}</div>
+          ${renderTrendChartHtml(pts, { unit: t.key === 'plank' ? ' Sek.' : ' Wdh.' })}
+        </div>`);
+      });
+
+      el.innerHTML = `
+        <div class="trend-group">
+          <h3 style="font-size:0.95rem; margin-bottom:2px;">Beweglichkeit insgesamt</h3>
+          ${mobilityComposite.length >= 2
+            ? renderTrendChartHtml(mobilityComposite, { minY: 0, maxY: 100, unit: ' Pkt.' })
+            : '<p style="color:var(--color-text-muted); font-size:0.82rem;">Noch zu wenige Beweglichkeitstests für einen Gesamtverlauf (mind. 2 Zeitpunkte nötig).</p>'}
+        </div>
+        <div class="trend-group mt-16">
+          <h3 style="font-size:0.95rem; margin-bottom:2px;">Kraftausdauer insgesamt</h3>
+          ${strengthComposite.length >= 2
+            ? renderTrendChartHtml(strengthComposite, { minY: 0, maxY: 100, unit: ' Pkt.' })
+            : ageYears == null
+              ? '<p style="color:var(--color-text-muted); font-size:0.82rem;">Kein Geburtsdatum hinterlegt – der Kraftausdauer-Verlauf kann ohne Alter nicht ausgewertet werden.</p>'
+              : '<p style="color:var(--color-text-muted); font-size:0.82rem;">Noch zu wenige Kraftausdauertests für einen Gesamtverlauf (mind. 2 Zeitpunkte nötig).</p>'}
+        </div>
+        ${mobilityChartsArr.length > 0 ? `<h3 class="mt-24" style="font-size:0.95rem;">Beweglichkeit je Gelenk</h3><div class="trend-grid">${mobilityChartsArr.join('')}</div>` : ''}
+        ${strengthChartsArr.length > 0 ? `<h3 class="mt-24" style="font-size:0.95rem;">Kraftausdauer je Übung</h3><div class="trend-grid">${strengthChartsArr.join('')}</div>` : ''}
+        ${mobilityChartsArr.length === 0 && strengthChartsArr.length === 0 ? '<p style="color:var(--color-text-muted); font-size:0.85rem;">Noch keine Testdaten – trage im Reiter „Tests" deine ersten Beweglichkeits- und Kraftausdauertests ein, um hier Verläufe zu sehen.</p>' : ''}
+      `;
+    }
+
+    // =========================================================================
+    // MONATSBERICHT (Runde 15) — On-Demand-PDF-Export: Training, Ernährung
+    // und Präventions-Score eines Monats, im bestehenden CI (Navy/Gold, Logo)
+    // als eigenständiges, hochwertiges Berichtsformat (js/monthly-report.js).
+    // Bewusst KEIN automatischer E-Mail-Versand (siehe Rückfrage-Antwort) —
+    // der Kunde bzw. Trainer zieht den Bericht bei Bedarf für einen frei
+    // wählbaren Monat. Für Kunden als eigener Tab, für Trainer zusätzlich in
+    // der Kundenanalyse (siehe renderClientAnalysisTab) für einen gewählten
+    // Kunden nutzbar — daher als eigenständige, wiederverwendbare Funktion.
+    // =========================================================================
+
+    function renderMonatsberichtTab(content, profile) {
+      renderMonatsberichtCard(content, profile.id, profile.full_name || profile.email, { isAdminView: false });
+    }
+
+    function renderMonatsberichtCard(container, clientId, clientLabel, { isAdminView } = {}) {
+      const now = new Date();
+      const defaultMonthValue = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+      container.innerHTML = `
+        <div class="card">
+          <h2 style="font-size:1.05rem;">Monatsbericht${isAdminView ? ` – ${escapeHtml(clientLabel)}` : ''}</h2>
+          <p style="color:var(--color-text-muted); font-size:0.88rem;">
+            Ein hochwertiger PDF-Bericht${isAdminView ? ` für ${escapeHtml(clientLabel)}` : ''} mit Training, Ernährung und
+            Präventions-Score des gewählten Monats – zum Ausdrucken oder Archivieren. Der Bericht wird direkt hier im
+            Browser erzeugt; es gibt keinen automatischen Versand, du lädst ihn bei Bedarf selbst herunter.
+          </p>
+          <div class="grid-2 mt-16" style="align-items:flex-end;">
+            <div class="field"><label>Monat</label><input type="month" id="mb-month" value="${defaultMonthValue}" max="${defaultMonthValue}" /></div>
+            <button class="btn small-btn" id="mb-download-btn" type="button">PDF herunterladen</button>
+          </div>
+          <div id="mb-status" class="mt-16"></div>
+        </div>
+      `;
+
+      const statusEl = document.getElementById('mb-status');
+      const btn = document.getElementById('mb-download-btn');
+      btn.addEventListener('click', async () => {
+        const monthValue = document.getElementById('mb-month').value;
+        if (!monthValue) { statusEl.innerHTML = `<div class="msg error">Bitte einen Monat auswählen.</div>`; return; }
+        btn.disabled = true;
+        statusEl.innerHTML = `<p style="font-size:0.85rem; color:var(--color-text-muted);">Erstelle Bericht …</p>`;
+        try {
+          await generateMonthlyReport(clientId, clientLabel, monthValue);
+          statusEl.innerHTML = `<div class="msg success">PDF wurde heruntergeladen.</div>`;
+        } catch (err) {
+          statusEl.innerHTML = `<div class="msg error">Fehler beim Erstellen des Berichts: ${escapeHtml(err.message)}</div>`;
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    }
+
+    async function generateMonthlyReport(clientId, clientLabel, monthValue) {
+      const [yearStr, monthStr] = monthValue.split('-');
+      const year = parseInt(yearStr, 10);
+      const monthIdx = parseInt(monthStr, 10) - 1;
+      const monthDate = new Date(year, monthIdx, 1);
+      const fromISO = new Date(year, monthIdx, 1).toISOString();
+      const toISO = new Date(year, monthIdx + 1, 1).toISOString();
+      const twelveWeeksAgo = new Date(Date.now() - 84 * 86400000).toISOString();
+
+      const [
+        { data: profileRow },
+        { data: bodyMeasurements },
+        { data: allPreventionResults, error: preventionError },
+        { data: balanceLogs },
+        { data: trainingLogsMonth, error: trainingError },
+        { data: trainingSessionsMonth },
+        { data: nutritionLogsMonth, error: nutritionError },
+        { data: energyTarget },
+        { data: allLogsForRecords },
+      ] = await Promise.all([
+        supabaseClient.from('profiles').select('birth_date, full_name, email, training_enabled, nutrition_enabled').eq('id', clientId).maybeSingle(),
+        listMyBodyMeasurements(clientId),
+        listPreventionResults(clientId),
+        listLogsForAnalytics(clientId, { from: twelveWeeksAgo }),
+        listLogsForAnalytics(clientId, { from: fromISO, to: toISO }),
+        listSessions(clientId, { from: fromISO, to: toISO }),
+        listNutritionLogs(clientId, { from: fromISO, to: toISO }),
+        getLatestEnergyTarget(clientId),
+        listAllTrainingLogsForRecords(clientId),
+      ]);
+      if (preventionError) throw new Error(preventionError.message);
+      if (trainingError) throw new Error(trainingError.message);
+      if (nutritionError) throw new Error(nutritionError.message);
+
+      // Präventions-Score: identische Berechnung wie in renderPreventionSection
+      // (siehe dort) — bewusst dieselbe Logik, damit der Score im Bericht mit
+      // dem in der Plattform angezeigten Score übereinstimmt.
+      const birthDate = profileRow ? profileRow.birth_date : null;
+      const ageYears = calcAge(birthDate);
+      const latestBodyMeasurement = (bodyMeasurements || [])[(bodyMeasurements || []).length - 1] || null;
+      const sex = latestBodyMeasurement ? latestBodyMeasurement.sex : null;
+      const bodyFatPercent = latestBodyMeasurement ? latestBodyMeasurement.body_fat_percent : null;
+      const latest = latestByKey(allPreventionResults || []);
+
+      const totals = {};
+      for (const log of balanceLogs || []) {
+        const m = logMetric(log);
+        if (!m || m.type !== 'volume') continue;
+        const pattern = log.exercises && log.exercises.movement_pattern;
+        if (!pattern || pattern === 'sonstige') continue;
+        totals[pattern] = (totals[pattern] || 0) + m.value;
+      }
+      const balancePairRatios = BALANCE_PAIRS.map((p) => {
+        const a = totals[p.aKey] || 0, b = totals[p.bKey] || 0;
+        if (a === 0 && b === 0) return { ratio: null };
+        if (a === 0 || b === 0) return { ratio: Infinity };
+        return { ratio: Math.max(a, b) / Math.min(a, b) };
+      });
+
+      const preventionScore = computePreventionScore({ ageYears, sex, latestResults: latest, bodyFatPercent, balancePairRatios });
+
+      const { prEvents } = computePersonalRecords(allLogsForRecords || []);
+      const monthPrEvents = prEvents.filter((e) => e.performedAt >= fromISO && e.performedAt < toISO);
+      const streak = computeTrainingStreak((allLogsForRecords || []).map((l) => l.performed_at));
+
+      const moduleAccess = {
+        training: profileRow ? profileRow.training_enabled !== false : true,
+        nutrition: profileRow ? profileRow.nutrition_enabled !== false : true,
+      };
+
+      await buildMonthlyReportPdf({
+        profile: { full_name: (profileRow && profileRow.full_name) || clientLabel, email: profileRow && profileRow.email },
+        monthDate,
+        trainingLogs: trainingLogsMonth,
+        trainingSessions: trainingSessionsMonth,
+        nutritionLogs: nutritionLogsMonth,
+        energyTargetKcal: energyTarget ? energyTarget.tee_kcal || null : null,
+        preventionScore,
+        streak,
+        monthPrEvents,
+        moduleAccess,
       });
     }
 
@@ -1616,14 +2297,19 @@
     // Notizfeld sowie Cardio-spezifische Felder (Dauer/Distanz/Geschwindigkeit/
     // Watt/Herzfrequenz), je nach Kategorie der gewählten Übung. ------------
 
-    function getUniqueMuscleGroups(exercises) {
-      return Array.from(new Set(exercises.map((ex) => ex.muscle_group).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'de'));
+    // 'muscle_group' kann bei Kraft/Bodyweight mehrere kommagetrennte Werte
+    // enthalten (z.B. 'Brust, Trizeps, Schulter') — hier in eine echte Liste
+    // aufgesplittet, damit eine Übung unter JEDER ihrer Muskelgruppen gefunden
+    // wird, nicht nur bei exakter String-Übereinstimmung.
+    function exerciseMuscleGroups(ex) {
+      if (!ex || !ex.muscle_group) return [];
+      return ex.muscle_group.split(',').map((s) => s.trim()).filter(Boolean);
     }
 
     function filteredExerciseOptionsHtml(exercises, categoryFilter, muscleFilter) {
       const filtered = exercises.filter((ex) =>
         (!categoryFilter || (ex.category || 'Sonstige') === categoryFilter) &&
-        (!muscleFilter || ex.muscle_group === muscleFilter)
+        (!muscleFilter || exerciseMuscleGroups(ex).includes(muscleFilter))
       );
       if (filtered.length === 0) return '<option value="">– keine Übung passt zu diesem Filter –</option>';
       return exerciseOptionsHtml(filtered);
@@ -1631,7 +2317,11 @@
 
     function createExerciseBuilderRow(rowsContainer, exercises, exercisesById) {
       const categories = [...CATEGORY_ORDER, ...Array.from(new Set(exercises.map((e) => e.category || 'Sonstige'))).filter((c) => !CATEGORY_ORDER.includes(c))];
-      const muscleGroups = getUniqueMuscleGroups(exercises);
+      // Feste Liste statt aus den Daten abgeleitet (Runde 13) — Muskelgruppen-
+      // Filter ist nur für Kraft/Bodyweight sinnvoll, greift bei Cardio/
+      // Mobilisation einfach nicht (deren muscle_group-Freitext enthält keinen
+      // der 12 Werte).
+      const muscleGroups = CANONICAL_MUSCLE_GROUPS;
 
       const row = document.createElement('div');
       row.className = 'ex-builder-row';
@@ -1657,7 +2347,7 @@
           <div class="same-for-all-fields">
             <input class="row-sets-count" type="number" min="1" placeholder="Anzahl Sätze" />
             <input class="row-reps-all" type="text" placeholder="Wdh. (z.B. 8-12)" />
-            <input class="row-weight-all" type="text" placeholder="Gewicht/Hinweis" />
+            <input class="row-weight-all" type="text" placeholder="Gewicht (kg)" />
           </div>
           <div class="set-rows-list hidden"></div>
           <button class="btn secondary small-btn add-set-row-btn hidden" type="button">+ Satz hinzufügen</button>
@@ -1700,9 +2390,24 @@
 
       function updateModeVisibility() {
         const ex = exercisesById[exerciseSelect.value];
-        const isCardio = !!ex && ex.category === 'Cardio';
+        const cat = ex ? ex.category : null;
+        const isCardio = cat === 'Cardio';
         strengthFields.classList.toggle('hidden', isCardio);
         cardioFields.classList.toggle('hidden', !isCardio);
+        applyWeightFieldVisibility(cat);
+      }
+
+      // Nutzer-Feedback Runde 13: Gewichtsfeld zeigt bei Kraft/Bodyweight
+      // automatisch "kg" statt des generischen "Gewicht/Hinweis"; bei
+      // Mobilisation (Dehnen/Mobility) ergibt ein Gewicht meist keinen Sinn
+      // und wird komplett ausgeblendet, statt nur das Label zu ändern.
+      function applyWeightFieldVisibility(cat) {
+        const hideWeight = cat === 'Mobilisation';
+        const weightAllInput = row.querySelector('.row-weight-all');
+        weightAllInput.classList.toggle('hidden', hideWeight);
+        row.querySelectorAll('.set-weight').forEach((inp) => {
+          inp.classList.toggle('hidden', hideWeight);
+        });
       }
 
       function applyFilters() {
@@ -1728,7 +2433,7 @@
         setRow.innerHTML = `
           <span class="set-index">Satz ${idx}</span>
           <input class="set-reps" type="text" placeholder="Wdh." />
-          <input class="set-weight" type="text" placeholder="Gewicht" />
+          <input class="set-weight" type="text" placeholder="Gewicht (kg)" />
           <button class="btn secondary small-btn remove-set-row" type="button">✕</button>
         `;
         setRow.querySelector('.remove-set-row').addEventListener('click', () => {
@@ -1736,6 +2441,8 @@
           renumberSetRows();
         });
         setRowsList.appendChild(setRow);
+        const currentEx = exercisesById[exerciseSelect.value];
+        applyWeightFieldVisibility(currentEx ? currentEx.category : null);
       }
 
       sameForAll.addEventListener('change', () => {
@@ -1806,6 +2513,34 @@
       };
     }
 
+    // Nutzer-Feedback Runde 13: Vorlagen-Bearbeitung nutzt denselben Builder
+    // wie das Neuanlegen, befüllt eine frisch erzeugte Übungszeile aber mit
+    // den gespeicherten Soll-Werten der Vorlage. target_reps/target_weight_hint
+    // sind einfache Text-Spalten (siehe sql/010) — unabhängig davon, ob beim
+    // ursprünglichen Anlegen "Gleiche Werte für alle Sätze" oder Werte je Satz
+    // verwendet wurden, steht am Ende immer ein einziger Text dort, der hier
+    // unverändert ins "Gleiche Werte"-Feld zurückgeschrieben wird.
+    function prefillExerciseBuilderRow(row, tplEx) {
+      const exerciseSelect = row.querySelector('.row-exercise');
+      exerciseSelect.value = tplEx.exercise_id;
+      exerciseSelect.dispatchEvent(new Event('change'));
+
+      row.querySelector('.row-notes').value = tplEx.notes || '';
+
+      const isCardioMode = !row.querySelector('.row-cardio-fields').classList.contains('hidden');
+      if (isCardioMode) {
+        row.querySelector('.row-duration').value = tplEx.target_duration_seconds ?? '';
+        row.querySelector('.row-distance').value = tplEx.target_distance_meters ?? '';
+        row.querySelector('.row-speed').value = tplEx.target_speed_kmh ?? '';
+        row.querySelector('.row-watt').value = tplEx.target_watt ?? '';
+        row.querySelector('.row-hr-percent').value = tplEx.target_heart_rate_percent ?? '';
+      } else {
+        row.querySelector('.row-sets-count').value = tplEx.target_sets ?? '';
+        row.querySelector('.row-reps-all').value = tplEx.target_reps || '';
+        row.querySelector('.row-weight-all').value = tplEx.target_weight_hint || '';
+      }
+    }
+
     function createDayBuilder(rowsContainer, exercises, dayLabel, exercisesById) {
       const dayEl = document.createElement('div');
       dayEl.className = 'day-builder';
@@ -1852,7 +2587,7 @@
 
       content.innerHTML = `
         <div class="card">
-          <h2 style="font-size:1.05rem;">Neue Trainingsplan-Vorlage bauen</h2>
+          <h2 style="font-size:1.05rem;" id="template-form-heading">Neue Trainingsplan-Vorlage bauen</h2>
           <p style="color:var(--color-text-muted); font-size:0.85rem;">Eine Vorlage ist ein wiederverwendbarer Bauplan aus einem oder mehreren Trainingstagen. Sie wird später einem oder mehreren Kunden zugewiesen (als eigenständige Kopie im Reiter „Vorlage zuweisen“).</p>
           <form id="template-form">
             <div class="field"><label>Titel der Vorlage</label><input type="text" id="tpl-title" required placeholder="z.B. Ganzkörper-Grundprogramm 3er-Split" /></div>
@@ -1860,7 +2595,8 @@
             <label style="display:block; font-size:0.82rem; color:var(--color-text-muted); margin-bottom:6px;">Trainingstage</label>
             <div id="tpl-days"></div>
             <button class="btn secondary small-btn mt-16" type="button" id="add-day-btn">+ Trainingstag hinzufügen</button>
-            <button class="btn mt-24" type="submit">Vorlage speichern</button>
+            <button class="btn mt-24" type="submit" id="template-submit-btn">Vorlage speichern</button>
+            <button class="btn secondary mt-24 hidden" type="button" id="template-cancel-btn">Bearbeitung abbrechen</button>
           </form>
         </div>
         <div class="card mt-24">
@@ -1882,6 +2618,7 @@
                   </div>
                 </div>
               `).join('')}
+              <button class="btn secondary small-btn" data-edit-template="${tpl.id}" type="button">Vorlage bearbeiten</button>
               <button class="btn secondary small-btn" data-delete-template="${tpl.id}" type="button">Vorlage löschen</button>
             </div>
           `).join('')}
@@ -1892,20 +2629,78 @@
       document.getElementById('add-day-btn').addEventListener('click', () => createDayBuilder(daysContainer, exercises, `Tag ${daysContainer.children.length + 1}`, exercisesById));
       createDayBuilder(daysContainer, exercises, 'Tag 1', exercisesById);
 
+      // Nutzer-Feedback Runde 13: Vorlagen konnten bisher nur gelöscht werden.
+      // "Bearbeiten" füllt denselben Bauformular mit den gespeicherten Werten
+      // der gewählten Vorlage; der Submit-Handler unterscheidet über
+      // editingTemplateId zwischen Neuanlage (createTemplate) und
+      // Aktualisierung (updateTemplate).
+      let editingTemplateId = null;
+
+      function resetFormToCreateMode() {
+        editingTemplateId = null;
+        document.getElementById('tpl-title').value = '';
+        document.getElementById('tpl-desc').value = '';
+        daysContainer.innerHTML = '';
+        createDayBuilder(daysContainer, exercises, 'Tag 1', exercisesById);
+        document.getElementById('template-form-heading').textContent = 'Neue Trainingsplan-Vorlage bauen';
+        document.getElementById('template-submit-btn').textContent = 'Vorlage speichern';
+        document.getElementById('template-cancel-btn').classList.add('hidden');
+      }
+
+      function fillFormForEdit(tpl) {
+        editingTemplateId = tpl.id;
+        document.getElementById('tpl-title').value = tpl.title;
+        document.getElementById('tpl-desc').value = tpl.description || '';
+        daysContainer.innerHTML = '';
+
+        const sortedDays = (tpl.plan_template_days || []).slice().sort((a, b) => a.sort_order - b.sort_order);
+        (sortedDays.length ? sortedDays : [{ label: 'Tag 1', plan_template_exercises: [] }]).forEach((day) => {
+          const dayEl = createDayBuilder(daysContainer, exercises, day.label, exercisesById);
+          const exRows = dayEl.querySelector('.day-exercise-rows');
+          exRows.innerHTML = ''; // die von createDayBuilder automatisch angelegte leere Zeile entfernen
+          const sortedEx = (day.plan_template_exercises || []).slice().sort((a, b) => a.sort_order - b.sort_order);
+          if (sortedEx.length === 0) {
+            createExerciseBuilderRow(exRows, exercises, exercisesById);
+          } else {
+            sortedEx.forEach((ex) => {
+              const row = createExerciseBuilderRow(exRows, exercises, exercisesById);
+              prefillExerciseBuilderRow(row, ex);
+            });
+          }
+        });
+
+        document.getElementById('template-form-heading').textContent = `Vorlage bearbeiten: ${tpl.title}`;
+        document.getElementById('template-submit-btn').textContent = 'Änderungen speichern';
+        document.getElementById('template-cancel-btn').classList.remove('hidden');
+        document.getElementById('template-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
+      document.getElementById('template-cancel-btn').addEventListener('click', resetFormToCreateMode);
+
       document.getElementById('template-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const days = Array.from(daysContainer.querySelectorAll('.day-builder')).map(readDayBuilder);
         if (days.length === 0) { alert('Bitte mindestens einen Trainingstag hinzufügen.'); return; }
         if (days.some((d) => d.exercises.length === 0)) { alert('Jeder Trainingstag braucht mindestens eine Übung.'); return; }
 
-        const { error } = await createTemplate({
+        const payload = {
           title: document.getElementById('tpl-title').value.trim(),
           description: document.getElementById('tpl-desc').value.trim(),
           days,
-        });
+        };
+        const { error } = editingTemplateId
+          ? await updateTemplate(editingTemplateId, payload)
+          : await createTemplate(payload);
         if (error) { alert('Fehler: ' + error.message); return; }
-        alert('Vorlage gespeichert.');
+        alert(editingTemplateId ? 'Vorlage aktualisiert.' : 'Vorlage gespeichert.');
         renderTemplatesTab(content);
+      });
+
+      content.querySelectorAll('[data-edit-template]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const tpl = (templates || []).find((t) => t.id === btn.dataset.editTemplate);
+          if (tpl) fillFormForEdit(tpl);
+        });
       });
 
       content.querySelectorAll('[data-delete-template]').forEach((btn) => {
@@ -2157,12 +2952,22 @@
           </div>
         </div>
         <div id="analysis-body" class="mt-24"></div>
+        <div id="analysis-report" class="mt-24"></div>
       `;
 
       const select = document.getElementById('analysis-client');
       const body = document.getElementById('analysis-body');
-      select.addEventListener('change', () => renderAnalyticsView(body, select.value, { isAdminView: true }));
+      const reportEl = document.getElementById('analysis-report');
+      const selectedClientLabel = () => {
+        const c = clients.find((cl) => cl.id === select.value);
+        return c ? (c.full_name || c.email) : '';
+      };
+      select.addEventListener('change', () => {
+        renderAnalyticsView(body, select.value, { isAdminView: true });
+        renderMonatsberichtCard(reportEl, select.value, selectedClientLabel(), { isAdminView: true });
+      });
       renderAnalyticsView(body, select.value, { isAdminView: true });
+      renderMonatsberichtCard(reportEl, select.value, selectedClientLabel(), { isAdminView: true });
     }
 
     // =========================================================================
@@ -2265,6 +3070,10 @@
           <h2 class="mt-24" style="font-size:1.15rem;">Präventionscheck</h2>
           <div id="prevention-section"></div>
 
+          <h2 class="mt-24" style="font-size:1.15rem;">Entwicklung im Verlauf</h2>
+          <p style="color:var(--color-text-muted); font-size:0.82rem; margin:-4px 0 12px;">Beweglichkeit und Kraftausdauer über die Zeit – insgesamt sowie je Gelenk/Übung, auf Basis deiner Testhistorie im Reiter „Tests".</p>
+          <div id="trends-section"></div>
+
           <h2 class="mt-24" style="font-size:1.15rem;">Tests – Erinnerung</h2>
           <p style="color:var(--color-text-muted); font-size:0.82rem; margin:-4px 0 12px;">Nur ein Status-Hinweis – Tests selbst werden im eigenen Reiter „Tests" eingetragen, nicht hier.</p>
           <div id="tests-section"></div>
@@ -2296,7 +3105,9 @@
         renderProgressChart(logs);
         renderDysbalanceSection(logs);
         const preventionEl = document.getElementById('prevention-section');
-        if (preventionEl) renderPreventionSection(preventionEl, clientId, { isAdminView });
+        if (preventionEl) renderPreventionSection(preventionEl, clientId, { isAdminView, hideLifestyleForms: true });
+        const trendsEl = document.getElementById('trends-section');
+        if (trendsEl) renderTrendsSection(trendsEl, clientId);
         const testsEl = document.getElementById('tests-section');
         if (testsEl) renderTestsReminder(testsEl, clientId, { isAdminView });
       }

@@ -5,7 +5,7 @@
 // neue Version bekommen.
 // ============================================================================
 
-const CACHE_NAME = 'dadi-plattform-v28';
+const CACHE_NAME = 'dadi-plattform-v32';
 const APP_SHELL = [
   './',
   'index.html',
@@ -21,6 +21,7 @@ const APP_SHELL = [
   'js/supabase-client.js',
   'js/auth.js',
   'js/training.js',
+  'js/monthly-report.js',
   'js/prevention.js',
   'js/offline-queue.js',
   'js/nutrition.js',

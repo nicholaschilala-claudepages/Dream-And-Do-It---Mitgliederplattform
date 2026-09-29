@@ -57,7 +57,6 @@
     } from './js/betrieb.js';
     import { getUnreadCount } from './js/messages.js';
     import { navTabsHtml, bindNavSubmenus } from './js/nav.js';
-    import { subnavSelectHtml, bindSubnavSelect } from './js/subnav.js';
 
     initTheme();
     document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
@@ -138,13 +137,18 @@
       { key: 'geraete', label: 'Geräte' },
     ];
 
+    // Nutzer-Feedback Runde 13: die Unterseiten-Auswahl gab es doppelt (einmal
+    // im Kopfzeilen-Dropdown aus js/nav.js, das seit dieser Runde auch einen
+    // "betrieb"-Eintrag hat, einmal hier als eigenes Hamburger-Menü aus
+    // js/subnav.js) — genau das Muster, das Runde 5/9 für Training/Ernährung/
+    // Coaching bereits beseitigt hat. Analog entfernt: Navigation läuft jetzt
+    // ausschließlich über das Kopfzeilen-Dropdown, ?tab= aus der URL wählt
+    // den Starttab.
     function renderShell() {
-      container.innerHTML = `
-        ${subnavSelectHtml(BETRIEB_TABS, 'fruehwarn')}
-        <div id="tab-content"></div>
-      `;
-      bindSubnavSelect(container, (key) => renderTab(key));
-      renderTab('fruehwarn');
+      const requestedTab = new URLSearchParams(location.search).get('tab');
+      const initialTab = BETRIEB_TABS.some((t) => t.key === requestedTab) ? requestedTab : 'fruehwarn';
+      container.innerHTML = '<div id="tab-content"></div>';
+      renderTab(initialTab);
     }
 
     function renderTab(tab) {
