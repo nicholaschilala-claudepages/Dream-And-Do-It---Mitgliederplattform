@@ -195,12 +195,14 @@
     import { SECTION_INFO } from './js/section-info.js';
     import { listMyBodyMeasurements, listNutritionLogs, getLatestEnergyTarget } from './js/nutrition.js';
     import { buildMonthlyReportPdf } from './js/monthly-report.js';
+    import { awardAchievement } from './js/achievements.js';
     import {
-      calcAge, updateBirthDate, STRENGTH_TESTS, MOBILITY_TESTS, mobilityRatingLabel,
+      calcAge, updateBirthDate, STRENGTH_TESTS, MOBILITY_TESTS, CARDIO_TESTS, mobilityRatingLabel,
       MOBILITY_RATING_VISUALS, getStaleTestSummary,
       evaluateStrengthBenchmark, evaluateBodyFatCategory, evaluateSittingScore,
       insertPreventionResult, listPreventionResults, deletePreventionResult,
       latestByKey, isStale, computePreventionScore,
+      computeCooperVO2max, computeRockportVO2max, evaluateCardioFitness,
       NUTRITION_QUIZ, NUTRITION_QUIZ_SOURCE, computeNutritionQuizScore, evaluateNutritionQuality,
       SMOKING_OPTIONS, SMOKING_SOURCE, evaluateSmokingStatus,
       ALCOHOL_SOURCE, evaluateAlcoholRisk,
@@ -2032,6 +2034,11 @@
         monthPrEvents,
         moduleAccess,
       });
+
+      // Runde 16: "Erster Monatsbericht"-Erfolg wird direkt beim erfolgreichen
+      // Download vergeben (nicht aus Daten hergeleitet) – awardAchievement()
+      // ist idempotent, ein erneuter Download schaltet nichts doppelt frei.
+      awardAchievement(clientId, 'monthly_report_first').catch(() => {});
     }
 
     // =========================================================================
@@ -2042,6 +2049,113 @@
     // Tab und in der Kundendatei der Traineransicht, siehe js/prevention.js
     // getStaleTestSummary()).
     // =========================================================================
+
+    // Runde 16: Herz-Kreislauf-Fitness-Test (Cooper- oder Rockport-Protokoll,
+    // client-seitig zu einem geschätzten VO2max verrechnet). Anders als die
+    // übrigen Kraftausdauertests hat dieser Test zwei alternative
+    // Eingabeprotokolle mit unterschiedlichen Feldern – deshalb eine eigene
+    // Karte mit eigenem Formular statt Wiederverwendung von strengthTestCardHtml.
+    function cardioTestCardHtml(latestRow, ageYears, sex, weightKgHint, history) {
+      const evalRes = latestRow ? evaluateCardioFitness(ageYears, sex, latestRow.value) : null;
+      const points = history.filter((r) => r.test_key === 'cardio_fitness').map((r) => ({ date: r.measured_at, value: r.value }));
+      return `
+        <div class="card mt-24 pv-test-card" data-test-key="cardio_fitness">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+            <h3 style="margin:0; font-size:1rem;">Herz-Kreislauf-Fitness (geschätzter VO2max)</h3>
+            ${latestRow ? `<span class="status-pill ${isStale(latestRow.measured_at) ? 'under' : 'active'}">${isStale(latestRow.measured_at) ? 'älter als 12 Wochen' : 'aktuell'}</span>` : ''}
+          </div>
+          <details class="qn-details mt-16"><summary>Testprotokoll ansehen (Durchführung, Abbruchkriterium, Kontraindikation)</summary>
+            <div style="padding:10px 0 0; font-size:0.85rem;">
+              <p><strong>Ausführung:</strong> Zwei Protokolle zur Auswahl. (1) Cooper-Test: 12 Minuten am Stück so weit wie möglich laufen, zurückgelegte Distanz in Metern messen. (2) Rockport-Gehtest: 1 Meile (1.609 m) so schnell wie möglich zügig gehen – nicht laufen –, Zeit und Puls direkt am Ziel messen.</p>
+              <p><strong>Typische Fehler:</strong> Beim Cooper-Test zu schnell starten und vorzeitig einbrechen; beim Rockport-Test joggen statt zügig gehen (verfälscht die Schätzformel).</p>
+              <p><strong>Abbruchkriterium:</strong> Bei Schwindel, Brustschmerz, starker Atemnot oder deutlichem Unwohlsein sofort abbrechen.</p>
+              <p style="color:var(--color-danger);"><strong>Kontraindikation:</strong> Nicht bei unbehandeltem Bluthochdruck, bekannten Herz-Kreislauf-Erkrankungen, akutem Infekt oder unmittelbar nach intensivem Training durchführen – bei bestehenden Vorerkrankungen vorher ärztliche Freigabe einholen.</p>
+              <p style="color:var(--color-text-muted); font-size:0.78rem;">Formeln: Cooper, K.H. (1968), JAMA – Cooper-Test; Kline et al. (1987), Medicine &amp; Science in Sports &amp; Exercise – Rockport-Gehtest. Einstufung: Cooper Institute, Physical Fitness Specialist Manual (1997), zit. nach Heyward (1998) – VO2max-Normtabellen unterscheiden sich je nach Quelle, der Wert dient der eigenen Verlaufskontrolle, nicht einer Diagnose. Begründung für die Erfassung: Mandsager et al. (2018), JAMA Network Open – durchgehender Zusammenhang zwischen kardiorespiratorischer Fitness und Gesamtmortalität.</p>
+            </div>
+          </details>
+          ${latestRow ? `
+            <div class="result-box mt-16">
+              <div class="big" style="font-size:1.3rem;">${latestRow.value} ml/kg/min</div>
+              ${evalRes && evalRes.bandFound ? `<div style="font-size:0.85rem; margin-top:4px;">Einstufung: <strong>${escapeHtml(evalRes.label)}</strong></div>` : `<div style="font-size:0.8rem; color:var(--color-text-muted); margin-top:4px;">${escapeHtml(evalRes ? evalRes.label : '')}</div>`}
+              ${evalRes && evalRes.genderNote ? `<div style="font-size:0.75rem; color:var(--color-text-muted); margin-top:4px;">${escapeHtml(evalRes.genderNote)}</div>` : ''}
+              ${latestRow.notes ? `<div style="font-size:0.75rem; color:var(--color-text-muted); margin-top:4px;">${escapeHtml(latestRow.notes)}</div>` : ''}
+              <div style="font-size:0.75rem; color:var(--color-text-muted); margin-top:4px;">Gemessen am ${formatDateOnly(latestRow.measured_at)} von ${latestRow.measured_by === 'trainer' ? 'Trainer/Coach' : 'Kunde selbst'}</div>
+            </div>
+          ` : '<p style="color:var(--color-text-muted); font-size:0.85rem; margin-top:12px;">Noch kein Test eingetragen.</p>'}
+          ${points.length >= 2 ? `<div class="mt-16">${miniSparklineHtml(points, 'ml/kg/min')}</div>` : ''}
+          <form class="cardio-entry-form mt-16">
+            <div class="field"><label>Protokoll</label>
+              <select class="cardio-protocol">
+                <option value="cooper">Cooper-Test (12-Minuten-Lauf)</option>
+                <option value="rockport">Rockport-Gehtest (1 Meile)</option>
+              </select>
+            </div>
+            <div class="cardio-fields-cooper">
+              <div class="field"><label>Zurückgelegte Distanz (Meter)</label><input type="number" step="1" min="0" class="cardio-distance" /></div>
+            </div>
+            <div class="cardio-fields-rockport grid-2 hidden">
+              <div class="field"><label>Gehzeit (Minuten, z.B. 14.5)</label><input type="number" step="0.1" min="0" class="cardio-time" /></div>
+              <div class="field"><label>Puls direkt am Ziel (bpm)</label><input type="number" step="1" min="0" class="cardio-hr" /></div>
+              <div class="field"><label>Körpergewicht (kg)</label><input type="number" step="0.1" min="0" class="cardio-weight" value="${weightKgHint || ''}" /></div>
+            </div>
+            <div class="grid-2 mt-16">
+              <div class="field"><label>Datum</label><input type="date" class="cardio-date" value="${new Date().toISOString().slice(0, 10)}" required /></div>
+              <div class="field"><label>Wer hat gemessen?</label>
+                <select class="cardio-measured-by">
+                  <option value="client">Ich selbst</option>
+                  <option value="trainer">Trainer/Coach</option>
+                </select>
+              </div>
+            </div>
+            <button class="btn mt-16" type="submit">Ergebnis berechnen &amp; speichern</button>
+          </form>
+        </div>
+      `;
+    }
+
+    function bindCardioTestForm(el, clientId, ageYears, sex, { isAdminView }) {
+      const form = el.querySelector('.cardio-entry-form');
+      if (!form) return;
+      const protoSelect = form.querySelector('.cardio-protocol');
+      const cooperFields = form.querySelector('.cardio-fields-cooper');
+      const rockportFields = form.querySelector('.cardio-fields-rockport');
+      protoSelect.addEventListener('change', () => {
+        const isRockport = protoSelect.value === 'rockport';
+        cooperFields.classList.toggle('hidden', isRockport);
+        rockportFields.classList.toggle('hidden', !isRockport);
+      });
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const submitBtn = form.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+        let vo2max = null;
+        let notes = '';
+        if (protoSelect.value === 'cooper') {
+          const distance = parseFloat(form.querySelector('.cardio-distance').value);
+          vo2max = computeCooperVO2max(distance);
+          notes = `Cooper-Test: ${distance} m in 12 Minuten`;
+        } else {
+          const timeMinutes = parseFloat(form.querySelector('.cardio-time').value);
+          const heartRateBpm = parseFloat(form.querySelector('.cardio-hr').value);
+          const weightKgInput = parseFloat(form.querySelector('.cardio-weight').value);
+          vo2max = computeRockportVO2max({ weightKg: weightKgInput, ageYears, sex, timeMinutes, heartRateBpm });
+          notes = `Rockport-Gehtest: 1 Meile in ${timeMinutes} Min, Puls ${heartRateBpm}, Gewicht ${weightKgInput} kg`;
+        }
+        if (!vo2max || vo2max <= 0) {
+          alert('Bitte alle Felder korrekt ausfüllen – die Berechnung war nicht möglich (bei Rockport wird zusätzlich ein hinterlegtes Geburtsdatum benötigt).');
+          submitBtn.disabled = false;
+          return;
+        }
+        const { error } = await insertPreventionResult({
+          clientId, testKey: 'cardio_fitness', value: vo2max,
+          measuredBy: form.querySelector('.cardio-measured-by').value,
+          measuredAt: form.querySelector('.cardio-date').value,
+          notes,
+        });
+        if (error) { alert('Fehler: ' + error.message); submitBtn.disabled = false; return; }
+        renderTestsSection(el, clientId, { isAdminView });
+      });
+    }
 
     function renderTestsTab(content, profile, { isAdminView }) {
       renderTestsSection(content, profile.id, { isAdminView });
@@ -2070,7 +2184,7 @@
       // der Kundendatei der Traineransicht (dieselbe Berechnung, siehe
       // js/prevention.js getStaleTestSummary()).
       const staleItems = [];
-      [...STRENGTH_TESTS, ...MOBILITY_TESTS].forEach((t) => {
+      [...STRENGTH_TESTS, ...MOBILITY_TESTS, ...CARDIO_TESTS].forEach((t) => {
         const sides = t.hasSide ? ['left', 'right'] : [null];
         sides.forEach((side) => {
           const key = side ? `${t.key}:${side}` : t.key;
@@ -2097,9 +2211,14 @@
         <h2 class="mt-24" style="font-size:1.1rem;">Kraftausdauertests</h2>
         ${STRENGTH_TESTS.map((t) => strengthTestCardHtml(t, latest[t.key], ageYears, sex, results)).join('')}
 
+        <h2 class="mt-24" style="font-size:1.1rem;">Herz-Kreislauf-Fitness</h2>
+        ${cardioTestCardHtml(latest.cardio_fitness, ageYears, sex, latestBodyMeasurement ? latestBodyMeasurement.weight_kg : null, results)}
+
         <h2 class="mt-24" style="font-size:1.1rem;">Beweglichkeitstests</h2>
         ${MOBILITY_TESTS.map((t) => mobilityTestCardHtml(t, latest, results)).join('')}
       `;
+
+      bindCardioTestForm(el, clientId, ageYears, sex, { isAdminView });
 
       el.querySelectorAll('.pv-entry-form').forEach((form) => {
         form.addEventListener('submit', async (e) => {
@@ -2137,7 +2256,7 @@
 
       const latest = latestByKey(allResults || []);
       const staleItems = [];
-      [...STRENGTH_TESTS, ...MOBILITY_TESTS].forEach((t) => {
+      [...STRENGTH_TESTS, ...MOBILITY_TESTS, ...CARDIO_TESTS].forEach((t) => {
         const sides = t.hasSide ? ['left', 'right'] : [null];
         sides.forEach((side) => {
           const key = side ? `${t.key}:${side}` : t.key;

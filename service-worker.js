@@ -5,7 +5,7 @@
 // neue Version bekommen.
 // ============================================================================
 
-const CACHE_NAME = 'dadi-plattform-v32';
+const CACHE_NAME = 'dadi-plattform-v34';
 const APP_SHELL = [
   './',
   'index.html',
@@ -23,6 +23,7 @@ const APP_SHELL = [
   'js/training.js',
   'js/monthly-report.js',
   'js/prevention.js',
+  'js/achievements.js',
   'js/offline-queue.js',
   'js/nutrition.js',
   'js/coaching.js',

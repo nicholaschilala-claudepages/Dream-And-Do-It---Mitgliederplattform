@@ -45,8 +45,14 @@
     // & Präventionscheck wiederverwendet; die Ziele (GROW) bekommen eine
     // kompakte Karte direkt nach der Begrüßung statt nur als Unterseite.
     import { supabaseClient } from './js/supabase-client.js';
-    import { calcAge, updateBirthDate } from './js/prevention.js';
+    import { calcAge, updateBirthDate, listPreventionResults, isPreventionCheckComplete } from './js/prevention.js';
     import { listMyGoals } from './js/coaching.js';
+    // Runde 16: Achievements-/Erfolge-Karte – wertet bereits vorhandene Daten
+    // aus Training (Streak/Rekorde, Runde 15), Ernährungsprotokoll und
+    // Präventionscheck aus, ohne diese Module hier neu zu implementieren.
+    import { listAllTrainingLogsForRecords, computePersonalRecords, computeTrainingStreak } from './js/training.js';
+    import { listNutritionLogs } from './js/nutrition.js';
+    import { ACHIEVEMENT_DEFINITIONS, evaluateAchievements, listAchievements, syncEarnedAchievements } from './js/achievements.js';
 
     initTheme();
     document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
@@ -198,6 +204,13 @@
           <div id="grow-summary-list" class="mt-16"><p class="center-text" style="font-size:0.85rem;">Lade Ziele …</p></div>
         </div>
 
+        <div class="card mt-24" id="achievements-summary-card">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+            <h3 style="font-size:1rem; margin:0;">Deine Erfolge</h3>
+          </div>
+          <div id="achievements-summary-list" class="mt-16"><p class="center-text" style="font-size:0.85rem;">Lade Erfolge …</p></div>
+        </div>
+
         <div class="card mt-24" id="birthdate-card">
           <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
             <div>
@@ -233,7 +246,69 @@
       // (siehe #nav-tabs-slot / js/nav.js), die jetzt auf jeder Seite verfügbar ist.
       initCollapsibles(container);
       renderGrowSummary(profile);
+      renderAchievementsCard(profile);
       renderBirthdateCard(profile);
+    }
+
+    // Runde 16: berechnet alle Erfolge aus bereits vorhandenen Daten (nur für
+    // freigeschaltete Module – ohne Trainings-/Ernährungszugriff werden diese
+    // Daten gar nicht erst abgefragt) und schreibt neu erreichte Erfolge in
+    // die Datenbank, damit der "neu freigeschaltet"-Hinweis nur einmal
+    // erscheint und Trainer denselben Stand sehen.
+    async function renderAchievementsCard(profile) {
+      const listEl = document.getElementById('achievements-summary-list');
+      if (!listEl) return;
+
+      const trainingEnabled = profile.role === 'admin' || !!profile.training_enabled;
+      const nutritionEnabled = profile.role === 'admin' || !!profile.nutrition_enabled;
+
+      const [{ data: existing, error: existingError }, { data: trainingLogs }, { data: preventionResults }, { data: nutritionLogs }] = await Promise.all([
+        listAchievements(profile.id),
+        trainingEnabled ? listAllTrainingLogsForRecords(profile.id) : Promise.resolve({ data: [] }),
+        trainingEnabled ? listPreventionResults(profile.id) : Promise.resolve({ data: [] }),
+        nutritionEnabled ? listNutritionLogs(profile.id) : Promise.resolve({ data: [] }),
+      ]);
+      if (existingError) { listEl.innerHTML = `<div class="msg error">${escapeHtml(existingError.message)}</div>`; return; }
+
+      const logs = trainingLogs || [];
+      const { prEvents } = computePersonalRecords(logs);
+      const { longestStreak } = computeTrainingStreak(logs.map((l) => l.performed_at));
+      const nutritionDaysLogged = new Set((nutritionLogs || []).map((n) => (n.logged_at || '').slice(0, 10)).filter(Boolean)).size;
+      const preventionComplete = trainingEnabled ? isPreventionCheckComplete(preventionResults || []) : false;
+      const cardioTestDone = (preventionResults || []).some((r) => r.test_key === 'cardio_fitness');
+
+      const evaluated = evaluateAchievements({
+        longestStreak, prCount: prEvents.length, nutritionDaysLogged, preventionComplete, cardioTestDone,
+      });
+
+      const existingKeys = new Set((existing || []).map((a) => a.achievement_key));
+      const newlyEarned = evaluated.filter((a) => a.earned && !a.manual && !existingKeys.has(a.key));
+      if (newlyEarned.length > 0) {
+        const { error: syncError } = await syncEarnedAchievements(profile.id, newlyEarned);
+        if (!syncError) newlyEarned.forEach((a) => existingKeys.add(a.key));
+      }
+
+      const earnedCount = ACHIEVEMENT_DEFINITIONS.filter((d) => existingKeys.has(d.key)).length;
+
+      listEl.innerHTML = `
+        ${newlyEarned.length > 0 ? `
+        <div class="msg success" style="margin-bottom:12px;">
+          🎉 Neu freigeschaltet: ${newlyEarned.map((a) => escapeHtml(a.title)).join(', ')}
+        </div>` : ''}
+        <div class="achievements-grid">
+          ${evaluated.map((a) => {
+            const earned = existingKeys.has(a.key);
+            return `
+              <div class="achievement-badge ${earned ? 'earned' : 'locked'}" title="${escapeHtml(a.description)}">
+                <div class="achievement-icon">${a.icon}</div>
+                <div class="achievement-title">${escapeHtml(a.title)}</div>
+                ${!earned && a.progress ? `<div class="achievement-progress">${a.progress.current}/${a.progress.target}</div>` : ''}
+              </div>
+            `;
+          }).join('')}
+        </div>
+        <p style="font-size:0.78rem; color:var(--color-text-muted); margin:12px 0 0;">${earnedCount} von ${ACHIEVEMENT_DEFINITIONS.length} Erfolgen freigeschaltet.</p>
+      `;
     }
 
     // Nutzer-Feedback Runde 14: kompakte Ziele-Karte direkt auf der Startseite

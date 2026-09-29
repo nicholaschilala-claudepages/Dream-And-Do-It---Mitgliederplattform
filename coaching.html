@@ -335,6 +335,7 @@
             <p style="font-size:0.82rem;">${escapeHtml(t.science)}</p>
             <div class="breath-source">Quelle: ${escapeHtml(t.source)}</div>
           </div>
+          ${t.disclaimer ? `<p style="font-size:0.75rem; color:var(--color-danger); margin:0 0 12px;">${escapeHtml(t.disclaimer)}</p>` : ''}
           <button class="btn" style="width:auto; padding:10px 20px;" data-start-breath="${t.key}">Übung starten</button>
         </div>
       `;
@@ -347,9 +348,10 @@
           <h2>Atemübungstrainer</h2>
         </div>
         <p class="lead">
-          Zwei geführte Atemtechniken zur gezielten Beruhigung des Nervensystems – z.B. vor dem Einschlafen,
-          in stressigen Momenten oder als kurze bewusste Pause im Alltag. Der sich ausdehnende und
-          zusammenziehende Kreis gibt den Rhythmus vor: einfach mitatmen, mehr ist nicht nötig.
+          Vier geführte Atemtechniken – zur gezielten Beruhigung des Nervensystems (z.B. vor dem Einschlafen,
+          in stressigen Momenten oder als kurze bewusste Pause im Alltag) sowie zwei speziell zur Unterstützung
+          bei Atemwegserkrankungen. Der sich ausdehnende und zusammenziehende Kreis gibt den Rhythmus vor:
+          einfach mitatmen, mehr ist nicht nötig.
         </p>
         <div class="breath-grid" id="breath-grid">
           ${BREATHING_TECHNIQUES.map(breathTechniqueCardHtml).join('')}
