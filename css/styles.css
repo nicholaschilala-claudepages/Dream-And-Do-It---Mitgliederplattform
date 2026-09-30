@@ -111,9 +111,7 @@ a { color: var(--color-gold); }
   align-items: center;
   gap: 10px;
   font-family: var(--font-heading);
-  font-size: 1.1rem;
   color: var(--color-gold-light);
-  white-space: nowrap;
   flex-shrink: 0;
 }
 
@@ -123,21 +121,46 @@ a { color: var(--color-gold); }
   flex-shrink: 0;
 }
 
+.topbar .brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.topbar .brand-name {
+  font-size: 1.1rem;
+  white-space: nowrap;
+}
+
+.topbar .brand-tagline {
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: #fff;
+  opacity: 0.82;
+  white-space: nowrap;
+}
+
 /* Nutzer-Feedback: Wortmarke "DREAM AND DO IT" brach auf schmalen Handy-
    Breiten mitten im Wort um und wirkte dadurch "abgeschnitten"/verzerrt,
    weil die feste Topbar-Höhe den Umbruch abschnitt. Fix: Wortmarke bricht
    nie mehr um (skaliert stattdessen herunter); reicht der Platz trotzdem
    nicht, wandert die Aktionsleiste (Hell/Dunkel/Abmelden) sauber in eine
-   zweite Zeile statt zu quetschen. */
+   zweite Zeile statt zu quetschen. Der Claim (Tagline) wird auf sehr
+   schmalen Handy-Breiten ausgeblendet, damit dieser Umbruch-Bug nicht
+   durch die zusätzliche Zeile erneut auftritt. */
 @media (max-width: 460px) {
   .topbar .brand { font-size: 0.88rem; gap: 7px; }
   .topbar .brand img { height: 30px; }
+  .topbar .brand-name { font-size: 0.88rem; }
+  .topbar .brand-tagline { display: none; }
   .topbar > *:last-child { flex: 1 1 100%; justify-content: flex-end; }
 }
 
 @media (max-width: 360px) {
-  .topbar .brand { font-size: 0.78rem; gap: 6px; }
   .topbar .brand img { height: 26px; }
+  .topbar .brand-name { font-size: 0.78rem; }
 }
 
 .login-hero {
