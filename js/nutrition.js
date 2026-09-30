@@ -139,7 +139,7 @@ export async function listRecipes() {
   return supabaseClient.from('recipes').select('*').order('category', { ascending: true }).order('title', { ascending: true });
 }
 
-export async function createRecipe({ title, description, category, pdfUrl, imageUrl, proteinG, carbsG, fatG, kcalPerPortion }) {
+export async function createRecipe({ title, description, category, pdfUrl, imageUrl, proteinG, carbsG, fatG, kcalPerPortion, prepMinutes, dietType, flavorProfile, mealType }) {
   const session = await supabaseClient.auth.getSession();
   const userId = session.data.session?.user?.id;
   return supabaseClient.from('recipes').insert({
@@ -147,6 +147,10 @@ export async function createRecipe({ title, description, category, pdfUrl, image
     pdf_url: pdfUrl, image_url: imageUrl || null, created_by: userId,
     protein_g: proteinG || null, carbs_g: carbsG || null, fat_g: fatG || null,
     kcal_per_portion: kcalPerPortion || null,
+    // Filter-Clusterung (Etappe 44): Zubereitungszeit / Ernährungsform /
+    // Geschmacksrichtung / Mahlzeit-Typ, siehe sql/044_rezepte_filter_clusterung.sql.
+    prep_minutes: prepMinutes || null, diet_type: dietType || null,
+    flavor_profile: flavorProfile || null, meal_type: mealType || null,
   });
 }
 

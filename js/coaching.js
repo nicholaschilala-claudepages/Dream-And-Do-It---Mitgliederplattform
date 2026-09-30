@@ -12,12 +12,33 @@ export async function listCoachingContent() {
   return supabaseClient.from('coaching_content').select('*').order('category', { ascending: true }).order('title', { ascending: true });
 }
 
-export async function createCoachingContent({ title, description, category, pdfUrl, imageUrl }) {
+/**
+ * Kuratierte Themengruppen für den Filter im "Content"-Unterreiter (siehe
+ * sql/045_coaching_content_themengruppen.sql für die volle Herleitung/
+ * Taxonomie-Begründung sowie den CHECK-Constraint auf
+ * coaching_content.theme_group, der exakt dieselben value-Strings erwartet).
+ * Ergänzt die freie `category`-Spalte um einen festen, browsbaren
+ * Wertebereich mit 8 Gruppen statt der inzwischen 11 gewachsenen freien
+ * Kategorien.
+ */
+export const COACHING_CONTENT_THEME_GROUPS = [
+  { value: 'ernaehrungspsychologie', label: 'Ernährungspsychologie' },
+  { value: 'gesundheit_bewegung_langlebigkeit', label: 'Gesundheit, Bewegung & Langlebigkeit' },
+  { value: 'atomic_habits_gewohnheiten', label: 'Atomic Habits & Gewohnheiten' },
+  { value: 'emotionen_resilienz_mindset', label: 'Emotionen, Resilienz & Mindset' },
+  { value: 'beziehungen_kommunikation', label: 'Beziehungen & Kommunikation' },
+  { value: 'ziele_selbstorganisation', label: 'Ziele & Selbstorganisation' },
+  { value: 'persoenlichkeitsentwicklung_leadership', label: 'Persönlichkeitsentwicklung & Leadership' },
+  { value: 'konsum_digitales', label: 'Digitaler Konsum & Medien' },
+];
+
+export async function createCoachingContent({ title, description, category, pdfUrl, imageUrl, themeGroup }) {
   const session = await supabaseClient.auth.getSession();
   const userId = session.data.session?.user?.id;
   return supabaseClient.from('coaching_content').insert({
     title, description: description || null, category: category || null,
-    pdf_url: pdfUrl, image_url: imageUrl || null, created_by: userId,
+    pdf_url: pdfUrl, image_url: imageUrl || null, theme_group: themeGroup || null,
+    created_by: userId,
   });
 }
 

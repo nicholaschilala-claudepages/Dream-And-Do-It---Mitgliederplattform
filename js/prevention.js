@@ -36,6 +36,16 @@ export async function updateBirthDate(clientId, birthDate) {
 }
 
 // ---------------------------------------------------------------------------
+// Körpergröße (Runde 18): analog zum Geburtsdatum zentral in profiles
+// gepflegt statt bei jeder Körperfett-Messung bzw. im PAL-Rechner erneut
+// abgefragt zu werden – ändert sich bei Erwachsenen praktisch nie.
+// ---------------------------------------------------------------------------
+
+export async function updateHeight(clientId, heightCm) {
+  return supabaseClient.from('profiles').update({ height_cm: heightCm || null }).eq('id', clientId);
+}
+
+// ---------------------------------------------------------------------------
 // Testprotokolle (Kraftausdauer) – Quelle: vom Nutzer bereitgestelltes
 // Athletikkonzept, Benchmark-Tabellen ACSM/Mackenzie bzw. Strand et al./
 // Topend Sports.
