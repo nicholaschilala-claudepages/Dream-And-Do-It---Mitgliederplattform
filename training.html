@@ -25,6 +25,16 @@
       border: 1px solid var(--color-border); border-radius: 8px; flex-shrink: 0; cursor: zoom-in;
     }
     .thumb-sm { width: 40px; height: 40px; object-fit: contain; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 6px; flex-shrink: 0; cursor: zoom-in; }
+    /* Runde 18 (Nachtrag): sichtbarer Platzhalter statt komplett unsichtbarem
+       Bild, wenn eine hinterlegte image_url nicht lädt (siehe onExerciseImgError) –
+       zeigt so sofort ein Deployment-Problem an, statt es zu verstecken. */
+    .img-missing {
+      display: flex; align-items: center; justify-content: center; text-align: center;
+      background: var(--color-bg); border: 1px dashed var(--color-border); border-radius: 8px;
+      color: var(--color-text-muted); font-size: 0.62rem; line-height: 1.3; cursor: help;
+    }
+    .thumb.img-missing { width: 88px; height: 88px; flex-shrink: 0; }
+    .thumb-sm.img-missing { width: 40px; height: 40px; flex-shrink: 0; }
     .exercise-meta { flex: 1; min-width: 220px; }
     .exercise-meta h4 { margin: 0 0 2px 0; font-family: var(--font-body); font-weight: 600; font-size: 0.98rem; }
     /* Nutzer-Feedback Runde 18: "Sätze, Wiederholungen und Gewichte stehen
@@ -277,6 +287,23 @@
       lightboxOverlay.classList.add('open');
     };
     lightboxOverlay.addEventListener('click', () => lightboxOverlay.classList.remove('open'));
+
+    // Runde 18 (Nachtrag): Übungsbilder, die trotz korrekt hinterlegter
+    // image_url nicht laden (z.B. weil die Bilddatei im Repo/GitHub Pages
+    // fehlt), wurden bisher per onerror komplett unsichtbar gemacht
+    // (display:none) — dadurch war für niemanden erkennbar, OB und WARUM
+    // ein Bild fehlt. Jetzt wird stattdessen ein kleiner, dezenter Platzhalter
+    // mit dem genauen Dateipfad angezeigt (auch als Tooltip abrufbar), damit
+    // ein Deployment-Problem (Bilddatei nicht hochgeladen) sofort auffällt,
+    // statt sich hinter einer leeren Fläche zu verstecken.
+    window.onExerciseImgError = function (imgEl) {
+      const path = imgEl.getAttribute('data-src') || imgEl.src;
+      const placeholder = document.createElement('div');
+      placeholder.className = imgEl.className + ' img-missing';
+      placeholder.title = 'Bilddatei nicht gefunden: ' + path;
+      placeholder.innerHTML = '<span>🖼️<br />Bild fehlt</span>';
+      imgEl.replaceWith(placeholder);
+    };
 
     const CATEGORY_ORDER = ['Mobilisation', 'Kraft', 'Bodyweight', 'Cardio'];
     // Nutzer-Feedback Runde 13: einzige zulässige Muskelgruppen (vorher 76
@@ -997,7 +1024,7 @@
       const defaultWeight = weightHintMatch ? weightHintMatch[1].replace(',', '.') : null;
 
       return `<div class="exercise-row">
-        ${ex.image_url ? `<img class="thumb" src="${escapeHtml(ex.image_url)}" alt="${escapeHtml(ex.name)}" onerror="this.style.display='none'" onclick="openLightbox('${escapeHtml(ex.image_url)}', '${escapeHtml(ex.name)}')" />` : ''}
+        ${ex.image_url ? `<img class="thumb" data-src="${escapeHtml(ex.image_url)}" src="${escapeHtml(ex.image_url)}" alt="${escapeHtml(ex.name)}" onerror="onExerciseImgError(this)" onclick="openLightbox('${escapeHtml(ex.image_url)}', '${escapeHtml(ex.name)}')" />` : ''}
         <div class="exercise-meta">
           <h4>${escapeHtml(ex.name)}</h4>
           ${ex.muscle_group ? `<div class="muscle">Beanspruchte Muskulatur: ${escapeHtml(ex.muscle_group)}</div>` : ''}
@@ -2346,7 +2373,7 @@
             <h3 style="font-size:0.9rem; text-transform:uppercase; letter-spacing:0.04em; color:var(--color-gold); margin:16px 0 6px;">${escapeHtml(cat)}</h3>
             ${groups[cat].map((ex) => `
               <div class="exercise-row">
-                ${ex.image_url ? `<img class="thumb" src="${escapeHtml(ex.image_url)}" alt="${escapeHtml(ex.name)}" onerror="this.style.display='none'" onclick="openLightbox('${escapeHtml(ex.image_url)}', '${escapeHtml(ex.name)}')" />` : ''}
+                ${ex.image_url ? `<img class="thumb" data-src="${escapeHtml(ex.image_url)}" src="${escapeHtml(ex.image_url)}" alt="${escapeHtml(ex.name)}" onerror="onExerciseImgError(this)" onclick="openLightbox('${escapeHtml(ex.image_url)}', '${escapeHtml(ex.name)}')" />` : ''}
                 <div class="exercise-meta">
                   <h4>${escapeHtml(ex.name)}</h4>
                   ${ex.muscle_group ? `<div class="muscle">Beanspruchte Muskulatur: ${escapeHtml(ex.muscle_group)}</div>` : ''}

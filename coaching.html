@@ -144,6 +144,12 @@
     .breath-phase-label {
       position: absolute; font-family: var(--font-heading); font-weight: 700; font-size: 1.05rem;
       color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,0.45); pointer-events: none;
+      /* Bugfix Runde 18: .breath-circle bekam z-index:1, damit die Blüte über
+         dem neuen .breath-backdrop/.breath-halo liegt – dadurch verschwand
+         der Phasentext (Einatmen/Ausatmen) dahinter, da er selbst kein
+         explizites z-index hatte (stapelte sich sonst per DOM-Reihenfolge
+         korrekt darüber). Muss über der Blüte liegen. */
+      z-index: 2;
     }
     .breath-count { font-size: 2rem; font-family: var(--font-heading); color: var(--color-navy); line-height: 1; }
     :root[data-theme="dark"] .breath-count { color: var(--color-gold-light); }
