@@ -30,6 +30,17 @@ export const COACHING_CONTENT_THEME_GROUPS = [
   { value: 'ziele_selbstorganisation', label: 'Ziele & Selbstorganisation' },
   { value: 'persoenlichkeitsentwicklung_leadership', label: 'Persönlichkeitsentwicklung & Leadership' },
   { value: 'konsum_digitales', label: 'Digitaler Konsum & Medien' },
+  // Runde 18/Nachtrag 2 (sql/048): 4 neue Gruppen für die 30 Themen zu
+  // Präsentation/Bühne, Führung, Teams und Unternehmenskultur — die DB-Seite
+  // (CHECK-Constraint + theme_group je Eintrag) war bereits korrekt gesetzt,
+  // diese Liste hier (Frontend-Filter/Cluster-UI) war aber noch nicht
+  // nachgezogen, wodurch die 30 neuen Themen im Content-Filter nicht
+  // auftauchten. Reihenfolge wie im PDF-Kicker: Präsentation -> Führung ->
+  // Teams -> Kultur.
+  { value: 'praesentation_kommunikation', label: 'Präsentation & Bühne' },
+  { value: 'fuehrung', label: 'Führung' },
+  { value: 'teams_zusammenarbeit', label: 'Teams & Zusammenarbeit' },
+  { value: 'unternehmenskultur_arbeitswelt', label: 'Unternehmenskultur & Arbeitswelt' },
 ];
 
 export async function createCoachingContent({ title, description, category, pdfUrl, imageUrl, themeGroup }) {

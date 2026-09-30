@@ -22,8 +22,12 @@ export async function getUnreadCount(userId) {
 }
 
 export async function getAdminId() {
-  const { data, error } = await supabaseClient.from('profiles').select('id').eq('role', 'admin').limit(1).maybeSingle();
-  return { data: data ? data.id : null, error };
+  // Direkte profiles-Abfrage scheitert für Kunden an der Row-Level-Security
+  // (weder profiles_select_own noch profiles_select_admin erlauben einem
+  // Kunden, die Trainer-Zeile zu lesen) – daher über die SECURITY DEFINER
+  // Funktion get_admin_id() (sql/050), die nur die UUID herausgibt.
+  const { data, error } = await supabaseClient.rpc('get_admin_id');
+  return { data: data || null, error };
 }
 
 export async function listConversation(userIdA, userIdB) {
