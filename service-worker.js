@@ -5,7 +5,7 @@
 // neue Version bekommen.
 // ============================================================================
 
-const CACHE_NAME = 'dadi-plattform-v36';
+const CACHE_NAME = 'dadi-plattform-v37';
 const APP_SHELL = [
   './',
   'index.html',

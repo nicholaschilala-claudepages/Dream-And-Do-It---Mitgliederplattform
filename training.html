@@ -185,7 +185,10 @@
     <div class="topbar">
       <div class="brand">
         <img src="icons/logo-mark.png" alt="Dream And Do It Logo" onerror="this.style.display='none'" />
-        DREAM AND DO IT
+        <span class="brand-text">
+          <span class="brand-name">DREAM AND DO IT</span>
+          <span class="brand-tagline">Training und Coaching für Ihren Erfolg</span>
+        </span>
       </div>
       <div style="display:flex; gap:8px;">
         <button class="icon-btn" id="theme-toggle" type="button">Hell/Dunkel</button>
@@ -1131,12 +1134,19 @@
     }
 
     function viewTitle(text) {
-      return `<text x="100" y="393" font-size="12" font-weight="700" letter-spacing="0.4" fill="var(--color-text)" text-anchor="middle">${escapeHtml(text)}</text>`;
+      // Runde 18/Nachtrag 4 (Nutzer-Feedback): Ansichts-Beschriftung (z.B.
+      // "GELENKE – VORDERANSICHT") saß bisher bei y="393" quasi AUF dem Foto
+      // (Bildhöhe endet bei 400) und war mit font-size 12 in der stark
+      // herunterskalierten Anzeige (190px Darstellungsbreite bei 300
+      // viewBox-Einheiten) kaum lesbar. Jetzt: eigener Bereich unterhalb des
+      // Fotos (viewBox um 36 Einheiten höher, Bild bleibt unverändert bei
+      // 0-400), deutlich größere Schrift, klarer Abstand zur Visualisierung.
+      return `<text x="100" y="422" font-size="16" font-weight="700" letter-spacing="0.4" fill="var(--color-text)" text-anchor="middle">${escapeHtml(text)}</text>`;
     }
 
     function frontJointsSvg(markers) {
       return `
-        <svg viewBox="-50 0 300 400" style="width:190px; height:auto; flex-shrink:0;">
+        <svg viewBox="-50 0 300 436" style="width:190px; height:auto; flex-shrink:0;">
           ${bodyImage('content/koerper-balance/koerper-gelenke-vorne.png')}
           ${markerDot(100, 47, markers.cervicalSpine.sev, markers.cervicalSpine.title, 'Halswirbelsäule', 'right')}
           ${markerDot(67, 77, markers.shoulderLeft.sev, markers.shoulderLeft.title, 'Schulter li.', 'left')}
@@ -1155,7 +1165,7 @@
 
     function backJointsSvg(markers) {
       return `
-        <svg viewBox="-50 0 300 400" style="width:190px; height:auto; flex-shrink:0;">
+        <svg viewBox="-50 0 300 436" style="width:190px; height:auto; flex-shrink:0;">
           ${bodyImage('content/koerper-balance/koerper-gelenke-hinten.png')}
           ${markerDot(100, 57, markers.neck.sev, markers.neck.title, 'Nacken', 'right')}
           ${markerDot(56, 77, markers.shoulderLeft.sev, markers.shoulderLeft.title, 'Schulter li.', 'left')}
@@ -1169,7 +1179,7 @@
 
     function frontMusclesSvg(markers) {
       return `
-        <svg viewBox="-50 0 300 400" style="width:190px; height:auto; flex-shrink:0;">
+        <svg viewBox="-50 0 300 436" style="width:190px; height:auto; flex-shrink:0;">
           ${bodyImage('content/koerper-balance/koerper-muskeln-vorne.png')}
           ${markerDot(100, 96, markers.chest.sev, markers.chest.title, 'Brustmuskulatur', 'right')}
           ${markerDot(100, 161, markers.abs.sev, markers.abs.title, 'Bauchmuskeln', 'right')}
@@ -1183,7 +1193,7 @@
 
     function backMusclesSvg(markers) {
       return `
-        <svg viewBox="-50 0 300 400" style="width:190px; height:auto; flex-shrink:0;">
+        <svg viewBox="-50 0 300 436" style="width:190px; height:auto; flex-shrink:0;">
           ${bodyImage('content/koerper-balance/koerper-muskeln-hinten.png')}
           ${markerDot(100, 102, markers.upperBack.sev, markers.upperBack.title, 'Oberer Rücken', 'right')}
           ${markerDot(100, 162, markers.lowerBack.sev, markers.lowerBack.title, 'Unterer Rücken', 'right')}
@@ -1200,14 +1210,14 @@
       // jeweils nicht gespiegelt, Bildseiten entsprechen den Körperseiten.
       return `
         <div>
-          <h3 style="font-size:0.92rem; margin:0 0 10px; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.03em;">Gelenke</h3>
+          <h3 style="font-size:1.08rem; margin:0 0 18px; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.04em; font-weight:700;">Gelenke</h3>
           <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start;">
             ${frontJointsSvg(markers)}
             ${backJointsSvg(markers)}
           </div>
         </div>
         <div class="mt-24">
-          <h3 style="font-size:0.92rem; margin:0 0 10px; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.03em;">Muskeln</h3>
+          <h3 style="font-size:1.08rem; margin:0 0 18px; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.04em; font-weight:700;">Muskeln</h3>
           <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start;">
             ${frontMusclesSvg(markers)}
             ${backMusclesSvg(markers)}
