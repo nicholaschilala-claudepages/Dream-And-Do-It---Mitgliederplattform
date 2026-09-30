@@ -34,6 +34,20 @@
     .content-row img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
     .image-wrap { display: flex; flex-direction: column; align-items: center; gap: 2px; flex-shrink: 0; }
     .ai-image-note { font-size: 0.62rem; color: var(--color-text-muted); text-align: center; max-width: 64px; line-height: 1.15; }
+    /* Themengruppen-Filter im Content-Unterreiter (sql/045) */
+    .theme-filter-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 18px; }
+    .theme-filter-chip {
+      background: var(--color-bg); border: 1px solid var(--color-border); color: var(--color-text);
+      border-radius: 999px; padding: 6px 14px; font-size: 0.8rem; cursor: pointer;
+    }
+    .theme-filter-chip.active { background: var(--color-gold); border-color: var(--color-gold); color: #fff; }
+    .theme-badge {
+      display: inline-block; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.01em;
+      color: var(--color-gold); background: rgba(200,124,0,0.1); border: 1px solid rgba(200,124,0,0.25);
+      border-radius: 6px; padding: 2px 8px; margin-top: 4px;
+    }
+    :root[data-theme="dark"] .theme-badge { color: var(--color-gold-light); background: rgba(250,194,51,0.12); border-color: rgba(250,194,51,0.3); }
+    @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .theme-badge { color: var(--color-gold-light); background: rgba(250,194,51,0.12); border-color: rgba(250,194,51,0.3); } }
     /* Aktions-Buttons (u.a. "PDF öffnen") IMMER am rechten Rand der Zeile –
        auch wenn die Zeile bei schmalen Bildschirmen umbricht und die Buttons
        allein in einer eigenen Zeile landen (margin-left:auto verhindert,
@@ -82,17 +96,47 @@
     .breath-card .science-box { margin: 10px 0 14px; }
     .breath-source { font-size: 0.7rem; color: var(--color-text-muted); margin-top: 6px; }
     .breath-session { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 28px 12px; }
-    .breath-circle-wrap { position: relative; width: 230px; height: 230px; display: flex; align-items: center; justify-content: center; margin: 18px 0 6px; }
-    /* Nutzer-Feedback Runde 14: statt eines schlichten Kreises jetzt ein
-       Mandala/Blüten-Motiv, das sich beim Atmen ausdehnt/zusammenzieht –
-       dieselbe transform:scale()-Logik wie zuvor (siehe startBreathSession()
-       in coaching.html), nur dass hier eine Blüten-SVG statt eines reinen
-       Kreis-Backgrounds skaliert wird. */
+    /* Nutzer-Feedback: die Blüte wird über mehrere Atemzüge hinweg
+       fokussiert angeschaut, daher größer (ca. +36% Basisgröße gegenüber
+       vorher) und mit einer dekorativen, ruhigen Umrandung versehen (siehe
+       .breath-backdrop / .breath-halo unten). Fluid über %/max-width, damit
+       auf schmalen Mobilgeräten (z.B. 375px) nichts abgeschnitten wird oder
+       mit umliegenden Elementen überlappt. */
+    .breath-circle-wrap { position: relative; width: 100%; max-width: 300px; aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center; margin: 18px auto 10px; }
+    /* Sanfter Verlaufs-Hintergrund hinter der Blüte, in den bestehenden
+       Marken-Gold-/Navy-Tönen (siehe css/styles.css), passt sich Hell/Dunkel
+       automatisch an. Rein dekorativ, keine Auswirkung auf die Atemlogik. */
+    .breath-backdrop {
+      position: absolute; width: 88%; height: 88%; border-radius: 50%;
+      background: radial-gradient(circle, rgba(250,194,51,0.22) 0%, rgba(200,124,0,0.08) 55%, transparent 78%);
+      border: 1px solid var(--color-border);
+      box-shadow: 0 0 40px rgba(200,124,0,0.15), inset 0 0 30px rgba(250,194,51,0.08);
+      pointer-events: none;
+    }
+    :root[data-theme="dark"] .breath-backdrop { background: radial-gradient(circle, rgba(250,194,51,0.16) 0%, rgba(10,74,99,0.4) 55%, transparent 80%); box-shadow: 0 0 46px rgba(250,194,51,0.14), inset 0 0 34px rgba(250,194,51,0.06); }
+    @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .breath-backdrop { background: radial-gradient(circle, rgba(250,194,51,0.16) 0%, rgba(10,74,99,0.4) 55%, transparent 80%); box-shadow: 0 0 46px rgba(250,194,51,0.14), inset 0 0 34px rgba(250,194,51,0.06); } }
+    /* Dünner Halo-Ring, der leicht phasenversetzt zur Blüte langsam
+       "atmet" (eigene, von der Atemtechnik-Logik unabhängige Animation) –
+       soll den Blick über mehrere Atemzyklen ruhig halten, ohne vom
+       eigentlichen Atemrhythmus abzulenken. */
+    .breath-halo {
+      position: absolute; width: 100%; height: 100%; border-radius: 50%;
+      border: 1px solid rgba(200,124,0,0.35);
+      pointer-events: none;
+      animation: breath-halo-pulse 6s ease-in-out infinite;
+    }
+    :root[data-theme="dark"] .breath-halo { border-color: rgba(250,194,51,0.28); }
+    @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .breath-halo { border-color: rgba(250,194,51,0.28); } }
+    @keyframes breath-halo-pulse {
+      0%, 100% { transform: scale(0.97); opacity: 0.55; }
+      50% { transform: scale(1.04); opacity: 0.9; }
+    }
     .breath-circle {
-      width: 110px; height: 110px;
+      position: relative; width: 50%; height: 50%;
       transition-property: transform; transition-timing-function: linear;
       transform: scale(1);
       filter: drop-shadow(0 0 22px rgba(200,124,0,0.4));
+      z-index: 1;
     }
     .breath-circle svg { display: block; width: 100%; height: 100%; overflow: visible; }
     :root[data-theme="dark"] .breath-circle { filter: drop-shadow(0 0 26px rgba(250,194,51,0.32)); }
@@ -133,6 +177,7 @@
     import { getCurrentSession, initTheme, toggleTheme, signOut } from './js/auth.js';
     import {
       listCoachingContent, createCoachingContent, deleteCoachingContent,
+      COACHING_CONTENT_THEME_GROUPS,
       BREATHING_TECHNIQUES,
       QUESTIONNAIRES, getQuestionnaire, scoreQuestionnaire,
       insertQuestionnaireResponse, listMyQuestionnaireResponses, listAllQuestionnaireResponses, deleteQuestionnaireResponse,
@@ -144,6 +189,7 @@
     import { getNewSignupCount } from './js/betrieb.js';
     import { navTabsHtml, bindNavSubmenus } from './js/nav.js';
     import { SECTION_INFO } from './js/section-info.js';
+    import { loadClientSubtabLocks, shouldGateSubtab, lockedSubtabHtml } from './js/subtab-access.js';
 
     initTheme();
     document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
@@ -155,6 +201,9 @@
     const container = document.getElementById('app-container');
     let currentProfile = null;
     let selectedGoalId = null;
+    // Runde 18: pro Kunde geladene Sperren einzelner Unterpunkte (siehe
+    // js/subtab-access.js / sql/046) – vor renderTab() geprüft.
+    let subtabLocks = new Set();
 
     function escapeHtml(str) {
       const div = document.createElement('div');
@@ -218,6 +267,10 @@
       if (profile.role !== 'admin' && !profile.coaching_enabled) {
         renderLockedTeaser();
         return;
+      }
+      if (profile.role !== 'admin') {
+        const { locks } = await loadClientSubtabLocks(profile.id);
+        subtabLocks = locks;
       }
       renderShell();
     }
@@ -309,6 +362,13 @@
     function renderTab(tab) {
       stopBreathSession(); // laufende Atemübung beim Tab-Wechsel immer sauber beenden
       const content = document.getElementById('tab-content');
+      // Runde 18: granulare Zugriffssteuerung je Unterpunkt (js/subtab-access.js)
+      // – gilt nur für die vier Kunden-Unterpunkte, nie für "start" oder
+      // "content-admin" (das ein Kunde ohnehin nie zu sehen bekommt).
+      if (['content', 'atem', 'fragebogen', 'ziele'].includes(tab) && shouldGateSubtab(currentProfile, subtabLocks, 'coaching', tab)) {
+        content.innerHTML = lockedSubtabHtml('coaching', tab);
+        return;
+      }
       if (tab === 'start') return renderStartTab(content);
       if (tab === 'content') return renderContentTab(content, false);
       if (tab === 'content-admin') return renderContentTab(content, true);
@@ -404,6 +464,8 @@
         <div class="card breath-session">
           <h3 style="margin:0 0 4px;">${escapeHtml(t.label)}</h3>
           <div class="breath-circle-wrap">
+            <div class="breath-halo" aria-hidden="true"></div>
+            <div class="breath-backdrop" aria-hidden="true"></div>
             <div class="breath-circle" id="breath-circle">${breathMandalaSvg()}</div>
             <div class="breath-phase-label" id="breath-phase-label"></div>
           </div>
@@ -473,6 +535,15 @@
     // CONTENT (PDF-Downloads Persönlichkeitsentwicklung/Coaching)
     // =========================================================================
 
+    function themeGroupLabel(value) {
+      const g = COACHING_CONTENT_THEME_GROUPS.find((g) => g.value === value);
+      return g ? g.label : null;
+    }
+
+    // Bleibt über Re-Renders (Filterklick, Speichern/Löschen) hinweg erhalten,
+    // damit der gewählte Filter nicht bei jeder Aktion zurückspringt.
+    let contentThemeFilter = 'alle';
+
     async function renderContentTab(content, adminMode) {
       content.innerHTML = '<p class="center-text">Lade …</p>';
       const { data: items, error } = await listCoachingContent();
@@ -480,6 +551,10 @@
         content.innerHTML = `<div class="msg error">${escapeHtml(error.message)}</div>`;
         return;
       }
+
+      const themeGroupOptionsHtml = COACHING_CONTENT_THEME_GROUPS.map((g) =>
+        `<option value="${escapeHtml(g.value)}">${escapeHtml(g.label)}</option>`
+      ).join('');
 
       let html = '';
 
@@ -490,6 +565,12 @@
             <form id="new-content-form">
               <div class="field"><label>Titel</label><input type="text" id="content-title" required /></div>
               <div class="field"><label>Kategorie (z.B. Mindset, Gewohnheiten, Stressbewältigung)</label><input type="text" id="content-category" /></div>
+              <div class="field"><label>Themengruppe (für den Filter)</label>
+                <select id="content-theme-group">
+                  <option value="">– keine –</option>
+                  ${themeGroupOptionsHtml}
+                </select>
+              </div>
               <div class="field"><label>Kurzbeschreibung</label><input type="text" id="content-desc" /></div>
               <div class="field"><label>Link zur PDF-Datei</label><input type="url" id="content-pdf" required placeholder="https://..." /></div>
               <div class="field"><label>Bild-URL (optional)</label><input type="url" id="content-image" placeholder="https://..." /></div>
@@ -499,15 +580,41 @@
         `;
       }
 
-      html += `
-        <div class="card mt-24">
+      html += `<div class="card mt-24" id="content-list-card"></div>`;
+
+      content.innerHTML = html;
+
+      // Rendert nur die Filterleiste + Liste neu (kein erneuter Netzwerk-Call
+      // nötig – `items` enthält theme_group bereits, da listCoachingContent()
+      // select('*') verwendet). So bleibt z.B. das Admin-Formular beim
+      // Filtern unangetastet.
+      function renderList() {
+        const listCard = document.getElementById('content-list-card');
+        if (!listCard) return;
+
+        const filtered = contentThemeFilter === 'alle'
+          ? items
+          : (items || []).filter((r) => r.theme_group === contentThemeFilter);
+
+        const chipsHtml = `
+          <div class="theme-filter-row">
+            <button type="button" class="theme-filter-chip${contentThemeFilter === 'alle' ? ' active' : ''}" data-filter-group="alle">Alle</button>
+            ${COACHING_CONTENT_THEME_GROUPS.map((g) => `
+              <button type="button" class="theme-filter-chip${contentThemeFilter === g.value ? ' active' : ''}" data-filter-group="${escapeHtml(g.value)}">${escapeHtml(g.label)}</button>
+            `).join('')}
+          </div>
+        `;
+
+        listCard.innerHTML = `
           <h2 style="font-size:1.05rem;">${adminMode ? 'Aller Content' : 'Content zum Download'}</h2>
-          ${!items || items.length === 0 ? '<p style="color:var(--color-text-muted);">Noch keine Inhalte hinterlegt.</p>' : items.map((r) => `
+          ${chipsHtml}
+          ${!filtered || filtered.length === 0 ? '<p style="color:var(--color-text-muted);">Keine Inhalte in dieser Themengruppe.</p>' : filtered.map((r) => `
             <div class="content-row">
               ${r.image_url ? `<div class="image-wrap"><img src="${escapeHtml(r.image_url)}" alt="" onerror="this.parentElement.style.display='none'" /><span class="ai-image-note">Bild KI-generiert</span></div>` : ''}
               <div style="flex:1;">
                 <h4 style="margin:0 0 2px;">${escapeHtml(r.title)}</h4>
                 ${r.category ? `<div style="font-size:0.78rem; color:var(--color-gold);">${escapeHtml(r.category)}</div>` : ''}
+                ${themeGroupLabel(r.theme_group) ? `<span class="theme-badge">${escapeHtml(themeGroupLabel(r.theme_group))}</span>` : ''}
                 ${r.description ? `<p style="margin:4px 0 0; font-size:0.85rem; color:var(--color-text-muted);">${escapeHtml(r.description)}</p>` : ''}
               </div>
               <div class="row-actions">
@@ -516,10 +623,27 @@
               </div>
             </div>
           `).join('')}
-        </div>
-      `;
+        `;
 
-      content.innerHTML = html;
+        listCard.querySelectorAll('[data-filter-group]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            contentThemeFilter = btn.dataset.filterGroup;
+            renderList();
+          });
+        });
+
+        if (adminMode) {
+          listCard.querySelectorAll('[data-delete-content]').forEach((btn) => {
+            btn.addEventListener('click', async () => {
+              if (!confirm('Diesen Inhalt wirklich löschen?')) return;
+              await deleteCoachingContent(btn.dataset.deleteContent);
+              renderContentTab(content, true);
+            });
+          });
+        }
+      }
+
+      renderList();
 
       if (adminMode) {
         document.getElementById('new-content-form').addEventListener('submit', async (e) => {
@@ -527,20 +651,13 @@
           const { error } = await createCoachingContent({
             title: document.getElementById('content-title').value.trim(),
             category: document.getElementById('content-category').value.trim(),
+            themeGroup: document.getElementById('content-theme-group').value.trim(),
             description: document.getElementById('content-desc').value.trim(),
             pdfUrl: document.getElementById('content-pdf').value.trim(),
             imageUrl: document.getElementById('content-image').value.trim(),
           });
           if (error) { alert('Fehler: ' + error.message); return; }
           renderContentTab(content, true);
-        });
-
-        content.querySelectorAll('[data-delete-content]').forEach((btn) => {
-          btn.addEventListener('click', async () => {
-            if (!confirm('Diesen Inhalt wirklich löschen?')) return;
-            await deleteCoachingContent(btn.dataset.deleteContent);
-            renderContentTab(content, true);
-          });
         });
       }
     }

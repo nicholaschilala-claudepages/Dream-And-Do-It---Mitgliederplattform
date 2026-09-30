@@ -50,6 +50,15 @@
     .filter-presets button { padding: 5px 12px; font-size: 0.76rem; border-radius: 20px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text-muted); cursor: pointer; }
     .filter-presets button.active { background: var(--color-gold); color: #1a1a1a; border-color: var(--color-gold); }
 
+    /* Rezept-Filter-Clusterung (Etappe 44): eine Zeile pro Filter-Dimension,
+       gleiche Chip-Optik wie .filter-presets oben (Zeitraum-Presets), damit
+       die Filter-UI einheitlich aussieht. */
+    .recipe-filters { margin-bottom: 6px; }
+    .recipe-filter-group { margin-bottom: 10px; }
+    .recipe-filter-group .filter-group-label { display: block; font-size: 0.74rem; color: var(--color-text-muted); margin-bottom: 5px; }
+    .recipe-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+    .recipe-badge { display: inline-block; padding: 2px 9px; font-size: 0.7rem; border-radius: 20px; background: var(--color-bg); border: 1px solid var(--color-border); color: var(--color-text-muted); }
+
     .compare-legend { display: flex; gap: 18px; font-size: 0.8rem; margin-bottom: 10px; color: var(--color-text-muted); }
     .compare-legend span { display: inline-flex; align-items: center; gap: 6px; }
     .compare-legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
@@ -105,11 +114,12 @@
     // auf der Startseite hinterlegten Geburtsdatum statt aus einer eigenen
     // Freitext-Eingabe hier – so wird es konsistent für mehrere Berechnungen
     // (PAL-Rechner, Präventionscheck) wiederverwendet.
-    import { calcAge } from './js/prevention.js';
+    import { calcAge, updateHeight } from './js/prevention.js';
     import { getUnreadCount } from './js/messages.js';
     import { getNewSignupCount } from './js/betrieb.js';
     import { navTabsHtml, bindNavSubmenus } from './js/nav.js';
     import { SECTION_INFO } from './js/section-info.js';
+    import { loadClientSubtabLocks, shouldGateSubtab, lockedSubtabHtml } from './js/subtab-access.js';
 
     initTheme();
     document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
@@ -120,6 +130,9 @@
 
     const container = document.getElementById('app-container');
     let currentProfile = null;
+    // Runde 18: pro Kunde geladene Sperren einzelner Unterpunkte (siehe
+    // js/subtab-access.js / sql/046) – vor renderTab() geprüft.
+    let subtabLocks = new Set();
 
     function escapeHtml(str) {
       const div = document.createElement('div');
@@ -168,6 +181,10 @@
       if (profile.role !== 'admin' && !profile.nutrition_enabled) {
         renderLockedTeaser();
         return;
+      }
+      if (profile.role !== 'admin') {
+        const { locks } = await loadClientSubtabLocks(profile.id);
+        subtabLocks = locks;
       }
       renderShell();
     }
@@ -275,6 +292,13 @@
 
     function renderTab(tab) {
       const content = document.getElementById('tab-content');
+      // Runde 18: granulare Zugriffssteuerung je Unterpunkt (js/subtab-access.js)
+      // – gilt nur für die vier Kunden-Unterpunkte, nie für "start" oder die
+      // Admin-only-Reiter (die ein Kunde ohnehin nie zu sehen bekommt).
+      if (['pal', 'bodyfat', 'protokoll', 'recipes'].includes(tab) && shouldGateSubtab(currentProfile, subtabLocks, 'nutrition', tab)) {
+        content.innerHTML = lockedSubtabHtml('nutrition', tab);
+        return;
+      }
       if (tab === 'start') return renderStartTab(content);
       if (tab === 'pal') return renderPalTab(content);
       if (tab === 'bodyfat') return renderBodyfatTab(content);
@@ -356,10 +380,13 @@
       const latestBf = usable.length ? usable[usable.length - 1] : null;
       const { data: savedTarget } = await getLatestEnergyTarget(currentProfile.id);
       // Nutzer-Feedback Runde 14: Alter aus dem Geburtsdatum (Startseite) statt
-      // eigener Freitext-Eingabe im PAL-Rechner.
-      const { data: profileRow } = await supabaseClient.from('profiles').select('birth_date').eq('id', currentProfile.id).maybeSingle();
+      // eigener Freitext-Eingabe im PAL-Rechner. Runde 18: Körpergröße ebenso
+      // zentral aus dem Profil (Startseite) statt aus der letzten Körperfett-
+      // Messung bzw. einer eigenen Eingabe hier.
+      const { data: profileRow } = await supabaseClient.from('profiles').select('birth_date, height_cm').eq('id', currentProfile.id).maybeSingle();
       const birthDate = profileRow ? profileRow.birth_date : null;
       const ageYears = calcAge(birthDate);
+      const heightCm = profileRow ? profileRow.height_cm : null;
 
       content.innerHTML = `
         <div class="card">
@@ -401,7 +428,14 @@
                   : `<input type="hidden" id="pal-age" value="" />
                      <p style="font-size:0.78rem; color:var(--color-gold); margin:4px 0 0;">Kein Geburtsdatum hinterlegt – bitte auf der <a href="dashboard.html">Startseite</a> eintragen, damit das Alter hier automatisch übernommen werden kann.</p>`}
               </div>
-              <div class="field"><label>Größe (cm)</label><input type="number" id="pal-height" min="100" max="230" step="0.1" value="${latestBf ? latestBf.height_cm : ''}" required /></div>
+              <div class="field">
+                <label>Größe (cm)</label>
+                ${heightCm != null
+                  ? `<input type="number" id="pal-height" value="${heightCm}" readonly style="background:var(--color-bg-muted, rgba(0,0,0,0.04));" />
+                     <p style="font-size:0.72rem; color:var(--color-text-muted); margin:4px 0 0;">Aus deinem Profil auf der Startseite. Dort änderbar.</p>`
+                  : `<input type="number" id="pal-height" min="100" max="230" step="0.1" required />
+                     <p style="font-size:0.78rem; color:var(--color-gold); margin:4px 0 0;">Noch keine Körpergröße hinterlegt – bitte auf der <a href="dashboard.html">Startseite</a> eintragen, damit sie hier künftig automatisch übernommen wird.</p>`}
+              </div>
               <div class="field"><label>Gewicht (kg)</label><input type="number" id="pal-weight" min="30" max="300" step="0.1" value="${latestBf ? latestBf.weight_kg : ''}" required /></div>
             </div>
             <div class="field">
@@ -581,6 +615,13 @@
 
       const latest = measurements && measurements.length ? measurements[measurements.length - 1] : null;
       const previous = measurements && measurements.length > 1 ? measurements[measurements.length - 2] : null;
+      // Runde 18: Körpergröße zentral aus dem Profil (Startseite) statt bei
+      // jeder neuen Messung erneut einzutippen – ändert sich praktisch nie.
+      // Gewicht bleibt editierbar (ändert sich tatsächlich), wird aber mit
+      // dem zuletzt erfassten Wert vorausgefüllt statt leer zu starten.
+      const { data: heightProfileRow } = await supabaseClient.from('profiles').select('height_cm').eq('id', currentProfile.id).maybeSingle();
+      const profileHeightCm = heightProfileRow ? heightProfileRow.height_cm : null;
+      const lastWeightKg = latest && latest.weight_kg != null ? latest.weight_kg : null;
 
       content.innerHTML = `
         <div class="card">
@@ -602,8 +643,15 @@
                   <option value="trainer">Trainer/Coach</option>
                 </select>
               </div>
-              <div class="field"><label>Größe (cm)</label><input type="number" id="bf-height" step="0.1" required /></div>
-              <div class="field"><label>Gewicht (kg, optional)</label><input type="number" id="bf-weight" step="0.1" /></div>
+              <div class="field">
+                <label>Größe (cm)</label>
+                ${profileHeightCm != null
+                  ? `<input type="number" id="bf-height" value="${profileHeightCm}" readonly style="background:var(--color-bg-muted, rgba(0,0,0,0.04));" />
+                     <p style="font-size:0.72rem; color:var(--color-text-muted); margin:4px 0 0;">Aus deinem Profil auf der Startseite. Dort änderbar.</p>`
+                  : `<input type="number" id="bf-height" step="0.1" required />
+                     <p style="font-size:0.72rem; color:var(--color-text-muted); margin:4px 0 0;">Wird beim Speichern einmalig in deinem Profil hinterlegt, damit du sie ab der nächsten Messung nicht mehr eintippen musst.</p>`}
+              </div>
+              <div class="field"><label>Gewicht (kg, optional)</label><input type="number" id="bf-weight" step="0.1" value="${lastWeightKg != null ? lastWeightKg : ''}" /></div>
             </div>
 
             <h3 style="font-size:0.9rem; margin-top:6px;">Umfänge für die Körperfett-Berechnung</h3>
@@ -702,6 +750,13 @@
         const bodyFat = calculateNavyBodyFat({ sex, heightCm, neckCm, waistCm, hipCm });
         const whr = calculateWaistToHip(waistCm, hipCm);
 
+        // Runde 18: falls noch keine Körpergröße im Profil hinterlegt war,
+        // jetzt einmalig übernehmen, damit sie ab der nächsten Messung bzw.
+        // im PAL-Rechner automatisch vorliegt statt erneut abgefragt zu werden.
+        if (profileHeightCm == null && heightCm) {
+          await updateHeight(currentProfile.id, heightCm);
+        }
+
         const { error } = await insertBodyMeasurement({
           client_id: currentProfile.id,
           measured_at: measuredAt,
@@ -784,12 +839,98 @@
     // REZEPTE
     // =========================================================================
 
+    // Filter-Clusterung der Rezeptbibliothek (Etappe 44), siehe
+    // sql/044_rezepte_filter_clusterung.sql für die Klassifizierungs-Logik.
+    const RECIPE_DIET_LABELS = { vegan: 'Vegan', vegetarisch: 'Vegetarisch', fleisch: 'Fleisch', fisch: 'Fisch' };
+    const RECIPE_FLAVOR_LABELS = { suess: 'Süß', deftig: 'Deftig' };
+    const RECIPE_MEAL_LABELS = { fruehstueck: 'Frühstück', hauptgericht: 'Hauptgericht', snack: 'Snack' };
+    // Zubereitungszeit wird zum Filtern in Buckets gruppiert (gespeicherter
+    // Wert bleibt exakt in Minuten, nur die Filter-UI arbeitet mit Buckets).
+    const RECIPE_PREP_BUCKETS = [
+      { key: 'bis15', label: 'bis 15 Min', test: (m) => m != null && m <= 15 },
+      { key: '15-30', label: '15-30 Min', test: (m) => m != null && m > 15 && m <= 30 },
+      { key: '30plus', label: '30+ Min', test: (m) => m != null && m > 30 },
+    ];
+
+    function recipeBadgesHtml(r) {
+      const parts = [];
+      if (r.diet_type) parts.push(RECIPE_DIET_LABELS[r.diet_type] || r.diet_type);
+      if (r.flavor_profile) parts.push(RECIPE_FLAVOR_LABELS[r.flavor_profile] || r.flavor_profile);
+      if (r.prep_minutes != null) parts.push(`${r.prep_minutes} Min`);
+      if (r.meal_type) parts.push(RECIPE_MEAL_LABELS[r.meal_type] || r.meal_type);
+      if (!parts.length) return '';
+      return `<div class="recipe-badges">${parts.map((p) => `<span class="recipe-badge">${escapeHtml(p)}</span>`).join('')}</div>`;
+    }
+
     async function renderRecipesTab(content, adminMode) {
       content.innerHTML = '<p class="center-text">Lade …</p>';
       const { data: recipes, error } = await listRecipes();
       if (error) {
         content.innerHTML = `<div class="msg error">${escapeHtml(error.message)}</div>`;
         return;
+      }
+
+      // Filter-Zustand (nur clientseitig, keine erneute Datenabfrage nötig –
+      // recipes ist bereits vollständig geladen). Kombinierbar per UND-Logik.
+      const filterState = { diet: '', flavor: '', meal: '', prep: '' };
+
+      function matchesFilters(r) {
+        if (filterState.diet && r.diet_type !== filterState.diet) return false;
+        if (filterState.flavor && r.flavor_profile !== filterState.flavor) return false;
+        if (filterState.meal && r.meal_type !== filterState.meal) return false;
+        if (filterState.prep) {
+          const bucket = RECIPE_PREP_BUCKETS.find((b) => b.key === filterState.prep);
+          if (bucket && !bucket.test(r.prep_minutes)) return false;
+        }
+        return true;
+      }
+
+      function recipeRowHtml(r) {
+        return `
+          <div class="recipe-row">
+            ${r.image_url ? `<div class="image-wrap"><img src="${escapeHtml(r.image_url)}" alt="" onerror="this.parentElement.style.display='none'" /><span class="ai-image-note">Bild KI-generiert</span></div>` : ''}
+            <div style="flex:1;">
+              <h4 style="margin:0 0 2px;">${escapeHtml(r.title)}</h4>
+              ${r.category ? `<div style="font-size:0.78rem; color:var(--color-gold);">${escapeHtml(r.category)}</div>` : ''}
+              ${r.description ? `<p style="margin:4px 0 0; font-size:0.85rem; color:var(--color-text-muted);">${escapeHtml(r.description)}</p>` : ''}
+              ${r.kcal_per_portion != null ? `<p style="margin:4px 0 0; font-size:0.78rem; color:var(--color-text-muted);">Eiweiß: ${r.protein_g ?? '–'} g · Kohlenhydrate: ${r.carbs_g ?? '–'} g · Fett: ${r.fat_g ?? '–'} g · ${r.kcal_per_portion} kcal</p>` : ''}
+              ${recipeBadgesHtml(r)}
+            </div>
+            <div class="row-actions">
+              <a class="btn secondary" style="width:auto; padding:8px 14px; font-size:0.82rem; text-decoration:none;" href="${escapeHtml(r.pdf_url)}" target="_blank" rel="noopener">PDF öffnen</a>
+              ${adminMode ? `<button class="btn secondary" style="width:auto; padding:8px 12px; font-size:0.82rem;" data-delete-recipe="${r.id}">Löschen</button>` : ''}
+            </div>
+          </div>
+        `;
+      }
+
+      function renderRecipeList() {
+        const listEl = document.getElementById('recipe-list');
+        if (!listEl) return;
+        const filtered = (recipes || []).filter(matchesFilters);
+        listEl.innerHTML = filtered.length === 0
+          ? '<p style="color:var(--color-text-muted);">Keine Rezepte passen zu dieser Filter-Auswahl.</p>'
+          : filtered.map(recipeRowHtml).join('');
+
+        listEl.querySelectorAll('[data-delete-recipe]').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            if (!confirm('Dieses Rezept wirklich löschen?')) return;
+            await deleteRecipe(btn.dataset.deleteRecipe);
+            renderRecipesTab(content, true);
+          });
+        });
+      }
+
+      function filterGroupHtml(groupKey, groupLabel, options) {
+        return `
+          <div class="recipe-filter-group">
+            <span class="filter-group-label">${escapeHtml(groupLabel)}</span>
+            <div class="filter-presets" data-filter-group="${groupKey}">
+              <button type="button" data-filter-value="" class="active">Alle</button>
+              ${options.map((o) => `<button type="button" data-filter-value="${o.key}">${escapeHtml(o.label)}</button>`).join('')}
+            </div>
+          </div>
+        `;
       }
 
       let html = '';
@@ -811,6 +952,34 @@
                 <div class="field"><label>Fett (g)</label><input type="number" id="recipe-fat" step="1" /></div>
                 <div class="field"><label>Energie (kcal)</label><input type="number" id="recipe-kcal" step="1" /></div>
               </div>
+              <h3 style="font-size:0.9rem;">Klassifizierung für Rezept-Filter (optional)</h3>
+              <div class="grid-2">
+                <div class="field"><label>Zubereitungszeit (Min.)</label><input type="number" id="recipe-prep-minutes" min="0" step="1" /></div>
+                <div class="field"><label>Ernährungsform</label>
+                  <select id="recipe-diet-type">
+                    <option value="">– bitte wählen –</option>
+                    <option value="vegan">Vegan</option>
+                    <option value="vegetarisch">Vegetarisch</option>
+                    <option value="fleisch">Fleisch</option>
+                    <option value="fisch">Fisch</option>
+                  </select>
+                </div>
+                <div class="field"><label>Geschmacksrichtung</label>
+                  <select id="recipe-flavor">
+                    <option value="">– bitte wählen –</option>
+                    <option value="suess">Süß</option>
+                    <option value="deftig">Deftig</option>
+                  </select>
+                </div>
+                <div class="field"><label>Mahlzeit-Typ</label>
+                  <select id="recipe-meal-type">
+                    <option value="">– bitte wählen –</option>
+                    <option value="fruehstueck">Frühstück</option>
+                    <option value="hauptgericht">Hauptgericht</option>
+                    <option value="snack">Snack</option>
+                  </select>
+                </div>
+              </div>
               <button class="btn" type="submit">Rezept speichern</button>
             </form>
           </div>
@@ -820,25 +989,32 @@
       html += `
         <div class="card mt-24">
           <h2 style="font-size:1.05rem;">${adminMode ? 'Alle Rezepte' : 'Rezepte zum Download'}</h2>
-          ${!recipes || recipes.length === 0 ? '<p style="color:var(--color-text-muted);">Noch keine Rezepte hinterlegt.</p>' : recipes.map((r) => `
-            <div class="recipe-row">
-              ${r.image_url ? `<div class="image-wrap"><img src="${escapeHtml(r.image_url)}" alt="" onerror="this.parentElement.style.display='none'" /><span class="ai-image-note">Bild KI-generiert</span></div>` : ''}
-              <div style="flex:1;">
-                <h4 style="margin:0 0 2px;">${escapeHtml(r.title)}</h4>
-                ${r.category ? `<div style="font-size:0.78rem; color:var(--color-gold);">${escapeHtml(r.category)}</div>` : ''}
-                ${r.description ? `<p style="margin:4px 0 0; font-size:0.85rem; color:var(--color-text-muted);">${escapeHtml(r.description)}</p>` : ''}
-                ${r.kcal_per_portion != null ? `<p style="margin:4px 0 0; font-size:0.78rem; color:var(--color-text-muted);">Eiweiß: ${r.protein_g ?? '–'} g · Kohlenhydrate: ${r.carbs_g ?? '–'} g · Fett: ${r.fat_g ?? '–'} g · ${r.kcal_per_portion} kcal</p>` : ''}
-              </div>
-              <div class="row-actions">
-                <a class="btn secondary" style="width:auto; padding:8px 14px; font-size:0.82rem; text-decoration:none;" href="${escapeHtml(r.pdf_url)}" target="_blank" rel="noopener">PDF öffnen</a>
-                ${adminMode ? `<button class="btn secondary" style="width:auto; padding:8px 12px; font-size:0.82rem;" data-delete-recipe="${r.id}">Löschen</button>` : ''}
-              </div>
-            </div>
-          `).join('')}
+          <div class="recipe-filters">
+            ${filterGroupHtml('prep', 'Zubereitungszeit', RECIPE_PREP_BUCKETS.map((b) => ({ key: b.key, label: b.label })))}
+            ${filterGroupHtml('diet', 'Ernährungsform', Object.entries(RECIPE_DIET_LABELS).map(([key, label]) => ({ key, label })))}
+            ${filterGroupHtml('flavor', 'Geschmacksrichtung', Object.entries(RECIPE_FLAVOR_LABELS).map(([key, label]) => ({ key, label })))}
+            ${filterGroupHtml('meal', 'Mahlzeit-Typ', Object.entries(RECIPE_MEAL_LABELS).map(([key, label]) => ({ key, label })))}
+          </div>
+          <div id="recipe-list">
+            ${!recipes || recipes.length === 0 ? '<p style="color:var(--color-text-muted);">Noch keine Rezepte hinterlegt.</p>' : ''}
+          </div>
         </div>
       `;
 
       content.innerHTML = html;
+
+      content.querySelectorAll('.recipe-filters .filter-presets').forEach((group) => {
+        group.querySelectorAll('button').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            group.querySelectorAll('button').forEach((b) => b.classList.remove('active'));
+            btn.classList.add('active');
+            filterState[group.dataset.filterGroup] = btn.dataset.filterValue;
+            renderRecipeList();
+          });
+        });
+      });
+
+      renderRecipeList();
 
       if (adminMode) {
         document.getElementById('new-recipe-form').addEventListener('submit', async (e) => {
@@ -853,17 +1029,13 @@
             carbsG: document.getElementById('recipe-carbs').value ? parseFloat(document.getElementById('recipe-carbs').value) : null,
             fatG: document.getElementById('recipe-fat').value ? parseFloat(document.getElementById('recipe-fat').value) : null,
             kcalPerPortion: document.getElementById('recipe-kcal').value ? parseFloat(document.getElementById('recipe-kcal').value) : null,
+            prepMinutes: document.getElementById('recipe-prep-minutes').value ? parseInt(document.getElementById('recipe-prep-minutes').value, 10) : null,
+            dietType: document.getElementById('recipe-diet-type').value || null,
+            flavorProfile: document.getElementById('recipe-flavor').value || null,
+            mealType: document.getElementById('recipe-meal-type').value || null,
           });
           if (error) { alert('Fehler: ' + error.message); return; }
           renderRecipesTab(content, true);
-        });
-
-        content.querySelectorAll('[data-delete-recipe]').forEach((btn) => {
-          btn.addEventListener('click', async () => {
-            if (!confirm('Dieses Rezept wirklich löschen?')) return;
-            await deleteRecipe(btn.dataset.deleteRecipe);
-            renderRecipesTab(content, true);
-          });
         });
       }
     }

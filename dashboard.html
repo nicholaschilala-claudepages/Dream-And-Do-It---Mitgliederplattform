@@ -45,7 +45,7 @@
     // & Präventionscheck wiederverwendet; die Ziele (GROW) bekommen eine
     // kompakte Karte direkt nach der Begrüßung statt nur als Unterseite.
     import { supabaseClient } from './js/supabase-client.js';
-    import { calcAge, updateBirthDate, listPreventionResults, isPreventionCheckComplete } from './js/prevention.js';
+    import { calcAge, updateBirthDate, updateHeight, listPreventionResults, isPreventionCheckComplete } from './js/prevention.js';
     import { listMyGoals } from './js/coaching.js';
     // Runde 16: Achievements-/Erfolge-Karte – wertet bereits vorhandene Daten
     // aus Training (Streak/Rekorde, Runde 15), Ernährungsprotokoll und
@@ -225,6 +225,20 @@
           </form>
         </div>
 
+        <div class="card mt-24" id="height-card">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+            <div>
+              <h3 style="font-size:1rem; margin:0 0 2px;">Körpergröße</h3>
+              <p style="color:var(--color-text-muted); font-size:0.82rem; margin:0;">Wird für den PAL-Rechner und den Körperfett-Verlauf verwendet – hier einmal eintragen, überall automatisch übernommen (ändert sich ja praktisch nie).</p>
+            </div>
+          </div>
+          <div id="height-display" class="mt-16"><p class="center-text" style="font-size:0.85rem;">Lade …</p></div>
+          <form id="height-form" class="hidden mt-16">
+            <div class="field"><label>Körpergröße (cm)</label><input type="number" id="height-input" min="100" max="230" step="0.1" required /></div>
+            <button class="btn secondary small-btn" type="submit">Speichern</button>
+          </form>
+        </div>
+
         <div class="benefit-grid mt-24">
           ${modules.map((m) => {
             const info = SECTION_INFO[m.key];
@@ -248,6 +262,7 @@
       renderGrowSummary(profile);
       renderAchievementsCard(profile);
       renderBirthdateCard(profile);
+      renderHeightCard(profile);
     }
 
     // Runde 16: berechnet alle Erfolge aus bereits vorhandenen Daten (nur für
@@ -380,6 +395,50 @@
           formEl.classList.add('hidden');
           submitBtn.disabled = false;
           renderBirthdateCard(profile);
+        });
+      }
+    }
+
+    // Runde 18: Körpergröße analog zum Geburtsdatum zentral hier auf der
+    // Startseite erfasst/geändert und von PAL-Rechner sowie Körperfett-
+    // Verlauf (nutrition.html) über profiles.height_cm wiederverwendet –
+    // ändert sich bei Erwachsenen praktisch nie, musste vorher aber bei
+    // jeder neuen Körperfett-Messung erneut eingetippt werden.
+    async function renderHeightCard(profile) {
+      const displayEl = document.getElementById('height-display');
+      const formEl = document.getElementById('height-form');
+      if (!displayEl) return;
+
+      const { data: profileRow, error } = await supabaseClient.from('profiles').select('height_cm').eq('id', profile.id).maybeSingle();
+      if (error) { displayEl.innerHTML = `<div class="msg error">${escapeHtml(error.message)}</div>`; return; }
+
+      const heightCm = profileRow ? profileRow.height_cm : null;
+
+      displayEl.innerHTML = heightCm
+        ? `<div class="result-box"><div class="big" style="font-size:1.2rem;">${heightCm} cm</div></div>
+           <button class="icon-btn mt-16" id="height-edit-btn" type="button">Ändern</button>`
+        : `<p style="color:var(--color-gold); font-size:0.85rem; margin:0 0 10px;">Noch keine Körpergröße hinterlegt.</p>
+           <button class="icon-btn" id="height-edit-btn" type="button">Körpergröße eintragen</button>`;
+
+      if (heightCm) {
+        document.getElementById('height-input').value = heightCm;
+      }
+
+      const editBtn = document.getElementById('height-edit-btn');
+      if (editBtn && formEl) {
+        editBtn.addEventListener('click', () => formEl.classList.toggle('hidden'));
+      }
+      if (formEl && !formEl.dataset.wired) {
+        formEl.dataset.wired = '1';
+        formEl.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const submitBtn = formEl.querySelector('button[type="submit"]');
+          submitBtn.disabled = true;
+          const { error: saveError } = await updateHeight(profile.id, document.getElementById('height-input').value);
+          if (saveError) { alert('Fehler: ' + saveError.message); submitBtn.disabled = false; return; }
+          formEl.classList.add('hidden');
+          submitBtn.disabled = false;
+          renderHeightCard(profile);
         });
       }
     }

@@ -5,7 +5,7 @@
 // neue Version bekommen.
 // ============================================================================
 
-const CACHE_NAME = 'dadi-plattform-v34';
+const CACHE_NAME = 'dadi-plattform-v35';
 const APP_SHELL = [
   './',
   'index.html',
@@ -33,6 +33,7 @@ const APP_SHELL = [
   'js/nav.js',
   'js/subnav.js',
   'js/collapsible.js',
+  'js/subtab-access.js',
   'icons/nicholas-portrait.jpg',
   'icons/logo-mark.png',
   'icons/logo-full.png',

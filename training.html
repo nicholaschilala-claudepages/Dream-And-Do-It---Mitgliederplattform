@@ -27,10 +27,29 @@
     .thumb-sm { width: 40px; height: 40px; object-fit: contain; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 6px; flex-shrink: 0; cursor: zoom-in; }
     .exercise-meta { flex: 1; min-width: 220px; }
     .exercise-meta h4 { margin: 0 0 2px 0; font-family: var(--font-body); font-weight: 600; font-size: 0.98rem; }
-    .exercise-meta .target { font-size: 0.82rem; color: var(--color-text-muted); }
+    /* Nutzer-Feedback Runde 18: "Sätze, Wiederholungen und Gewichte stehen
+       nicht sauber genug da" – deutlich größer/fetter statt der bisherigen
+       kleinen, grauen Zeile, damit die Trainingsvorgabe auf einen Blick
+       erfassbar ist. */
+    .exercise-meta .target { font-size: 1.02rem; font-weight: 700; color: var(--color-text); letter-spacing: 0.01em; }
     .exercise-meta .muscle { font-size: 0.76rem; color: var(--color-text-muted); font-style: italic; }
+    /* Runde 18: Übungsbeschreibung ist jetzt immer eingeklappt (siehe
+       <details> in renderExerciseRow) und wird erst beim Aufklappen
+       gerendert/sichtbar – dadurch werden die Zeilen je Übung deutlich
+       schmaler, wie gewünscht. */
+    .exercise-desc-details { margin-top: 4px; }
+    .exercise-desc-details summary { cursor: pointer; font-size: 0.82rem; color: var(--color-gold); font-weight: 600; list-style: none; user-select: none; }
+    .exercise-desc-details summary::-webkit-details-marker { display: none; }
+    .exercise-desc-details summary::before { content: '▸ '; }
+    .exercise-desc-details[open] summary::before { content: '▾ '; }
+    .exercise-desc-details p { margin: 6px 0 0; font-size: 0.85rem; color: var(--color-text-muted); }
     .log-form { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
     .log-form input { width: 78px; padding: 7px 8px; border-radius: 6px; border: 1px solid var(--color-border); background: var(--color-bg); color: var(--color-text); }
+    /* Runde 18: Eingabefelder sind mit den Trainer-Vorgaben vorausgefüllt
+       (siehe renderExerciseRow) – die nativen Zahlenfeld-Pfeile bleiben
+       bewusst sichtbar, damit sich der Wert per Klick/Pfeiltasten anpassen
+       lässt, ohne dass getippt werden muss. */
+    .log-form input.prefilled { border-color: var(--color-gold); background: color-mix(in srgb, var(--color-gold) 8%, var(--color-bg)); }
     .log-form button { padding: 7px 12px; font-size: 0.8rem; }
     table.log-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
     table.log-table th, table.log-table td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--color-border); }
@@ -207,6 +226,9 @@
       SMOKING_OPTIONS, SMOKING_SOURCE, evaluateSmokingStatus,
       ALCOHOL_SOURCE, evaluateAlcoholRisk,
     } from './js/prevention.js';
+    import {
+      CLIENT_SUBTABS, loadClientSubtabLocks, shouldGateSubtab, lockedSubtabHtml, setSubtabAccess,
+    } from './js/subtab-access.js';
 
     initTheme();
     document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
@@ -217,6 +239,10 @@
 
     const container = document.getElementById('app-container');
     let currentProfile = null;
+    // Runde 18: pro Kunde geladene Sperren einzelner Unterpunkte (siehe
+    // js/subtab-access.js / sql/046) – einmal beim Laden der Seite abgefragt,
+    // dann in activateClientTab() vor jedem Render geprüft.
+    let subtabLocks = new Set();
 
     function escapeHtml(str) {
       const div = document.createElement('div');
@@ -321,6 +347,8 @@
       if (profile.role === 'admin') {
         await renderAdminView();
       } else {
+        const { locks } = await loadClientSubtabLocks(profile.id);
+        subtabLocks = locks;
         await renderClientRoot(profile);
       }
 
@@ -404,6 +432,13 @@
 
     function activateClientTab(tabName, profile) {
       const content = document.getElementById('client-content');
+      // Runde 18: granulare Zugriffssteuerung je Unterpunkt (js/subtab-access.js)
+      // – "start" ist kein echter Unterpunkt und nie sperrbar, alle anderen
+      // Reiter der Kunden-Ansicht entsprechen 1:1 den Keys in CLIENT_SUBTABS.training.
+      if (tabName !== 'start' && shouldGateSubtab(profile, subtabLocks, 'training', tabName)) {
+        content.innerHTML = lockedSubtabHtml('training', tabName);
+        return;
+      }
       if (tabName === 'progress') renderAnalyticsView(content, profile.id, { isAdminView: false });
       else if (tabName === 'start') renderStartTab(content, false);
       else if (tabName === 'praevention') renderPreventionTab(content, profile, { isAdminView: false });
@@ -949,22 +984,34 @@
 
       const status = computeStatus(pe, logsForThis);
 
+      // Runde 18: editierbare Felder werden mit den Trainer-Vorgaben
+      // vorausgefüllt, damit per Pfeiltasten (native Zahlenfeld-Spinner)
+      // angepasst statt komplett neu eingetippt werden muss. Die Satz-Nr.
+      // wird auf den nächsten noch nicht geloggten Satz hochgezählt, Wdh.
+      // kommt direkt aus der Plan-Vorgabe, Gewicht wird – soweit als Zahl
+      // erkennbar – aus dem freien "Gewicht-Hinweis"-Text des Trainers
+      // extrahiert (z.B. "ca. 20 kg" -> 20).
+      const nextSetNumber = (logsForThis ? logsForThis.length : 0) + 1;
+      const defaultReps = pe.target_reps || null;
+      const weightHintMatch = pe.target_weight_hint ? String(pe.target_weight_hint).match(/(\d+(?:[.,]\d+)?)/) : null;
+      const defaultWeight = weightHintMatch ? weightHintMatch[1].replace(',', '.') : null;
+
       return `<div class="exercise-row">
         ${ex.image_url ? `<img class="thumb" src="${escapeHtml(ex.image_url)}" alt="${escapeHtml(ex.name)}" onerror="this.style.display='none'" onclick="openLightbox('${escapeHtml(ex.image_url)}', '${escapeHtml(ex.name)}')" />` : ''}
         <div class="exercise-meta">
           <h4>${escapeHtml(ex.name)}</h4>
           ${ex.muscle_group ? `<div class="muscle">Beanspruchte Muskulatur: ${escapeHtml(ex.muscle_group)}</div>` : ''}
           ${target ? `<div class="target">${escapeHtml(target)}</div>` : ''}
-          ${ex.description ? `<p style="margin:4px 0 0; font-size:0.85rem; color:var(--color-text-muted);">${escapeHtml(ex.description)}</p>` : ''}
+          ${ex.description ? `<details class="exercise-desc-details"><summary>Übungsbeschreibung</summary><p>${escapeHtml(ex.description)}</p></details>` : ''}
           ${pe.notes ? `<p style="margin:4px 0 0; font-size:0.82rem; color:var(--color-gold);">Hinweis vom Coach: ${escapeHtml(pe.notes)}</p>` : ''}
           ${status ? `<div style="margin-top:6px;"><span class="status-pill ${status.cls}">${escapeHtml(status.label)}</span></div>` : ''}
           ${!activeSession ? `<p style="margin:6px 0 0; font-size:0.76rem; color:var(--color-gold);">Starte oben eine Trainingseinheit, damit dieser Satz einer Einheit zugeordnet wird.</p>` : ''}
           <form class="log-form" data-exercise-id="${ex.id}" data-plan-exercise-id="${pe.id}">
             ${isDurationBased ? `<input class="f-duration-min" type="number" min="0" placeholder="Min." style="width:64px;" />
                  <input class="f-duration-sec" type="number" min="0" max="59" placeholder="Sek." style="width:64px;" />` : ''}
-            ${!isDurationBased ? `<input class="f-set" type="number" min="1" placeholder="Satz Nr." required />
-                 <input class="f-reps" type="number" min="0" placeholder="Wdh." required />
-                 <input class="f-weight" type="number" min="0" step="0.5" placeholder="kg" />` : ''}
+            ${!isDurationBased ? `<input class="f-set" type="number" min="1" placeholder="Satz Nr." value="${nextSetNumber}" class="prefilled" required />
+                 <input class="f-reps" type="number" min="0" placeholder="Wdh." ${defaultReps ? `value="${defaultReps}" class="prefilled"` : ''} required />
+                 <input class="f-weight" type="number" min="0" step="0.5" placeholder="kg" ${defaultWeight ? `value="${defaultWeight}" class="prefilled"` : ''} />` : ''}
             ${isDistanceBased ? `<input class="f-distance" type="number" min="0" step="1" placeholder="Distanz (m)" />` : ''}
             <button class="btn secondary small-btn" type="submit">Eintragen</button>
             ${(pe.target_sets || pe.target_duration_seconds) ? `<button class="btn secondary small-btn quick-log-btn" type="button" data-plan-exercise-id="${pe.id}" title="Übernimmt die Plan-Vorgaben als Ist-Werte – danach editierbar">Übung schnell loggen</button>` : ''}
@@ -1002,9 +1049,7 @@
     // – Gelenke (Vorder-/Rückansicht) und Muskeln (Vorder-/Rückansicht)
     // sauber getrennt, mit anatomisch präzisen Bezeichnungen je Ansicht statt
     // eines Mischmaschs, damit z.B. "Schulter" eindeutig als Gelenk- ODER
-    // Muskel-Bezug erkennbar ist. Die Körper-Silhouette (frontBodyShape/
-    // backBodyShape) ist für beide Zwecke identisch, nur die aufgesetzten
-    // Marker/Beschriftungen unterscheiden sich.
+    // Muskel-Bezug erkennbar ist.
     // Runde 10: ALLE Beschriftungen (nicht nur mittige) liegen jetzt konsequent
     // auf zwei festen "Schienen" links/rechts AUSSERHALB der Silhouette
     // (LEFT_RAIL_X/RIGHT_RAIL_X), verbunden per gestrichelter Linie mit dem
@@ -1013,12 +1058,33 @@
     // an der Seite herabhängenden Arm kollidieren. viewBox ist entsprechend
     // breiter (-50..250 statt -30..230), damit auch längere Bezeichnungen
     // (z.B. "Muskeln Arm li.") auf der Schiene noch Platz haben.
-    function bodySeparatorLines(paths) {
-      return paths.map((d) => `<path d="${d}" fill="none" stroke="var(--color-bg)" stroke-width="1.4" stroke-linecap="round" />`).join('');
-    }
+    // Runde 18: die zuvor per SVG-Pfaden handgezeichnete Silhouette
+    // (frontBodyShape/backBodyShape) wurde durch die vom Nutzer bereit-
+    // gestellten anatomischen Fotos ersetzt (Skelett vorne/hinten für die
+    // Gelenke-Ansichten, Muskulatur vorne/hinten für die Muskeln-Ansichten).
+    // Die 4 Bilder wurden aus der Vorlage ausgeschnitten, freigestellt
+    // (schwarzer Hintergrund -> transparent) und einheitlich zugeschnitten,
+    // sodass sich der Körper in allen 4 Bildern an derselben Position/
+    // Skalierung befindet (siehe BODY_IMG_*). Die Marker-Koordinaten unten
+    // wurden anhand der auf dem Skelett-Foto bereits vorhandenen blauen
+    // Gelenkkugeln neu vermessen (Schulter/Ellbogen/Handgelenk/Hüfte/Knie/
+    // Fußgelenk); die Muskel-Marker (Brust, Bauch, Arm, Oberschenkel,
+    // oberer/unterer Rücken, Beinrückseite, Wade) sind davon anatomisch
+    // plausibel abgeleitet, da das Muskelfoto selbst keine Markierungen
+    // trägt. Alle Marker/Farben/Legenden/Beschriftungen sind unverändert
+    // gegenüber Runde 10-17 erhalten geblieben, nur als Overlay auf dem
+    // Foto statt auf der gezeichneten Silhouette.
 
     const LEFT_RAIL_X = 26;
     const RIGHT_RAIL_X = 174;
+
+    // Einheitliche Bild-Platzierung für alle vier Foto-Hintergründe: exakt
+    // gleiche x/y/Breite/Höhe, damit die fest einprogrammierten Marker-
+    // Koordinaten unten für alle vier Ansichten zueinander passen.
+    const BODY_IMG_X = 24, BODY_IMG_Y = 0, BODY_IMG_W = 152, BODY_IMG_H = 400;
+    function bodyImage(src) {
+      return `<image href="${src}" x="${BODY_IMG_X}" y="${BODY_IMG_Y}" width="${BODY_IMG_W}" height="${BODY_IMG_H}" preserveAspectRatio="xMidYMid meet" />`;
+    }
 
     // Einheitlicher Marker: Punkt + gestrichelte Verbindungslinie + Beschriftung
     // auf der linken/rechten Schiene. `side` ist 'left' oder 'right' – mittige
@@ -1041,104 +1107,21 @@
       return `<text x="100" y="393" font-size="12" font-weight="700" letter-spacing="0.4" fill="var(--color-text)" text-anchor="middle">${escapeHtml(text)}</text>`;
     }
 
-    function frontBodyShape() {
-      return `
-          <!-- Kopf & Hals -->
-          <ellipse cx="100" cy="24" rx="16" ry="18" fill="var(--color-border)" />
-          <path d="M90,40 Q100,47 110,40 L109,54 Q100,59 91,54 Z" fill="var(--color-border)" />
-          <!-- Trapezius / Schulterlinie -->
-          <path d="M58,72 Q80,48 100,50 Q120,48 142,72 L128,84 Q100,66 72,84 Z" fill="var(--color-border)" />
-          <!-- Deltamuskeln -->
-          <circle cx="60" cy="76" r="13" fill="var(--color-border)" />
-          <circle cx="140" cy="76" r="13" fill="var(--color-border)" />
-          <!-- Brustmuskeln -->
-          <path d="M75,82 Q66,102 76,122 Q90,129 96,114 Q95,94 88,82 Z" fill="var(--color-border)" />
-          <path d="M125,82 Q134,102 124,122 Q110,129 104,114 Q105,94 112,82 Z" fill="var(--color-border)" />
-          <!-- Bizeps/Oberarm -->
-          <path d="M46,78 Q40,110 44,146 L60,146 Q64,110 60,78 Z" fill="var(--color-border)" />
-          <path d="M154,78 Q160,110 156,146 L140,146 Q136,110 140,78 Z" fill="var(--color-border)" />
-          <!-- Unterarme -->
-          <path d="M45,148 Q41,178 46,206 L59,206 Q61,178 58,148 Z" fill="var(--color-border)" />
-          <path d="M155,148 Q159,178 154,206 L141,206 Q139,178 142,148 Z" fill="var(--color-border)" />
-          <ellipse cx="52" cy="212" rx="8" ry="9" fill="var(--color-border)" />
-          <ellipse cx="148" cy="212" rx="8" ry="9" fill="var(--color-border)" />
-          <!-- Bauch (Rectus abdominis) -->
-          <rect x="84" y="122" width="32" height="58" rx="10" fill="var(--color-border)" />
-          <!-- Schräge Bauchmuskeln -->
-          <path d="M76,124 Q70,148 78,172 L84,168 Q80,146 84,126 Z" fill="var(--color-border)" />
-          <path d="M124,124 Q130,148 122,172 L116,168 Q120,146 116,126 Z" fill="var(--color-border)" />
-          <!-- Becken/Hüfte -->
-          <path d="M78,182 Q100,175 122,182 L118,204 Q100,212 82,204 Z" fill="var(--color-border)" />
-          <!-- Oberschenkel (Quadrizeps) -->
-          <path d="M80,206 Q71,250 75,296 Q88,306 96,296 Q99,250 95,206 Z" fill="var(--color-border)" />
-          <path d="M120,206 Q129,250 125,296 Q112,306 104,296 Q101,250 105,206 Z" fill="var(--color-border)" />
-          <ellipse cx="85" cy="300" rx="9" ry="8" fill="var(--color-border)" />
-          <ellipse cx="115" cy="300" rx="9" ry="8" fill="var(--color-border)" />
-          <!-- Schienbein/Unterschenkel -->
-          <path d="M78,306 Q73,336 78,362 L92,362 Q90,336 90,306 Z" fill="var(--color-border)" />
-          <path d="M122,306 Q127,336 122,362 L108,362 Q110,336 110,306 Z" fill="var(--color-border)" />
-          <path d="M76,363 Q76,372 84,372 L92,372 L90,364 Z" fill="var(--color-border)" />
-          <path d="M124,363 Q124,372 116,372 L108,372 L110,364 Z" fill="var(--color-border)" />
-          ${bodySeparatorLines([
-            'M100,124 L100,180', 'M86,138 L114,138', 'M86,156 L114,156', 'M86,172 L114,172',
-            'M100,50 L100,66', 'M60,89 Q60,89 60,89', 'M140,89 Q140,89 140,89',
-          ])}`;
-    }
-
-    function backBodyShape() {
-      return `
-          <!-- Hinterkopf & Hals -->
-          <ellipse cx="100" cy="24" rx="16" ry="18" fill="var(--color-border)" />
-          <path d="M90,40 Q100,47 110,40 L109,54 Q100,59 91,54 Z" fill="var(--color-border)" />
-          <!-- Trapezius (breite Raute Nacken bis Mitte Rücken) -->
-          <path d="M100,42 L142,72 Q124,116 100,128 Q76,116 58,72 Z" fill="var(--color-border)" />
-          <!-- hintere Deltamuskeln -->
-          <circle cx="60" cy="76" r="13" fill="var(--color-border)" />
-          <circle cx="140" cy="76" r="13" fill="var(--color-border)" />
-          <!-- Latissimus (breiter Rücken, V-Form) -->
-          <path d="M68,86 Q52,112 62,152 Q78,160 92,144 Q92,110 84,86 Z" fill="var(--color-border)" />
-          <path d="M132,86 Q148,112 138,152 Q122,160 108,144 Q108,110 116,86 Z" fill="var(--color-border)" />
-          <!-- Trizeps/Oberarm -->
-          <path d="M46,78 Q40,110 44,146 L60,146 Q64,110 60,78 Z" fill="var(--color-border)" />
-          <path d="M154,78 Q160,110 156,146 L140,146 Q136,110 140,78 Z" fill="var(--color-border)" />
-          <path d="M45,148 Q41,178 46,206 L59,206 Q61,178 58,148 Z" fill="var(--color-border)" />
-          <path d="M155,148 Q159,178 154,206 L141,206 Q139,178 142,148 Z" fill="var(--color-border)" />
-          <ellipse cx="52" cy="212" rx="8" ry="9" fill="var(--color-border)" />
-          <ellipse cx="148" cy="212" rx="8" ry="9" fill="var(--color-border)" />
-          <!-- Unterer Rücken (Erector spinae) -->
-          <rect x="90" y="128" width="8" height="48" rx="4" fill="var(--color-border)" />
-          <rect x="102" y="128" width="8" height="48" rx="4" fill="var(--color-border)" />
-          <!-- Gesäßmuskulatur -->
-          <path d="M76,178 Q70,204 84,214 Q100,219 100,198 Q100,184 92,178 Z" fill="var(--color-border)" />
-          <path d="M124,178 Q130,204 116,214 Q100,219 100,198 Q100,184 108,178 Z" fill="var(--color-border)" />
-          <!-- Hamstrings (Oberschenkelrückseite) -->
-          <path d="M80,214 Q71,254 75,296 Q88,308 96,298 Q99,254 95,214 Z" fill="var(--color-border)" />
-          <path d="M120,214 Q129,254 125,296 Q112,308 104,298 Q101,254 105,214 Z" fill="var(--color-border)" />
-          <ellipse cx="85" cy="300" rx="9" ry="8" fill="var(--color-border)" />
-          <ellipse cx="115" cy="300" rx="9" ry="8" fill="var(--color-border)" />
-          <!-- Waden (Gastrocnemius, Muskelbauch weiter oben) -->
-          <path d="M77,306 Q71,330 78,352 Q85,358 92,350 Q92,328 90,306 Z" fill="var(--color-border)" />
-          <path d="M123,306 Q129,330 122,352 Q115,358 108,350 Q108,328 110,306 Z" fill="var(--color-border)" />
-          <path d="M80,353 Q80,368 88,368 L92,368 L90,354 Z" fill="var(--color-border)" />
-          <path d="M120,353 Q120,368 112,368 L108,368 L110,354 Z" fill="var(--color-border)" />
-          ${bodySeparatorLines(['M100,128 L100,176'])}`;
-    }
-
     function frontJointsSvg(markers) {
       return `
         <svg viewBox="-50 0 300 400" style="width:190px; height:auto; flex-shrink:0;">
-          ${frontBodyShape()}
-          ${markerDot(100, 48, markers.cervicalSpine.sev, markers.cervicalSpine.title, 'Halswirbelsäule', 'right')}
-          ${markerDot(58, 78, markers.shoulderLeft.sev, markers.shoulderLeft.title, 'Schulter li.', 'left')}
-          ${markerDot(142, 78, markers.shoulderRight.sev, markers.shoulderRight.title, 'Schulter re.', 'right')}
-          ${markerDot(52, 147, markers.elbowLeft.sev, markers.elbowLeft.title, 'Ellbogen li.', 'left')}
-          ${markerDot(148, 147, markers.elbowRight.sev, markers.elbowRight.title, 'Ellbogen re.', 'right')}
-          ${markerDot(52, 208, markers.wristLeft.sev, markers.wristLeft.title, 'Handgelenk li.', 'left')}
-          ${markerDot(148, 208, markers.wristRight.sev, markers.wristRight.title, 'Handgelenk re.', 'right')}
-          ${markerDot(85, 300, markers.kneeLeft.sev, markers.kneeLeft.title, 'Knie li.', 'left')}
-          ${markerDot(115, 300, markers.kneeRight.sev, markers.kneeRight.title, 'Knie re.', 'right')}
-          ${markerDot(80, 363, markers.ankleLeft.sev, markers.ankleLeft.title, 'Fußgelenk li.', 'left')}
-          ${markerDot(120, 363, markers.ankleRight.sev, markers.ankleRight.title, 'Fußgelenk re.', 'right')}
+          ${bodyImage('content/koerper-balance/koerper-gelenke-vorne.png')}
+          ${markerDot(100, 47, markers.cervicalSpine.sev, markers.cervicalSpine.title, 'Halswirbelsäule', 'right')}
+          ${markerDot(67, 77, markers.shoulderLeft.sev, markers.shoulderLeft.title, 'Schulter li.', 'left')}
+          ${markerDot(136, 76, markers.shoulderRight.sev, markers.shoulderRight.title, 'Schulter re.', 'right')}
+          ${markerDot(54, 146, markers.elbowLeft.sev, markers.elbowLeft.title, 'Ellbogen li.', 'left')}
+          ${markerDot(147, 145, markers.elbowRight.sev, markers.elbowRight.title, 'Ellbogen re.', 'right')}
+          ${markerDot(42, 192, markers.wristLeft.sev, markers.wristLeft.title, 'Handgelenk li.', 'left')}
+          ${markerDot(158, 192, markers.wristRight.sev, markers.wristRight.title, 'Handgelenk re.', 'right')}
+          ${markerDot(78, 270, markers.kneeLeft.sev, markers.kneeLeft.title, 'Knie li.', 'left')}
+          ${markerDot(122, 270, markers.kneeRight.sev, markers.kneeRight.title, 'Knie re.', 'right')}
+          ${markerDot(75, 353, markers.ankleLeft.sev, markers.ankleLeft.title, 'Fußgelenk li.', 'left')}
+          ${markerDot(124, 353, markers.ankleRight.sev, markers.ankleRight.title, 'Fußgelenk re.', 'right')}
           ${viewTitle('GELENKE – VORDERANSICHT')}
         </svg>`;
     }
@@ -1146,13 +1129,13 @@
     function backJointsSvg(markers) {
       return `
         <svg viewBox="-50 0 300 400" style="width:190px; height:auto; flex-shrink:0;">
-          ${backBodyShape()}
-          ${markerDot(100, 48, markers.neck.sev, markers.neck.title, 'Nacken', 'right')}
-          ${markerDot(58, 90, markers.shoulderLeft.sev, markers.shoulderLeft.title, 'Schulter li.', 'left')}
-          ${markerDot(142, 90, markers.shoulderRight.sev, markers.shoulderRight.title, 'Schulter re.', 'right')}
-          ${markerDot(100, 150, markers.lowerBack.sev, markers.lowerBack.title, 'Unterer Rücken', 'right')}
-          ${markerDot(80, 188, markers.hipLeft.sev, markers.hipLeft.title, 'Hüfte li.', 'left')}
-          ${markerDot(120, 188, markers.hipRight.sev, markers.hipRight.title, 'Hüfte re.', 'right')}
+          ${bodyImage('content/koerper-balance/koerper-gelenke-hinten.png')}
+          ${markerDot(100, 57, markers.neck.sev, markers.neck.title, 'Nacken', 'right')}
+          ${markerDot(56, 77, markers.shoulderLeft.sev, markers.shoulderLeft.title, 'Schulter li.', 'left')}
+          ${markerDot(132, 77, markers.shoulderRight.sev, markers.shoulderRight.title, 'Schulter re.', 'right')}
+          ${markerDot(100, 162, markers.lowerBack.sev, markers.lowerBack.title, 'Unterer Rücken', 'right')}
+          ${markerDot(69, 191, markers.hipLeft.sev, markers.hipLeft.title, 'Hüfte li.', 'left')}
+          ${markerDot(118, 191, markers.hipRight.sev, markers.hipRight.title, 'Hüfte re.', 'right')}
           ${viewTitle('GELENKE – RÜCKANSICHT')}
         </svg>`;
     }
@@ -1160,13 +1143,13 @@
     function frontMusclesSvg(markers) {
       return `
         <svg viewBox="-50 0 300 400" style="width:190px; height:auto; flex-shrink:0;">
-          ${frontBodyShape()}
-          ${markerDot(100, 98, markers.chest.sev, markers.chest.title, 'Brustmuskulatur', 'right')}
-          ${markerDot(100, 150, markers.abs.sev, markers.abs.title, 'Bauchmuskeln', 'right')}
-          ${markerDot(52, 112, markers.armLeft.sev, markers.armLeft.title, 'Muskeln Arm li.', 'left')}
-          ${markerDot(148, 112, markers.armRight.sev, markers.armRight.title, 'Muskeln Arm re.', 'right')}
-          ${markerDot(85, 250, markers.thighLeft.sev, markers.thighLeft.title, 'Oberschenkel li.', 'left')}
-          ${markerDot(115, 250, markers.thighRight.sev, markers.thighRight.title, 'Oberschenkel re.', 'right')}
+          ${bodyImage('content/koerper-balance/koerper-muskeln-vorne.png')}
+          ${markerDot(100, 96, markers.chest.sev, markers.chest.title, 'Brustmuskulatur', 'right')}
+          ${markerDot(100, 161, markers.abs.sev, markers.abs.title, 'Bauchmuskeln', 'right')}
+          ${markerDot(61, 108, markers.armLeft.sev, markers.armLeft.title, 'Muskeln Arm li.', 'left')}
+          ${markerDot(141, 107, markers.armRight.sev, markers.armRight.title, 'Muskeln Arm re.', 'right')}
+          ${markerDot(78, 227, markers.thighLeft.sev, markers.thighLeft.title, 'Oberschenkel li.', 'left')}
+          ${markerDot(123, 227, markers.thighRight.sev, markers.thighRight.title, 'Oberschenkel re.', 'right')}
           ${viewTitle('MUSKELN – VORDERANSICHT')}
         </svg>`;
     }
@@ -1174,13 +1157,13 @@
     function backMusclesSvg(markers) {
       return `
         <svg viewBox="-50 0 300 400" style="width:190px; height:auto; flex-shrink:0;">
-          ${backBodyShape()}
-          ${markerDot(100, 98, markers.upperBack.sev, markers.upperBack.title, 'Oberer Rücken', 'right')}
-          ${markerDot(100, 150, markers.lowerBack.sev, markers.lowerBack.title, 'Unterer Rücken', 'right')}
-          ${markerDot(85, 250, markers.hamstringLeft.sev, markers.hamstringLeft.title, 'Beinrückseite li.', 'left')}
-          ${markerDot(115, 250, markers.hamstringRight.sev, markers.hamstringRight.title, 'Beinrückseite re.', 'right')}
-          ${markerDot(84, 328, markers.calfLeft.sev, markers.calfLeft.title, 'Wade li.', 'left')}
-          ${markerDot(116, 328, markers.calfRight.sev, markers.calfRight.title, 'Wade re.', 'right')}
+          ${bodyImage('content/koerper-balance/koerper-muskeln-hinten.png')}
+          ${markerDot(100, 102, markers.upperBack.sev, markers.upperBack.title, 'Oberer Rücken', 'right')}
+          ${markerDot(100, 162, markers.lowerBack.sev, markers.lowerBack.title, 'Unterer Rücken', 'right')}
+          ${markerDot(70, 237, markers.hamstringLeft.sev, markers.hamstringLeft.title, 'Beinrückseite li.', 'left')}
+          ${markerDot(116, 237, markers.hamstringRight.sev, markers.hamstringRight.title, 'Beinrückseite re.', 'right')}
+          ${markerDot(70, 315, markers.calfLeft.sev, markers.calfLeft.title, 'Wade li.', 'left')}
+          ${markerDot(115, 315, markers.calfRight.sev, markers.calfRight.title, 'Wade re.', 'right')}
           ${viewTitle('MUSKELN – RÜCKANSICHT')}
         </svg>`;
     }
@@ -1604,11 +1587,16 @@
             `).join('')}
           </div>` : total == null ? `<p style="color:var(--color-text-muted); font-size:0.85rem; margin-top:12px;">Noch keine Daten für einen Score – trage unten mindestens einen Test ein.</p>` : ''}
           <p style="font-size:0.78rem; color:var(--color-text-muted); margin-top:12px;">${ageYears != null ? `Alter: ${ageYears} Jahre` : 'Kein Geburtsdatum hinterlegt – Kraftausdauer-Benchmarks können ohne Alter nicht ausgewertet werden.'}</p>
+          ${isAdminView ? `
           <button class="icon-btn" id="pv-edit-birthdate" type="button">Geburtsdatum ${birthDate ? 'ändern' : 'hinterlegen'}</button>
           <form id="pv-birthdate-form" class="hidden mt-16">
             <div class="field"><label>Geburtsdatum</label><input type="date" id="pv-birthdate-input" value="${birthDate || ''}" required /></div>
             <button class="btn secondary small-btn" type="submit">Speichern</button>
           </form>
+          <p style="font-size:0.7rem; color:var(--color-text-muted); margin-top:6px;">Als Trainer/Coach hier für den Kunden hinterlegbar, falls dieser es noch nicht selbst eingetragen hat.</p>
+          ` : `
+          <p style="font-size:0.72rem; color:var(--color-text-muted); margin-top:6px;">Geburtsdatum wird zentral auf der <a href="dashboard.html">Startseite</a> gepflegt (eine Stelle für PAL-Rechner, Präventionscheck etc.) – dort änderbar.</p>
+          `}
         </div>
 
         <div class="card mt-24">
@@ -1713,6 +1701,10 @@
         });
       });
 
+      // Runde 18: Eingabeformular nur noch in der Admin-/Trainer-Ansicht
+      // vorhanden (siehe renderPreventionSection oben) – Kunden sehen nur
+      // noch den Lesewert mit Link zur Startseite, damit das Geburtsdatum
+      // wirklich nur an einer Stelle gepflegt werden muss.
       const birthBtn = document.getElementById('pv-edit-birthdate');
       const birthForm = document.getElementById('pv-birthdate-form');
       if (birthBtn && birthForm) {
@@ -2358,7 +2350,7 @@
                 <div class="exercise-meta">
                   <h4>${escapeHtml(ex.name)}</h4>
                   ${ex.muscle_group ? `<div class="muscle">Beanspruchte Muskulatur: ${escapeHtml(ex.muscle_group)}</div>` : ''}
-                  ${ex.description ? `<p style="margin:4px 0 0; font-size:0.85rem; color:var(--color-text-muted);">${escapeHtml(ex.description)}</p>` : ''}
+                  ${ex.description ? `<details class="exercise-desc-details"><summary>Übungsbeschreibung</summary><p>${escapeHtml(ex.description)}</p></details>` : ''}
                 </div>
                 <button class="btn secondary small-btn" data-delete-id="${ex.id}" type="button">Löschen</button>
               </div>
@@ -3070,11 +3062,13 @@
             <select id="analysis-client">${clients.map((c) => `<option value="${c.id}">${escapeHtml(c.full_name || c.email)}</option>`).join('')}</select>
           </div>
         </div>
+        <div id="analysis-access" class="mt-24"></div>
         <div id="analysis-body" class="mt-24"></div>
         <div id="analysis-report" class="mt-24"></div>
       `;
 
       const select = document.getElementById('analysis-client');
+      const accessEl = document.getElementById('analysis-access');
       const body = document.getElementById('analysis-body');
       const reportEl = document.getElementById('analysis-report');
       const selectedClientLabel = () => {
@@ -3082,11 +3076,69 @@
         return c ? (c.full_name || c.email) : '';
       };
       select.addEventListener('change', () => {
+        renderSubtabAccessCard(accessEl, select.value);
         renderAnalyticsView(body, select.value, { isAdminView: true });
         renderMonatsberichtCard(reportEl, select.value, selectedClientLabel(), { isAdminView: true });
       });
+      renderSubtabAccessCard(accessEl, select.value);
       renderAnalyticsView(body, select.value, { isAdminView: true });
       renderMonatsberichtCard(reportEl, select.value, selectedClientLabel(), { isAdminView: true });
+    }
+
+    // Runde 18: granulare Zugriffssteuerung je Unterpunkt (Training/Ernährung/
+    // Coaching) für den in der Kundenanalyse gewählten Kunden. Sperrt NUR den
+    // Zugriff auf den Inhalt (der Unterpunkt bleibt für den Kunden in der
+    // Navigation sichtbar, siehe js/subtab-access.js), nicht die Sichtbarkeit.
+    const SUBTAB_SECTION_LABEL = { training: 'Training', nutrition: 'Ernährung', coaching: 'Coaching' };
+
+    async function renderSubtabAccessCard(el, clientId) {
+      if (!clientId) { el.innerHTML = ''; return; }
+      el.innerHTML = `<div class="card"><p class="center-text">Lade Zugriffsrechte …</p></div>`;
+      const { locks, error } = await loadClientSubtabLocks(clientId);
+      if (error) { el.innerHTML = `<div class="msg error">${escapeHtml(error.message)}</div>`; return; }
+
+      const sectionsHtml = Object.entries(CLIENT_SUBTABS).map(([section, items]) => `
+        <div class="subtab-access-group">
+          <h4>${SUBTAB_SECTION_LABEL[section] || section}</h4>
+          ${items.map((item) => {
+            const locked = locks.has(`${section}:${item.key}`);
+            return `
+              <label class="subtab-access-row">
+                <input type="checkbox" data-section="${section}" data-key="${item.key}" ${locked ? '' : 'checked'} />
+                <span>${escapeHtml(item.label)}</span>
+              </label>`;
+          }).join('')}
+        </div>`).join('');
+
+      el.innerHTML = `
+        <div class="card">
+          <h2 style="font-size:1.05rem;">Zugriff je Unterpunkt</h2>
+          <p style="color:var(--color-text-muted); font-size:0.85rem;">
+            Ein abgewählter Unterpunkt bleibt für den Kunden sichtbar (weckt Neugier), zeigt beim Öffnen
+            aber nur eine Teaser-Ansicht statt des echten Inhalts. Änderungen wirken sofort.
+          </p>
+          <div class="subtab-access-grid">${sectionsHtml}</div>
+          <div id="subtab-access-msg"></div>
+        </div>
+      `;
+
+      el.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+        cb.addEventListener('change', async () => {
+          const section = cb.dataset.section;
+          const key = cb.dataset.key;
+          const msgEl = document.getElementById('subtab-access-msg');
+          cb.disabled = true;
+          const { error: saveError } = await setSubtabAccess(clientId, section, key, cb.checked, currentProfile.id);
+          cb.disabled = false;
+          if (saveError) {
+            msgEl.innerHTML = `<div class="msg error">${escapeHtml(saveError.message)}</div>`;
+            cb.checked = !cb.checked;
+            return;
+          }
+          msgEl.innerHTML = `<div class="msg success">Gespeichert.</div>`;
+          setTimeout(() => { if (msgEl) msgEl.innerHTML = ''; }, 2000);
+        });
+      });
     }
 
     // =========================================================================
