@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rekorde &amp; Erfolge – Dream And Do It</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#053446" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <!-- dieselbe PDF-Bibliothek wie der Monatsbericht (training.html) -->
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <style>
+    /* Q5: Rekorde & Erfolge – eigene Styles dieser Seite (css/styles.css bleibt
+       unverändert); nutzt .card, .tabs/.tab-btn, .achievement-badge u. a. aus
+       dem gemeinsamen Stylesheet. Mobil (375 px) zuerst, Tap-Ziele >= 40 px. */
+    #app-container { padding: 18px 14px 56px; }
+    @media (min-width: 600px) { #app-container { padding: 28px 20px 60px; } }
+    .ef-stack > * + * { margin-top: 14px; }
+    .card.ef { padding: 14px 14px; }
+    @media (min-width: 600px) { .card.ef { padding: 20px 22px; } }
+    .ef-tabs { margin-bottom: 14px; }
+    .ef-tabs .tab-btn { font-size: 0.74rem; letter-spacing: 0.02em; padding: 10px 2px; min-height: 44px; }
+    @media (min-width: 480px) { .ef-tabs .tab-btn { font-size: 0.85rem; letter-spacing: 0.04em; } }
+    h3.sec { font-size: 0.95rem; margin: 0 0 10px; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+    h3.sec .aside { font-family: var(--font-body); font-size: 0.74rem; font-weight: 600; color: var(--color-gold); text-align: right; }
+    button.linklike {
+      background: none; border: none; padding: 0; margin: 0; cursor: pointer; font: inherit;
+      color: var(--color-gold); font-weight: 600; font-size: 0.78rem; min-height: 40px; display: inline-flex; align-items: center;
+    }
+    .muted { color: var(--color-text-muted); }
+    .small { font-size: 0.78rem; }
+    .empty { color: var(--color-text-muted); font-size: 0.86rem; margin: 4px 0 0; line-height: 1.5; }
+
+    /* Zeitstrahl */
+    .tl { position: relative; margin: 16px 16px 4px; height: 52px; }
+    .tl .bar { position: absolute; left: 0; right: 0; top: 12px; height: 6px; border-radius: 4px; background: var(--color-border); }
+    .tl .fill { position: absolute; left: 0; top: 12px; height: 6px; border-radius: 4px; background: linear-gradient(90deg, var(--color-gold), var(--color-gold-light)); }
+    .tl .m { position: absolute; top: 5px; transform: translateX(-50%); text-align: center; font-size: 0.66rem; color: var(--color-text-muted); }
+    .tl .m i { display: block; width: 20px; height: 20px; border-radius: 50%; background: var(--color-surface); border: 2px solid var(--color-border); margin: 0 auto 4px; font-style: normal; line-height: 16px; font-size: 0.7rem; }
+    .tl .m.on i { background: var(--color-gold); border-color: var(--color-gold); color: #fff; }
+    .tl .m.next i { border-color: var(--color-gold); }
+    .ms-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+    @media (min-width: 600px) { .ms-grid { grid-template-columns: repeat(6, 1fr); } }
+    .ms { border: 1px solid var(--color-border); border-radius: 9px; padding: 7px 4px; text-align: center; font-size: 0.7rem; line-height: 1.25; color: var(--color-text-muted); background: var(--color-surface); }
+    .ms b { display: block; font-size: 0.78rem; color: var(--color-text); font-weight: 600; }
+    .ms.on { border-color: rgba(200,124,0,0.55); background: rgba(200,124,0,0.08); }
+    .ms.on b { color: var(--color-gold); }
+
+    /* Rekord-Zeilen */
+    .rec { display: flex; align-items: center; gap: 10px; padding: 9px 2px; border-bottom: 1px solid var(--color-border); min-height: 52px; }
+    .rec:last-child { border-bottom: 0; }
+    .rec .ri { font-size: 1.15rem; width: 26px; text-align: center; flex-shrink: 0; }
+    .rec .rt { flex: 1; min-width: 0; }
+    .rec .rt b { display: block; font-size: 0.88rem; line-height: 1.25; }
+    .rec .rt small { color: var(--color-text-muted); font-size: 0.72rem; }
+    .rec .rv { text-align: right; font-weight: 700; font-size: 0.95rem; flex-shrink: 0; max-width: 46%; }
+    .rec .rv small { display: block; font-weight: 400; color: var(--color-success); font-size: 0.7rem; }
+    :root[data-theme="dark"] .rec .rv small { color: #7bd1a0; }
+
+    /* Kraft je Übung */
+    .exrec { padding: 11px 0; border-bottom: 1px solid var(--color-border); }
+    .exrec:last-child { border-bottom: 0; }
+    .exrec .exhead b { font-size: 0.92rem; }
+    .exrec .exhead small { display: block; color: var(--color-text-muted); font-size: 0.72rem; }
+    .exstats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 7px; }
+    .exstat { background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 9px; padding: 7px 6px; text-align: center; min-width: 0; }
+    .exstat .lbl { display: block; font-size: 0.62rem; letter-spacing: 0.03em; text-transform: uppercase; color: var(--color-text-muted); }
+    .exstat b { display: block; font-size: 0.92rem; margin-top: 1px; }
+    .exstat small { display: block; font-size: 0.64rem; color: var(--color-text-muted); }
+    .exstat em { display: block; font-style: normal; font-size: 0.64rem; color: var(--color-success); }
+    :root[data-theme="dark"] .exstat em { color: #7bd1a0; }
+
+    /* Erfolge in Stufen (bestehende .achievement-badge-Optik, hier als Tap-Kacheln) */
+    .cat { margin-bottom: 16px; }
+    .cat:last-child { margin-bottom: 0; }
+    .cat h4 { font-family: var(--font-body); font-size: 0.9rem; margin: 0 0 2px; color: var(--color-navy); display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+    :root[data-theme="dark"] .cat h4 { color: var(--color-gold-light); }
+    .cat h4 small { font-weight: 400; color: var(--color-text-muted); font-size: 0.72rem; }
+    .tierrow { display: grid; gap: 6px; margin-top: 8px; grid-template-columns: repeat(var(--cols, 5), 1fr); }
+    button.tier.achievement-badge { font: inherit; color: inherit; cursor: pointer; padding: 8px 3px; min-height: 76px; justify-content: flex-start; min-width: 0; -webkit-appearance: none; appearance: none; }
+    button.tier .achievement-icon { font-size: 1.35rem; }
+    button.tier .achievement-title { font-size: 0.64rem; font-weight: 600; overflow-wrap: anywhere; }
+    button.tier .achievement-progress { font-size: 0.62rem; }
+    button.tier.cur { border-color: var(--color-gold); box-shadow: 0 0 0 1px var(--color-gold) inset; }
+    button.tier.locked { opacity: 0.55; }
+    button.tier.sel { outline: 2px solid var(--color-navy); outline-offset: 1px; }
+    :root[data-theme="dark"] button.tier.sel { outline-color: var(--color-gold-light); }
+    .prog { height: 6px; border-radius: 4px; background: var(--color-border); overflow: hidden; margin-top: 8px; }
+    .prog i { display: block; height: 100%; background: var(--color-gold); border-radius: 4px; }
+    .prog-note { font-size: 0.72rem; color: var(--color-text-muted); margin: 4px 0 0; }
+    .tier-detail { font-size: 0.8rem; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 8px; padding: 8px 10px; margin: 8px 0 0; line-height: 1.45; }
+    .tier-detail[hidden] { display: none; }
+
+    /* Training in Zahlen */
+    .num-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .num-tile { background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 10px; padding: 10px 11px; min-width: 0; }
+    .num-tile.wide { grid-column: 1 / -1; }
+    .num-tile .lbl { font-size: 0.66rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-text-muted); display: block; }
+    .num-tile .big { font-family: var(--font-heading); font-size: 1.05rem; color: var(--color-navy); display: block; margin-top: 2px; overflow-wrap: anywhere; }
+    :root[data-theme="dark"] .num-tile .big { color: var(--color-gold-light); }
+    .num-tile .sub { font-size: 0.72rem; color: var(--color-text-muted); display: block; margin-top: 1px; }
+    .hbar { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 0.74rem; }
+    .hbar span.n { flex: 0 0 42%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .hbar span.t { flex: 1; height: 6px; background: var(--color-border); border-radius: 4px; overflow: hidden; }
+    .hbar span.t i { display: block; height: 100%; background: var(--color-gold); }
+    .hbar span.v { flex: 0 0 auto; color: var(--color-text-muted); font-size: 0.7rem; }
+    .wd { display: flex; align-items: flex-end; gap: 6px; height: 64px; margin-top: 8px; }
+    .wd div { flex: 1; text-align: center; font-size: 0.66rem; color: var(--color-text-muted); display: flex; flex-direction: column; justify-content: flex-end; height: 100%; }
+    .wd div i { display: block; background: var(--color-border); border-radius: 4px 4px 0 0; margin-bottom: 3px; min-height: 3px; }
+    .wd div.top i { background: var(--color-gold); }
+    .wd div.top { color: var(--color-gold); font-weight: 700; }
+
+    /* Rückblick */
+    .rv-card .head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+    .rv-card.locked { border-style: dashed; }
+    .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
+    @media (min-width: 600px) { .kpis { grid-template-columns: repeat(6, 1fr); } }
+    .kpi { background: rgba(200,124,0,0.08); border: 1px solid rgba(200,124,0,0.25); border-radius: 10px; padding: 8px 4px; text-align: center; min-width: 0; }
+    .kpi b { display: block; font-family: var(--font-heading); font-size: 1rem; color: var(--color-navy); overflow-wrap: anywhere; }
+    :root[data-theme="dark"] .kpi b { color: var(--color-gold-light); }
+    .kpi small { display: block; font-size: 0.64rem; color: var(--color-text-muted); line-height: 1.2; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .chip { font-size: 0.72rem; background: rgba(200,124,0,0.1); border: 1px solid rgba(200,124,0,0.3); border-radius: 20px; padding: 3px 10px; }
+    .scorechart { width: 100%; height: auto; display: block; margin-top: 6px; }
+    .scorechart text { font-family: var(--font-body); font-size: 9px; fill: var(--color-text-muted); }
+    .scorechart .line { stroke: var(--color-gold); }
+    .scorechart .dot { fill: var(--color-gold); }
+    .scorechart .thr { stroke: var(--color-success); stroke-dasharray: 3 3; opacity: 0.8; }
+    .scorechart .axis { stroke: var(--color-border); }
+    .btn.pdf { width: auto; padding: 11px 18px; min-height: 44px; margin-top: 12px; }
+    .picker { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+    .picker select { flex: 1; min-width: 200px; min-height: 44px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--color-border); background: var(--color-bg); color: var(--color-text); font-family: var(--font-body); font-size: 1rem; }
+    .banner-new { margin: 0 0 14px; }
+    .sub-label { font-family: var(--font-body); font-size: 0.82rem; font-weight: 700; margin: 14px 0 4px; color: var(--color-navy); }
+    :root[data-theme="dark"] .sub-label { color: var(--color-gold-light); }
+    .footnote { font-size: 0.72rem; color: var(--color-text-muted); line-height: 1.5; margin: 6px 2px 0; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="topbar">
+      <div class="brand">
+        <img src="icons/logo-mark.png" alt="Dream And Do It Logo" onerror="this.style.display='none'" />
+        <span class="brand-text">
+          <span class="brand-name">DREAM AND DO IT</span>
+          <span class="brand-tagline">Training und Coaching für Ihren Erfolg</span>
+        </span>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button class="icon-btn" id="theme-toggle" type="button">Hell/Dunkel</button>
+        <button class="icon-btn" id="logout-btn" type="button">Abmelden</button>
+      </div>
+    </div>
+    <div id="nav-tabs-slot"></div>
+
+    <div class="container wide" id="app-container">
+      <p class="center-text">Lade …</p>
+    </div>
+  </div>
+
+  <script type="module">
+    import { supabaseClient } from './js/supabase-client.js';
+    import { getCurrentSession, initTheme, toggleTheme, signOut } from './js/auth.js';
+    import { getUnreadCount } from './js/messages.js';
+    import { getNewSignupCount } from './js/betrieb.js';
+    import { navTabsHtml, bindNavSubmenus } from './js/nav.js';
+    import { listClients } from './js/training.js';
+    import {
+      ACHIEVEMENT_DEFINITIONS, loadAchievementRaw, analyzeAchievements, summarizeSeries,
+      syncEarnedAchievements, parseDayKey, WEEKDAY_NAMES_DE,
+    } from './js/achievements.js';
+    import { buildReviewPdf } from './js/monthly-report.js';
+
+    initTheme();
+    document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      await signOut();
+      window.location.href = 'index.html';
+    });
+
+    const container = document.getElementById('app-container');
+    const TABS = [
+      { key: 'uebersicht', label: 'Übersicht' },
+      { key: 'rekorde', label: 'Rekorde' },
+      { key: 'erfolge', label: 'Erfolge' },
+      { key: 'rueckblick', label: 'Rückblick' },
+    ];
+    const DEF_BY_KEY = new Map(ACHIEVEMENT_DEFINITIONS.map((d) => [d.key, d]));
+
+    let currentProfile = null;   // eingeloggter Nutzer
+    let viewProfile = null;      // Profil, dessen Daten gezeigt werden (Kunde selbst oder vom Admin gewählter Kunde)
+    let clientList = [];
+    let activeTab = 'uebersicht';
+    let state = null;            // { raw, analysis, existingKeys, newlyEarned, access }
+    let loadToken = 0;
+
+    // ---- Helfer ----------------------------------------------------------
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str == null ? '' : String(str);
+      return div.innerHTML;
+    }
+    const nf = (v, d = 0) => Number(v).toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: d });
+    const fmtKg = (v) => `${nf(v, 1)} kg`;
+    const fmtVol = (kg) => (kg >= 1000 ? `${nf(kg / 1000, 1)} t` : `${nf(kg, 0)} kg`);
+    function fmtDate(input) {
+      if (!input) return '';
+      const d = typeof input === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input) ? parseDayKey(input) : new Date(input);
+      return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    }
+    function fmtDuration(sec) {
+      const m = Math.round(sec / 60);
+      const h = Math.floor(m / 60);
+      return h > 0 ? `${h} Std. ${m % 60} Min.` : `${m} Min.`;
+    }
+    const plural = (n, one, many) => `${nf(n)} ${n === 1 ? one : many}`;
+
+    function getRequestedTab() {
+      const t = new URLSearchParams(location.search).get('tab');
+      return TABS.some((x) => x.key === t) ? t : 'uebersicht';
+    }
+    function updateUrl() {
+      try {
+        const p = new URLSearchParams(location.search);
+        p.set('tab', activeTab);
+        if (currentProfile && currentProfile.role === 'admin' && viewProfile) p.set('client', viewProfile.id);
+        history.replaceState(null, '', `${location.pathname}?${p.toString()}`);
+      } catch (e) { /* ohne History-API: unkritisch */ }
+    }
+
+    // ---- Start -------------------------------------------------------------
+    async function init() {
+      const session = await getCurrentSession();
+      if (!session) { window.location.href = 'index.html'; return; }
+
+      const { data: profile, error } = await supabaseClient
+        .from('profiles')
+        .select('id, full_name, email, role, access_locked, created_at, training_enabled, nutrition_enabled, coaching_enabled')
+        .eq('id', session.user.id)
+        .maybeSingle();
+
+      if (error || !profile) {
+        container.innerHTML = `<div class="card lock-screen"><div class="icon">⚠️</div><h2>Profil konnte nicht geladen werden</h2><p style="color:var(--color-text-muted);">${escapeHtml(error ? error.message : 'Unbekannter Fehler')}</p></div>`;
+        return;
+      }
+      if (profile.access_locked) {
+        container.innerHTML = `<div class="card lock-screen"><div class="icon">🔒</div><h2>Zugang derzeit gesperrt</h2><p style="color:var(--color-text-muted);">Bitte wende dich an uns, um deinen Zugang zu klären.</p></div>`;
+        return;
+      }
+      currentProfile = profile;
+      viewProfile = profile;
+      activeTab = getRequestedTab();
+      mountNavTabs(profile);
+
+      if (profile.role === 'admin') {
+        try {
+          const { data } = await listClients();
+          clientList = data || [];
+        } catch (e) { clientList = []; }
+        const requested = new URLSearchParams(location.search).get('client');
+        const pick = clientList.find((c) => c.id === requested) || clientList[0];
+        if (pick) viewProfile = { id: pick.id, full_name: pick.full_name, email: pick.email, role: 'client' };
+      }
+      await loadAndRender();
+    }
+
+    async function mountNavTabs(profile) {
+      const slot = document.getElementById('nav-tabs-slot');
+      if (!slot) return;
+      let unreadMessages = 0; let signups = 0;
+      try {
+        const [u, s] = await Promise.all([
+          getUnreadCount(profile.id),
+          profile.role === 'admin' ? getNewSignupCount() : Promise.resolve({ count: 0 }),
+        ]);
+        unreadMessages = u; signups = s.count || 0;
+      } catch (e) { /* Navigation bleibt ohne Badges nutzbar */ }
+      slot.innerHTML = navTabsHtml(profile, { currentPage: 'erfolge', unreadMessages, newSignups: signups });
+      bindNavSubmenus(slot);
+    }
+
+    function accessFor(profile) {
+      if (currentProfile.role === 'admin') return { trainingEnabled: true, nutritionEnabled: true, coachingEnabled: true };
+      return { trainingEnabled: !!profile.training_enabled, nutritionEnabled: !!profile.nutrition_enabled, coachingEnabled: !!profile.coaching_enabled };
+    }
+
+    async function loadAndRender() {
+      const token = ++loadToken;
+      const isOwn = viewProfile.id === currentProfile.id;
+      container.innerHTML = `${pickerHtml()}<p class="center-text">Lade Rekorde und Erfolge …</p>`;
+      bindPicker();
+      try {
+        const access = accessFor(viewProfile);
+        const raw = await loadAchievementRaw(viewProfile.id, access);
+        if (token !== loadToken) return;
+        const analysis = analyzeAchievements(raw, { now: new Date() });
+        const existingKeys = new Set((raw.achievementRows || []).map((a) => a.achievement_key));
+
+        // Neu erreichte Erfolge persistieren (wie auf der Startseite) – nur in
+        // der eigenen Ansicht: ein Trainer, der einen Kunden anschaut, soll für
+        // ihn keine "Neu freigeschaltet"-Hinweise verbrauchen.
+        let newlyEarned = [];
+        if (isOwn && currentProfile.role !== 'admin') {
+          const fresh = analysis.evaluated.filter((a) => a.earned && !a.manual && !existingKeys.has(a.key));
+          if (fresh.length) {
+            try {
+              const { error } = await syncEarnedAchievements(viewProfile.id, fresh);
+              if (!error) { newlyEarned = fresh; fresh.forEach((a) => existingKeys.add(a.key)); }
+            } catch (e) { /* Persistenz ist best effort – Anzeige bleibt korrekt */ }
+          }
+        }
+        state = { raw, analysis, existingKeys, newlyEarned, access, isOwn };
+        render();
+      } catch (err) {
+        if (token !== loadToken) return;
+        container.innerHTML = `${pickerHtml()}<div class="msg error">Rekorde und Erfolge konnten nicht geladen werden. ${escapeHtml(err && err.message ? err.message : '')}</div>`;
+        bindPicker();
+      }
+    }
+
+    // ---- Admin: Kunden-Umschalter -------------------------------------------
+    function pickerHtml() {
+      if (!currentProfile || currentProfile.role !== 'admin') return '';
+      if (!clientList.length) return '<div class="msg info">Noch keine Kunden vorhanden.</div>';
+      return `
+        <div class="picker">
+          <label for="client-select" class="muted small">Kunde:</label>
+          <select id="client-select">
+            ${clientList.map((c) => `<option value="${escapeHtml(c.id)}" ${viewProfile && c.id === viewProfile.id ? 'selected' : ''}>${escapeHtml(c.full_name || c.email || c.id)}</option>`).join('')}
+          </select>
+        </div>`;
+    }
+    function bindPicker() {
+      const sel = document.getElementById('client-select');
+      if (!sel) return;
+      sel.addEventListener('change', () => {
+        const c = clientList.find((x) => x.id === sel.value);
+        if (!c) return;
+        viewProfile = { id: c.id, full_name: c.full_name, email: c.email, role: 'client' };
+        updateUrl();
+        loadAndRender();
+      });
+    }
+
+    // ---- Rendering ----------------------------------------------------------
+    function render() {
+      container.innerHTML = `
+        ${pickerHtml()}
+        <div class="tabs ef-tabs" role="tablist">
+          ${TABS.map((t) => `<button type="button" class="tab-btn ${t.key === activeTab ? 'active' : ''}" role="tab" aria-selected="${t.key === activeTab}" data-tab="${t.key}">${t.label}</button>`).join('')}
+        </div>
+        ${newBannerHtml()}
+        <div id="tab-content" class="ef-stack"></div>
+        ${state && state.raw && state.raw.warnings && state.raw.warnings.length ? '<p class="footnote">Hinweis: Einige Daten konnten gerade nicht geladen werden – die Anzeige kann unvollständig sein. Bitte lade die Seite später noch einmal.</p>' : ''}`;
+      if (state && state.raw && state.raw.warnings && state.raw.warnings.length) console.warn('Erfolge: nicht alle Datenquellen verfügbar:', state.raw.warnings);
+      bindPicker();
+      container.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+      renderTab();
+    }
+
+    function switchTab(key) {
+      if (!TABS.some((t) => t.key === key)) return;
+      activeTab = key;
+      container.querySelectorAll('[data-tab]').forEach((b) => {
+        const on = b.dataset.tab === key;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-selected', String(on));
+      });
+      updateUrl();
+      renderTab();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function renderTab() {
+      const el = document.getElementById('tab-content');
+      if (!el || !state) return;
+      try {
+        if (activeTab === 'uebersicht') el.innerHTML = overviewHtml();
+        else if (activeTab === 'rekorde') el.innerHTML = recordsHtml();
+        else if (activeTab === 'erfolge') el.innerHTML = achievementsHtml();
+        else el.innerHTML = reviewsHtml();
+      } catch (err) {
+        console.error(err);
+        el.innerHTML = `<div class="msg error">Dieser Bereich konnte nicht dargestellt werden.</div>`;
+        return;
+      }
+      el.querySelectorAll('[data-goto]').forEach((b) => b.addEventListener('click', () => switchTab(b.dataset.goto)));
+      el.querySelectorAll('button.tier').forEach((b) => b.addEventListener('click', () => toggleTierDetail(b)));
+      el.querySelectorAll('[data-more]').forEach((b) => b.addEventListener('click', () => {
+        const box = document.getElementById(b.dataset.more);
+        if (!box) return;
+        const hidden = box.hidden;
+        box.hidden = !hidden;
+        b.textContent = hidden ? 'Weniger anzeigen' : b.dataset.label;
+      }));
+      el.querySelectorAll('[data-pdf]').forEach((b) => b.addEventListener('click', () => downloadReview(Number(b.dataset.pdf), b)));
+    }
+
+    function newBannerHtml() {
+      if (!state || !state.newlyEarned.length) return '';
+      const names = state.newlyEarned.map((a) => a.title);
+      const shown = names.slice(0, 4).map(escapeHtml).join(', ');
+      return `<div class="msg success banner-new">🎉 Neu freigeschaltet: ${shown}${names.length > 4 ? ` und ${names.length - 4} weitere` : ''}</div>`;
+    }
+
+    function lockNote(module) {
+      const label = module === 'training' ? 'Training' : module === 'nutrition' ? 'Ernährung' : 'Coaching';
+      return `<p class="empty">🔒 ${label} ist für diesen Zugang noch nicht freigeschaltet – deshalb gibt es hier noch keine Werte.</p>`;
+    }
+
+    // ---- Übersicht -----------------------------------------------------------
+    function timelineCardHtml() {
+      const tl = state.analysis.timeline;
+      if (!tl) {
+        return `<div class="card ef"><h3 class="sec">Dein 24-Monats-Weg</h3><p class="empty">Das Anmeldedatum ist noch nicht verfügbar – sobald es vorliegt, erscheint hier dein Weg über 24 Monate.</p></div>`;
+      }
+      const pos = (m) => Math.min(100, (m / 24) * 100);
+      const markers = tl.milestones.map((m) => {
+        const isNext = tl.next && tl.next.months === m.months;
+        return `<div class="m ${m.reached ? 'on' : ''} ${isNext ? 'next' : ''}" style="left:${pos(m.months)}%"><i>${m.reached ? '✓' : (m.months === 24 ? '🏆' : '')}</i>${m.months}</div>`;
+      }).join('');
+      const nextText = tl.next
+        ? `Nächster Meilenstein: ${tl.next.months === 6 || tl.next.months === 12 ? `${tl.next.months}-Monats-Rückblick mit Präventions-Retest` : tl.next.months === 24 ? '24-Monats-Rückblick' : `Monat ${tl.next.months}`} – noch ${plural(tl.next.daysLeft, 'Tag', 'Tage')} (am ${fmtDate(tl.next.date)}).`
+        : 'Geschafft: Alle Meilensteine über 24 Monate sind erreicht.';
+      const chips = tl.milestones.map((m) => `<div class="ms ${m.reached ? 'on' : ''}"><b>Monat ${m.months}</b>${m.reached ? `✓ ${fmtDate(m.date)}` : `noch ${plural(m.daysLeft, 'Tag', 'Tage')}`}</div>`).join('');
+      return `
+        <div class="card ef">
+          <h3 class="sec">Dein 24-Monats-Weg <span class="aside">${tl.complete ? '24 Monate geschafft' : `Monat ${tl.month} von 24`}</span></h3>
+          <div class="tl" role="img" aria-label="Zeitstrahl über 24 Monate, Monat ${tl.month} von 24">
+            <div class="bar"></div><div class="fill" style="width:${tl.progressPct.toFixed(2)}%"></div>
+            ${markers}
+          </div>
+          <p class="muted small" style="margin:6px 0 0;">${escapeHtml(nextText)}</p>
+          <div class="ms-grid">${chips}</div>
+        </div>`;
+    }
+
+    function recRow(icon, title, sub, value, delta) {
+      return `<div class="rec"><span class="ri" aria-hidden="true">${icon}</span><div class="rt"><b>${escapeHtml(title)}</b><small>${escapeHtml(sub)}</small></div><div class="rv">${escapeHtml(value)}${delta ? `<small>${escapeHtml(delta)}</small>` : ''}</div></div>`;
+    }
+
+    function topRecordRows(limit) {
+      const { board } = state.analysis;
+      const rows = [];
+      const byE1 = board.strength.filter((s) => s.bestE1RM).sort((a, b) => b.bestE1RM.kg - a.bestE1RM.kg);
+      byE1.slice(0, 2).forEach((s) => rows.push(recRow('📈', s.name, `Geschätztes 1RM · ${fmtDate(s.bestE1RM.at)}`, fmtKg(s.bestE1RM.kg), s.gainE1RM ? `+${nf(s.gainE1RM, 1)} kg seit Start` : '')));
+      const byReps = board.strength.filter((s) => s.maxReps && !s.bestWeight).sort((a, b) => b.maxReps.reps - a.maxReps.reps);
+      if (byReps[0]) rows.push(recRow('🔁', byReps[0].name, `Wiederholungen · ${fmtDate(byReps[0].maxReps.at)}`, `${nf(byReps[0].maxReps.reps)} Wdh.`, byReps[0].gainReps ? `+${nf(byReps[0].gainReps)} seit Start` : ''));
+      const c = board.consistency;
+      if (c.longestStreak > 0) rows.push(recRow('🔥', 'Längste Serie', 'Wochen in Folge', plural(c.longestStreak, 'Woche', 'Wochen'), c.streakRunning ? 'laufend' : ''));
+      if (c.bestWeekVolume) rows.push(recRow('📦', 'Stärkste Woche', `Bewegte Kilos · ${c.bestWeekVolume.label}`, fmtVol(c.bestWeekVolume.kg), ''));
+      return rows.slice(0, limit);
+    }
+
+    function overviewHtml() {
+      const { analysis } = state;
+      const recRows = topRecordRows(5);
+      const totalRecs = analysis.board.strength.length;
+      const summaries = summarizeSeries(analysis.evaluated, state.existingKeys);
+      // Die drei Serien, die der nächsten Stufe am nächsten sind (abgeschlossene zuletzt).
+      const featured = summaries.slice().sort((a, b) => (a.complete - b.complete) || (b.nextRatio - a.nextRatio)).slice(0, 3);
+      const earnedTotal = summaries.reduce((s, x) => s + x.earnedCount, 0);
+      const totalAll = summaries.reduce((s, x) => s + x.total, 0);
+      return `
+        ${timelineCardHtml()}
+        <div class="card ef">
+          <h3 class="sec">Persönliche Rekorde <button type="button" class="linklike" data-goto="rekorde">${totalRecs ? `Alle ansehen →` : 'Zu den Rekorden →'}</button></h3>
+          ${recRows.length ? recRows.join('') : `<p class="empty">Noch zu wenig Daten – sobald du Sätze mit Gewicht oder Wiederholungen loggst, erscheinen hier deine Bestwerte.</p>`}
+        </div>
+        <div class="card ef">
+          <h3 class="sec">Erfolge in Stufen <button type="button" class="linklike" data-goto="erfolge">Alle ansehen →</button></h3>
+          <p class="muted small" style="margin:-4px 0 12px;">${nf(earnedTotal)} von ${nf(totalAll)} Stufen freigeschaltet.</p>
+          ${featured.map((sm) => seriesHtml(sm)).join('')}
+        </div>
+        ${reviewTeaserHtml()}`;
+    }
+
+    function reviewTeaserHtml() {
+      const reviews = state.analysis.reviews;
+      if (!reviews.some((r) => r.available)) return '';
+      const unlocked = reviews.filter((r) => r.unlocked);
+      const next = reviews.find((r) => r.available && !r.unlocked);
+      const last = unlocked[unlocked.length - 1];
+      const text = last
+        ? `Dein ${last.months}-Monats-Rückblick ist bereit${next ? ` – der ${next.months}-Monats-Rückblick folgt am ${fmtDate(next.unlockDate)}.` : '.'}`
+        : `Dein erster Rückblick (${next.months} Monate) wird am ${fmtDate(next.unlockDate)} freigeschaltet – noch ${plural(next.daysLeft, 'Tag', 'Tage')}.`;
+      return `
+        <div class="card ef">
+          <h3 class="sec">Rückblick</h3>
+          <p class="muted small" style="margin:0 0 6px;">${escapeHtml(text)}</p>
+          <button type="button" class="linklike" data-goto="rueckblick">Zum Rückblick →</button>
+        </div>`;
+    }
+
+    // ---- Erfolge --------------------------------------------------------------
+    function progText(sm) {
+      const s = sm.series;
+      if (sm.complete) return 'Alle Stufen erreicht – stark!';
+      if (s.kind === 'steps') return `${sm.earnedCount} von ${sm.total} geschafft`;
+      const p = sm.next && sm.next.progress;
+      if (!p) return '';
+      const rest = Math.max(0, p.target - p.current);
+      return `Nächste Stufe: ${sm.next.tierLabel} – noch ${nf(rest, s.progressDigits || 0)} ${s.unit}`;
+    }
+
+    function seriesHtml(sm) {
+      const s = sm.series;
+      const cols = sm.items.length <= 5 ? sm.items.length : 3;
+      const pct = sm.complete ? 100 : s.kind === 'steps' ? (sm.earnedCount / sm.total) * 100 : ((sm.earnedCount + sm.nextRatio) / sm.total) * 100;
+      const tiles = sm.items.map((it, i) => {
+        const cur = it.done && i === sm.earnedCount - 1 ? ' cur' : '';
+        const isNext = !it.done && sm.next && sm.next.key === it.key;
+        let sub = '';
+        if (it.done) sub = '<div class="achievement-progress">erreicht</div>';
+        else if (isNext && it.progress) sub = `<div class="achievement-progress">${nf(it.progress.current, s.progressDigits || 0)}/${nf(it.progress.target)}</div>`;
+        return `<button type="button" class="achievement-badge tier ${it.done ? 'earned' : 'locked'}${cur}" data-series="${s.key}" data-key="${it.key}" aria-label="${escapeHtml(it.title)}${it.done ? ', erreicht' : ', noch offen'}">
+          <div class="achievement-icon">${it.tierIcon}</div>
+          <div class="achievement-title">${escapeHtml(it.tierLabel)}</div>${sub}
+        </button>`;
+      }).join('');
+      return `
+        <div class="cat" data-series-box="${s.key}">
+          <h4><span aria-hidden="true">${s.icon}</span> ${escapeHtml(s.title)} <small>${escapeHtml(s.subtitle)}</small></h4>
+          <div class="tierrow" style="--cols:${cols}">${tiles}</div>
+          <div class="prog" aria-hidden="true"><i style="width:${pct.toFixed(1)}%"></i></div>
+          <p class="prog-note">${escapeHtml(progText(sm))}</p>
+          <p class="tier-detail" hidden></p>
+        </div>`;
+    }
+
+    function toggleTierDetail(btn) {
+      const box = btn.closest('.cat');
+      const detail = box.querySelector('.tier-detail');
+      const def = DEF_BY_KEY.get(btn.dataset.key);
+      if (!detail || !def) return;
+      const wasSelected = btn.classList.contains('sel');
+      box.querySelectorAll('button.tier').forEach((b) => b.classList.remove('sel'));
+      if (wasSelected) { detail.hidden = true; return; }
+      btn.classList.add('sel');
+      const done = state.existingKeys.has(def.key) || state.analysis.evaluated.find((e) => e.key === def.key)?.earned;
+      detail.hidden = false;
+      detail.innerHTML = `<b>${escapeHtml(def.title)}</b>${def.tierName ? ` <span class="muted">(${escapeHtml(def.tierName)})</span>` : ''}${done ? ' ✓' : ''}<br>${escapeHtml(def.description)}`;
+    }
+
+    function achievementsHtml() {
+      const summaries = summarizeSeries(state.analysis.evaluated, state.existingKeys);
+      const earnedTotal = summaries.reduce((s, x) => s + x.earnedCount, 0);
+      const totalAll = summaries.reduce((s, x) => s + x.total, 0);
+      return `
+        <div class="card ef">
+          <h3 class="sec">Erfolge in Stufen <span class="aside">${nf(earnedTotal)} von ${nf(totalAll)}</span></h3>
+          <p class="muted small" style="margin:-4px 0 14px;">Wenige Themenreihen, die über 24 Monate mitwachsen: von Bronze über Silber, Gold und Diamant bis zur Krone. Tippe auf eine Stufe, um zu sehen, wofür sie vergeben wird.</p>
+          ${summaries.map((sm) => seriesHtml(sm)).join('')}
+        </div>`;
+    }
+
+    // ---- Rekorde ----------------------------------------------------------------
+    function strengthCardHtml() {
+      const { board } = state.analysis;
+      if (!state.access.trainingEnabled) return `<div class="card ef"><h3 class="sec">Kraft je Übung</h3>${lockNote('training')}</div>`;
+      if (!board.strength.length) {
+        return `<div class="card ef"><h3 class="sec">Kraft je Übung</h3><p class="empty">Noch zu wenig Daten – sobald du Sätze mit Gewicht oder Wiederholungen loggst, erscheinen hier Bestgewicht, geschätztes 1RM und meiste Wiederholungen je Übung.</p></div>`;
+      }
+      const item = (s) => {
+        const bw = s.bestWeight; const e1 = s.bestE1RM; const mr = s.maxReps;
+        return `
+          <div class="exrec">
+            <div class="exhead"><b>${escapeHtml(s.name)}</b><small>${s.muscleGroup ? `${escapeHtml(s.muscleGroup)} · ` : ''}${plural(s.sessions, 'Einheit', 'Einheiten')}</small></div>
+            <div class="exstats">
+              <div class="exstat"><span class="lbl">Bestgewicht</span>${bw ? `<b>${fmtKg(bw.kg)}</b><small>× ${nf(bw.reps)} · ${fmtDate(bw.at)}</small>${s.gainWeight ? `<em>+${nf(s.gainWeight, 1)} kg seit Start</em>` : ''}` : '<b>–</b><small>ohne Zusatzgewicht</small>'}</div>
+              <div class="exstat"><span class="lbl">Gesch. 1RM</span>${e1 ? `<b>${fmtKg(e1.kg)}</b><small>${fmtDate(e1.at)}</small>${s.gainE1RM ? `<em>+${nf(s.gainE1RM, 1)} kg seit Start</em>` : ''}` : '<b>–</b><small>ohne Zusatzgewicht</small>'}</div>
+              <div class="exstat"><span class="lbl">Meiste Wdh.</span>${mr ? `<b>${nf(mr.reps)}</b><small>${mr.weightKg ? `bei ${fmtKg(mr.weightKg)} · ` : ''}${fmtDate(mr.at)}</small>${s.gainReps ? `<em>+${nf(s.gainReps)} seit Start</em>` : ''}` : '<b>–</b>'}</div>
+            </div>
+          </div>`;
+      };
+      const first = board.strength.slice(0, 6);
+      const rest = board.strength.slice(6);
+      return `
+        <div class="card ef">
+          <h3 class="sec">Kraft je Übung <span class="aside">${nf(board.strength.length)} Übungen</span></h3>
+          ${first.map(item).join('')}
+          ${rest.length ? `<div id="more-ex" hidden>${rest.map(item).join('')}</div><button type="button" class="linklike" data-more="more-ex" data-label="Alle ${rest.length + first.length} Übungen anzeigen" style="margin-top:6px;">Alle ${rest.length + first.length} Übungen anzeigen</button>` : ''}
+          <p class="footnote">Das geschätzte 1RM berechnet sich nach Epley (Gewicht × (1 + Wdh./30)) – ein Richtwert für die Trainingssteuerung, kein Maximalkraft-Test. „Seit Start“ vergleicht mit deinem ersten Trainingstag der Übung.</p>
+        </div>`;
+    }
+
+    function consistencyCardHtml() {
+      if (!state.access.trainingEnabled) return `<div class="card ef"><h3 class="sec">Konstanz &amp; Volumen</h3>${lockNote('training')}</div>`;
+      const c = state.analysis.board.consistency;
+      if (!c.totalSessions) return `<div class="card ef"><h3 class="sec">Konstanz &amp; Volumen</h3><p class="empty">Noch zu wenig Daten – ab deiner ersten geloggten Trainingseinheit füllt sich dieser Bereich.</p></div>`;
+      const rows = [
+        recRow('🔥', 'Längste Serie', 'Wochen in Folge mit mindestens einer Einheit', plural(c.longestStreak, 'Woche', 'Wochen'), c.streakRunning ? 'laufend' : (c.currentStreak ? `aktuell ${c.currentStreak}` : '')),
+        c.mostSessionsInWeek ? recRow('📅', 'Meiste Einheiten in einer Woche', c.mostSessionsInWeek.label, plural(c.mostSessionsInWeek.count, 'Einheit', 'Einheiten'), '') : '',
+        c.mostSessionsInMonth ? recRow('🗓️', 'Meiste Einheiten in einem Monat', c.mostSessionsInMonth.label, plural(c.mostSessionsInMonth.count, 'Einheit', 'Einheiten'), '') : '',
+        c.bestSessionVolume ? recRow('🏋️', 'Bewegte Kilos pro Einheit', `Beste Einheit · ${fmtDate(c.bestSessionVolume.date)}`, fmtVol(c.bestSessionVolume.kg), '') : '',
+        c.bestWeekVolume ? recRow('📦', 'Stärkste Woche', `Bewegte Kilos · ${c.bestWeekVolume.label}`, fmtVol(c.bestWeekVolume.kg), '') : '',
+        c.bestMonthVolume ? recRow('🏔️', 'Stärkster Monat', `Bewegte Kilos · ${c.bestMonthVolume.label}`, fmtVol(c.bestMonthVolume.kg), '') : '',
+      ].join('');
+      return `<div class="card ef"><h3 class="sec">Konstanz &amp; Volumen</h3>${rows}</div>`;
+    }
+
+    function preventionCardHtml() {
+      if (!state.access.trainingEnabled) return `<div class="card ef"><h3 class="sec">Prävention</h3>${lockNote('training')}</div>`;
+      const p = state.analysis.board.prevention;
+      if (!p.tests.length && !p.bestScore) return `<div class="card ef"><h3 class="sec">Prävention</h3><p class="empty">Noch zu wenig Daten – trage Tests im Präventionscheck ein, dann erscheinen hier deine Bestwerte und dein bester Score.</p></div>`;
+      const rows = [];
+      if (p.bestScore) rows.push(recRow('🎯', 'Bester Präventions-Score', `von 100 Punkten · ${fmtDate(p.bestScore.date)}`, `${nf(p.bestScore.value)} Punkte`, p.currentScore != null && p.currentScore < p.bestScore.value ? `aktuell ${nf(p.currentScore)}` : (p.scoreCount > 1 ? 'aktueller Stand' : '')));
+      p.tests.forEach((t) => rows.push(recRow(t.key === 'cardio_fitness' ? '🫀' : '📊', t.label, `Bester Wert · ${fmtDate(t.date)}${t.count > 1 ? ` · ${t.count} Messungen` : ''}`, `${nf(t.value, t.decimals || 0)} ${t.unit}`.trim(), t.gain ? `+${nf(t.gain, t.decimals || 0)} seit dem ersten Test` : '')));
+      return `<div class="card ef"><h3 class="sec">Prävention</h3>${rows.join('')}</div>`;
+    }
+
+    function nutritionCoachingCardHtml() {
+      const n = state.analysis.board.nutritionCoaching;
+      const a = state.access;
+      const rows = [];
+      if (a.nutritionEnabled) {
+        rows.push(n.nutritionDays ? recRow('🥗', 'Längste Tagesserie im Ernährungsprotokoll', 'Tage in Folge mit mindestens einer Mahlzeit', plural(n.longestNutritionRun, 'Tag', 'Tage'), `${plural(n.nutritionDays, 'Tag', 'Tage')} insgesamt`) : '');
+      }
+      if (a.coachingEnabled) {
+        rows.push(n.goalsCreated ? recRow('🧭', 'Ziele (GROW)', 'Erreichte Ziele von allen angelegten', `${nf(n.goalsAchieved)} von ${nf(n.goalsCreated)}`, '') : '<p class="empty">Noch keine GROW-Ziele angelegt – dein erstes Ziel legst du im Bereich Coaching an.</p>');
+      }
+      const note = (!a.nutritionEnabled ? lockNote('nutrition') : '') + (!a.coachingEnabled ? lockNote('coaching') : '');
+      const body = rows.join('');
+      return `<div class="card ef"><h3 class="sec">Ernährung &amp; Coaching</h3>${body || ''}${!n.nutritionDays && a.nutritionEnabled ? '<p class="empty">Noch zu wenig Daten im Ernährungsprotokoll – ab dem ersten geloggten Tag erscheint hier deine Tagesserie.</p>' : ''}${note}</div>`;
+    }
+
+    function tieNames(fd) {
+      if (!fd.tie) return fd.name;
+      const names = fd.counts.map((c, i) => (c === fd.count ? WEEKDAY_NAMES_DE[i] : null)).filter(Boolean);
+      return `${names.slice(0, -1).join(', ')} und ${names[names.length - 1]}`;
+    }
+
+    function numbersCardHtml() {
+      if (!state.access.trainingEnabled) return `<div class="card ef"><h3 class="sec">Dein Training in Zahlen</h3>${lockNote('training')}</div>`;
+      const n = state.analysis.numbers;
+      const noData = '<span class="sub">Noch zu wenig Daten</span>';
+      const maxCount = n.favoriteDay && n.favoriteDay.counts ? Math.max(1, ...n.favoriteDay.counts) : 1;
+      const tiles = [];
+      tiles.push(`<div class="num-tile"><span class="lbl">Trainingspläne</span>${n.plans.count ? `<span class="big">${nf(n.plans.count)}</span><span class="sub">${n.plans.active ? `davon ${nf(n.plans.active)} aktiv` : 'aktuell keiner aktiv'}</span>` : `<span class="big">–</span>${noData}`}</div>`);
+      tiles.push(`<div class="num-tile"><span class="lbl">Lieblingsübung</span>${n.favoriteExercise ? `<span class="big">${escapeHtml(n.favoriteExercise.name)}</span><span class="sub">in ${plural(n.favoriteExercise.sessions, 'Einheit', 'Einheiten')} geloggt</span>` : `<span class="big">–</span>${noData}`}</div>`);
+      tiles.push(`<div class="num-tile wide"><span class="lbl">Stärkste Muskelgruppe</span>${n.strongestMuscleGroup ? `<span class="big">${escapeHtml(n.strongestMuscleGroup.name)}</span><span class="sub">${fmtVol(n.strongestMuscleGroup.kg)} bewegt · ${nf(n.strongestMuscleGroup.share * 100)} % deines Volumens</span>${n.strongestMuscleGroup.top.slice(0, 3).map((m) => `<div class="hbar"><span class="n">${escapeHtml(m.name)}</span><span class="t"><i style="width:${(m.kg / n.strongestMuscleGroup.top[0].kg * 100).toFixed(0)}%"></i></span><span class="v">${fmtVol(m.kg)}</span></div>`).join('')}` : `<span class="big">–</span>${noData}`}</div>`);
+      tiles.push(`<div class="num-tile wide"><span class="lbl">Meiste Zeit auf einem Cardiogerät</span>${n.topCardio ? `<span class="big">${escapeHtml(n.topCardio.name)}</span><span class="sub">${fmtDuration(n.topCardio.seconds)} insgesamt · ${plural(n.topCardio.sessions, 'Einheit', 'Einheiten')}</span>` : `<span class="big">–</span><span class="sub">Noch zu wenig Daten – sobald du Cardio-Einheiten mit Dauer loggst, erscheint hier dein meistgenutztes Gerät.</span>`}</div>`);
+      const fd = n.favoriteDay;
+      tiles.push(`<div class="num-tile wide"><span class="lbl">Lieblingstag</span>${fd && fd.name ? `<span class="big">${escapeHtml(tieNames(fd))}</span><span class="sub">${plural(fd.count, 'Einheit', 'Einheiten')}${fd.tie ? ' an jedem dieser Tage' : ` am ${escapeHtml(fd.name)}`} · insgesamt ${plural(fd.total, 'Einheit', 'Einheiten')}</span>` : `<span class="big">–</span><span class="sub">Noch zu wenig Daten – ab 3 Einheiten zeigen wir deinen Lieblingstag.</span>`}
+        <div class="wd" aria-hidden="true">${(fd ? fd.counts : []).map((c, i) => `<div class="${fd.name && c === maxCount ? 'top' : ''}"><i style="height:${Math.round((c / maxCount) * 44)}px"></i>${WEEKDAY_NAMES_DE[i].slice(0, 2)}</div>`).join('')}</div></div>`);
+      return `<div class="card ef"><h3 class="sec">Dein Training in Zahlen</h3><div class="num-grid">${tiles.join('')}</div><p class="footnote">Statistiken, keine Rekorde: Stärkste Muskelgruppe = meiste bewegte Kilos (Gewicht × Wiederholungen); Lieblingsübung = in den meisten Einheiten geloggt; Cardio = Übungen der Kategorie „Cardio“ nach Gesamtdauer.</p></div>`;
+    }
+
+    function recordsHtml() {
+      return `
+        ${strengthCardHtml()}
+        ${consistencyCardHtml()}
+        ${preventionCardHtml()}
+        ${nutritionCoachingCardHtml()}
+        ${numbersCardHtml()}
+        <p class="footnote">Für Körpergewicht und Körperfett gibt es bewusst keine Rekorde – eine Bestmarke nach unten kann ungesundes Verhalten belohnen.</p>`;
+    }
+
+    // ---- Rückblick ----------------------------------------------------------------
+    function scoreChartHtml(history) {
+      if (!history || history.length < 1) return '<p class="empty">Noch kein Präventions-Score im Zeitraum.</p>';
+      const W = 300; const H = 100; const padX = 18; const top = 10; const plotH = 62;
+      const times = history.map((h) => parseDayKey(h.date).getTime());
+      const t0 = Math.min(...times); const t1 = Math.max(...times);
+      const x = (t) => (t1 === t0 ? W / 2 : padX + ((t - t0) / (t1 - t0)) * (W - 2 * padX));
+      const y = (v) => top + ((100 - Math.max(0, Math.min(100, v))) / 100) * plotH;
+      const pts = history.map((h, i) => ({ x: x(times[i]), y: y(h.total), v: Math.round(h.total) }));
+      const line = pts.length > 1 ? `<polyline class="line" fill="none" stroke-width="2" points="${pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')}" />` : '';
+      const dots = pts.map((p) => `<circle class="dot" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.2" /><text x="${p.x.toFixed(1)}" y="${(p.y - 7).toFixed(1)}" text-anchor="middle">${p.v}</text>`).join('');
+      const first = history[0]; const last = history[history.length - 1];
+      return `<svg class="scorechart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Verlauf des Präventions-Scores von ${Math.round(first.total)} auf ${Math.round(last.total)} Punkte">
+        <line class="axis" x1="${padX}" x2="${W - padX}" y1="${top + plotH}" y2="${top + plotH}" />
+        <line class="thr" x1="${padX}" x2="${W - padX}" y1="${y(80)}" y2="${y(80)}" /><text x="${W - padX}" y="${(y(80) - 3).toFixed(1)}" text-anchor="end">grün ab 80</text>
+        ${line}${dots}
+        <text x="${padX}" y="${H - 8}" text-anchor="start">${escapeHtml(fmtDate(first.date))}</text>
+        ${history.length > 1 ? `<text x="${W - padX}" y="${H - 8}" text-anchor="end">${escapeHtml(fmtDate(last.date))}</text>` : ''}
+      </svg>`;
+    }
+
+    function reviewCardHtml(rv) {
+      if (!rv.available) {
+        return `<div class="card ef rv-card locked"><h3 class="sec">${rv.months}-Monats-Rückblick</h3><p class="empty">🔒 Das Anmeldedatum ist noch nicht verfügbar – der Rückblick wird freigeschaltet, sobald es vorliegt.</p></div>`;
+      }
+      if (!rv.unlocked) {
+        return `
+          <div class="card ef rv-card locked">
+            <h3 class="sec">${rv.months}-Monats-Rückblick <span class="aside">🔒 gesperrt</span></h3>
+            <p style="margin:0;">Freigeschaltet am <b>${fmtDate(rv.unlockDate)}</b> – noch ${plural(rv.daysLeft, 'Tag', 'Tage')}.</p>
+            <p class="muted small" style="margin:6px 0 0;">Dann findest du hier die Zusammenfassung deiner ersten ${rv.months} Monate – Einheiten, bewegte Kilos, Bestleistungen, Serie, Präventions-Score im Verlauf, Ernährungstage und deine Erfolge – und kannst sie als PDF herunterladen.${rv.months < 24 ? ' Zum Rückblick passt ein Retest im Präventionscheck.' : ''}</p>
+          </div>`;
+      }
+      const s = rv.stats;
+      const a = state.access;
+      const kpis = [];
+      if (a.trainingEnabled) {
+        kpis.push(`<div class="kpi"><b>${nf(s.sessionCount)}</b><small>Trainings-<br>einheiten</small></div>`);
+        kpis.push(`<div class="kpi"><b>${fmtVol(s.totalVolumeKg)}</b><small>Bewegte<br>Kilos</small></div>`);
+        kpis.push(`<div class="kpi"><b>${nf(s.prCount)}</b><small>Bestleistungen</small></div>`);
+        kpis.push(`<div class="kpi"><b>${nf(s.longestStreak)} Wo.</b><small>Beste Serie</small></div>`);
+      }
+      if (a.nutritionEnabled) kpis.push(`<div class="kpi"><b>${nf(s.nutritionDays)}</b><small>Ernährungs-<br>tage</small></div>`);
+      kpis.push(`<div class="kpi"><b>${nf(rv.earnedKeys.length)}</b><small>Erfolge<br>erreicht</small></div>`);
+      const scoreLine = rv.scoreStart != null && rv.scoreEnd != null && rv.scoreHistory.length > 1
+        ? `Von ${nf(rv.scoreStart)} auf ${nf(rv.scoreEnd)} Punkte (${rv.scoreEnd - rv.scoreStart >= 0 ? '+' : ''}${nf(rv.scoreEnd - rv.scoreStart)}).`
+        : rv.scoreEnd != null ? `Bisher ein Wert: ${nf(rv.scoreEnd)} Punkte – ein Retest zeigt die Entwicklung.` : '';
+      const newDefs = rv.newKeys.map((k) => DEF_BY_KEY.get(k)).filter(Boolean);
+      return `
+        <div class="card ef rv-card">
+          <div class="head"><h3 class="sec" style="margin:0;">${rv.months}-Monats-Rückblick</h3><span class="muted small">${fmtDate(rv.start)} bis ${fmtDate(rv.unlockDate)}</span></div>
+          <div class="kpis">${kpis.join('')}</div>
+          ${a.trainingEnabled ? `
+          <div class="sub-label">Präventions-Score im Verlauf</div>
+          ${scoreLine ? `<p class="muted small" style="margin:0;">${escapeHtml(scoreLine)}</p>` : ''}
+          ${scoreChartHtml(rv.scoreHistory)}` : ''}
+          <div class="sub-label">${rv.months === 6 ? 'Erfolge in diesem Zeitraum' : 'Neue Erfolge seit dem letzten Rückblick'} (${newDefs.length})</div>
+          ${newDefs.length ? `<div class="chips">${newDefs.slice(0, 16).map((d) => `<span class="chip">${d.tierIcon} ${escapeHtml(d.title)}</span>`).join('')}${newDefs.length > 16 ? `<span class="chip">+ ${newDefs.length - 16} weitere</span>` : ''}</div>` : '<p class="empty">Keine neuen Erfolge in diesem Zeitraum – die nächste Stufe wartet schon.</p>'}
+          ${a.trainingEnabled && rv.topRecords.length ? `
+          <div class="sub-label">Deine stärksten Kraftwerte</div>
+          ${rv.topRecords.map((r) => recRow('📈', r.name, 'Geschätztes 1RM', fmtKg(r.bestE1RM.kg), '')).join('')}` : ''}
+          <button type="button" class="btn pdf" data-pdf="${rv.months}">Rückblick als PDF herunterladen</button>
+          <div class="msg hidden" data-pdf-msg="${rv.months}"></div>
+        </div>`;
+    }
+
+    function reviewsHtml() {
+      return `
+        <p class="muted small" style="margin:0 2px;">Bei Monat 6, 12 und 24 gibt es einen Rückblick auf deinen bisherigen Weg – in der App und als PDF im Stil deiner Monatsberichte.</p>
+        ${state.analysis.reviews.map(reviewCardHtml).join('')}`;
+    }
+
+    async function downloadReview(months, btn) {
+      const msg = document.querySelector(`[data-pdf-msg="${months}"]`);
+      const show = (cls, text) => { if (!msg) return; msg.className = `msg ${cls}`; msg.textContent = text; };
+      const rv = state.analysis.reviews.find((r) => r.months === months);
+      if (!rv || !rv.unlocked) return;
+      if (!window.jspdf) { show('error', 'Die PDF-Bibliothek konnte nicht geladen werden (offline?). Bitte Verbindung prüfen und die Seite neu laden.'); return; }
+      btn.disabled = true;
+      show('info', 'PDF wird erstellt …');
+      try {
+        await buildReviewPdf({
+          profile: { full_name: viewProfile.full_name || (state.raw.profile && state.raw.profile.full_name), email: viewProfile.email || (state.raw.profile && state.raw.profile.email) },
+          months,
+          periodStart: rv.start,
+          periodEnd: rv.unlockDate,
+          stats: rv.stats,
+          scoreHistory: rv.scoreHistory,
+          scoreBreakdown: rv.scoreBreakdown,
+          earnedCount: rv.earnedKeys.length,
+          totalCount: ACHIEVEMENT_DEFINITIONS.length,
+          newAchievements: rv.newKeys.map((k) => DEF_BY_KEY.get(k)).filter(Boolean).map((d) => ({ title: d.title, tierName: d.tierName })),
+          topRecords: rv.topRecords.map((r) => ({ name: r.name, e1rm: r.bestE1RM.kg, weightKg: r.bestWeight ? r.bestWeight.kg : null, reps: r.bestWeight ? r.bestWeight.reps : null })),
+          moduleAccess: { training: state.access.trainingEnabled, nutrition: state.access.nutritionEnabled },
+          vitals: state.access.trainingEnabled ? rv.vitals : null,
+        });
+        show('success', 'PDF wurde erstellt und heruntergeladen.');
+      } catch (err) {
+        show('error', `PDF konnte nicht erstellt werden: ${err && err.message ? err.message : err}`);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    init().catch((err) => {
+      container.innerHTML = `<div class="msg error">Seite konnte nicht geladen werden. ${escapeHtml(err && err.message ? err.message : '')}</div>`;
+    });
+  </script>
+</body>
+</html>

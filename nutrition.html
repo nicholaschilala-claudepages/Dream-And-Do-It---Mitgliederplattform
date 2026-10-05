@@ -143,6 +143,33 @@
       return div.innerHTML;
     }
 
+    // Runde 19 (Q2): Geschlecht wird zentral auf der Startseite gepflegt
+    // (profiles.sex, sql/052) und hier nur noch angezeigt. Bewusst KEIN
+    // automatisches Befüllen aus body_measurements.sex (kein Backfill).
+    // Eigene Abfrage, damit ein noch fehlendes sql/052 nur das Geschlecht
+    // betrifft (-> Hinweis) und nicht Alter/Größe mit.
+    async function getProfileSex(profileId) {
+      const { data, error } = await supabaseClient.from('profiles').select('sex').eq('id', profileId).maybeSingle();
+      if (error || !data) return null;
+      return data.sex === 'male' || data.sex === 'female' ? data.sex : null;
+    }
+
+    // Schreibgeschützte Anzeige statt Auswahlfeld. Das versteckte Feld mit der
+    // bisherigen ID (pal-sex / bf-sex) liefert der Berechnungslogik unverändert
+    // den Wert; leer = nicht angegeben.
+    function sexReadonlyFieldHtml(inputId, sex) {
+      const label = sex === 'male' ? 'Männlich' : sex === 'female' ? 'Weiblich' : null;
+      return label
+        ? `<input type="hidden" id="${inputId}" value="${sex}" />
+           <input type="text" value="${label}" readonly aria-label="Geschlecht" style="background:var(--color-bg-muted, rgba(0,0,0,0.04));" />
+           <p style="font-size:0.72rem; color:var(--color-text-muted); margin:4px 0 0;">${label} – auf der <a href="dashboard.html">Startseite</a> änderbar.</p>`
+        : `<input type="hidden" id="${inputId}" value="" />
+           <input type="text" value="nicht angegeben" readonly aria-label="Geschlecht" style="background:var(--color-bg-muted, rgba(0,0,0,0.04));" />
+           <p style="font-size:0.78rem; color:var(--color-gold); margin:4px 0 0;">Noch keine Angabe zum Geschlecht – bitte auf der <a href="dashboard.html">Startseite</a> ergänzen. Ohne diese Angabe können wir hier nicht rechnen, weil die Formeln für Frauen und Männer unterschiedlich sind.</p>`;
+    }
+
+    const SEX_MISSING_MESSAGE = 'Für diese Berechnung brauchen wir dein Geschlecht, weil die Formeln für Frauen und Männer unterschiedlich sind. Bitte ergänze die Angabe auf der Startseite (Profilleiste, Stift-Symbol) und komm dann hierher zurück.';
+
     function todayIso() {
       return new Date().toISOString().slice(0, 10);
     }
@@ -390,6 +417,7 @@
       const birthDate = profileRow ? profileRow.birth_date : null;
       const ageYears = calcAge(birthDate);
       const heightCm = profileRow ? profileRow.height_cm : null;
+      const profileSex = await getProfileSex(currentProfile.id);
 
       content.innerHTML = `
         <div class="card">
@@ -418,10 +446,7 @@
             <div class="grid-2">
               <div class="field">
                 <label>Geschlecht</label>
-                <select id="pal-sex">
-                  <option value="male" ${latestBf && latestBf.sex === 'male' ? 'selected' : ''}>Männlich</option>
-                  <option value="female" ${latestBf && latestBf.sex === 'female' ? 'selected' : ''}>Weiblich</option>
-                </select>
+                ${sexReadonlyFieldHtml('pal-sex', profileSex)}
               </div>
               <div class="field">
                 <label>Alter</label>
@@ -527,6 +552,10 @@
           return;
         }
         const sex = document.getElementById('pal-sex').value;
+        if (sex !== 'male' && sex !== 'female') {
+          document.getElementById('pal-result').innerHTML = `<div class="msg error">${escapeHtml(SEX_MISSING_MESSAGE)}</div>`;
+          return;
+        }
         const age = parseFloat(document.getElementById('pal-age').value);
         if (!age) {
           alert('Bitte zuerst auf der Startseite dein Geburtsdatum eintragen, damit das Alter für die Berechnung vorliegt.');
@@ -625,6 +654,7 @@
       const { data: heightProfileRow } = await supabaseClient.from('profiles').select('height_cm').eq('id', currentProfile.id).maybeSingle();
       const profileHeightCm = heightProfileRow ? heightProfileRow.height_cm : null;
       const lastWeightKg = latest && latest.weight_kg != null ? latest.weight_kg : null;
+      const profileSex = await getProfileSex(currentProfile.id);
 
       content.innerHTML = `
         <div class="card">
@@ -637,7 +667,7 @@
             <div class="grid-2">
               <div class="field">
                 <label>Geschlecht</label>
-                <select id="bf-sex"><option value="male">Männlich</option><option value="female">Weiblich</option></select>
+                ${sexReadonlyFieldHtml('bf-sex', profileSex)}
               </div>
               <div class="field"><label>Datum</label><input type="date" id="bf-date" required /></div>
               <div class="field"><label>Wer hat gemessen?</label>
@@ -736,6 +766,10 @@
       document.getElementById('bf-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const sex = document.getElementById('bf-sex').value;
+        if (sex !== 'male' && sex !== 'female') {
+          document.getElementById('bf-result').innerHTML = `<div class="msg error">${escapeHtml(SEX_MISSING_MESSAGE)}</div>`;
+          return;
+        }
         const heightCm = parseFloat(document.getElementById('bf-height').value);
         const neckCm = parseFloat(document.getElementById('bf-neck').value);
         const waistCm = parseFloat(document.getElementById('bf-waist').value);

@@ -35,6 +35,61 @@
     }
     .thumb.img-missing { width: 88px; height: 88px; flex-shrink: 0; }
     .thumb-sm.img-missing { width: 40px; height: 40px; flex-shrink: 0; }
+
+    /* Runde 19: Trainingszeile (Variante C) – ultradünne Zeile je Übung */
+    .xrow { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 10px; padding: 5px 7px; margin-bottom: 6px; box-shadow: var(--shadow); }
+    .xrow-main { display: flex; align-items: center; gap: 6px; min-height: 46px; }
+    .xrow.x3 .xrow-main { flex-wrap: wrap; }
+    .xrow .thumb-sm, .xrow .xthumb-ph { width: 32px; height: 32px; }
+    .xrow .thumb-sm.img-missing { width: 34px; height: 34px; font-size: 0.5rem; }
+    .xthumb-ph { display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; color: var(--color-navy); background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 6px; flex-shrink: 0; cursor: default; }
+    .xrow-name { flex: 1; min-width: 0; }
+    .xrow.x3 .xrow-name { flex-basis: 40%; }
+    .xrow-toggle { display: block; max-width: 100%; text-align: left; background: none; border: none; padding: 0; margin: 0; font: inherit; color: inherit; cursor: pointer; }
+    .xrow-title { padding: 3px 0 1px; width: 100%; }
+    .xrow-title b { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-size: 0.8rem; line-height: 1.15; overflow: hidden; overflow-wrap: anywhere; }
+    .xrow-sub { display: flex; align-items: center; gap: 4px; min-width: 0; }
+    .xrow-subtext { flex: 0 1 auto; min-width: 0; font-size: 0.64rem; color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .xrow-subtext u { text-decoration: none; color: var(--color-gold); font-weight: 700; }
+    .xrow.open { border-color: var(--color-gold); }
+    .xrow-info-btn { background: none; border: 1px solid var(--color-border); border-radius: 50%; width: 22px; height: 22px; padding: 0; font-size: 0.78rem; line-height: 1; color: var(--color-gold); cursor: pointer; flex-shrink: 0; }
+    .xrow-steppers { display: flex; gap: 5px; flex-shrink: 0; }
+    .xrow.x3 .xrow-steppers { flex-basis: 100%; justify-content: flex-end; }
+    .stp { display: flex; align-items: stretch; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-bg); overflow: hidden; height: 42px; }
+    .stp .stp-val { width: 36px; min-width: 0; border: none; background: transparent; text-align: center; font: inherit; font-size: 0.95rem; font-weight: 700; color: var(--color-text); padding: 0 2px; border-radius: 0; box-shadow: none; }
+    .stp .stp-val:focus { outline: 2px solid var(--color-gold); outline-offset: -2px; }
+    .stp[data-kind=sec] .stp-val, .stp[data-kind=m] .stp-val { width: 48px; }
+    .stp .stp-unit { align-self: center; font-size: 0.6rem; color: var(--color-text-muted); margin-left: -3px; margin-right: 2px; }
+    .stp .stp-ar { display: flex; flex-direction: column; border-left: 1px solid var(--color-border); }
+    .stp .stp-ar button { flex: 1; width: 28px; min-height: 20px; border: none; background: transparent; color: var(--color-navy); font-size: 0.62rem; line-height: 1; padding: 0; cursor: pointer; }
+    .stp .stp-ar button + button { border-top: 1px solid var(--color-border); }
+    .stp .stp-ar button:active { background: var(--color-gold-soft, rgba(250,194,51,0.35)); }
+    .stp .stp-ar button:disabled { opacity: 0.35; }
+    .xrow .ok { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--color-border); background: var(--color-bg); color: var(--color-navy); font-size: 1.1rem; font-weight: 700; cursor: pointer; flex-shrink: 0; padding: 0; }
+    .xrow .ok:active { background: var(--color-gold); }
+    .xrow .ok.done { background: var(--color-success); border-color: var(--color-success); color: #fff; }
+    .xrow-sets { padding: 6px 0 2px 8px; }
+    .xrow .setrow { display: flex; align-items: center; gap: 6px; margin-top: 5px; }
+    .xrow .setrow .sn { width: 44px; font-size: 0.7rem; color: var(--color-text-muted); flex-shrink: 0; }
+    .xrow .setrow.done { opacity: 0.65; }
+    .xrow .setrow.invalid .stp { border-color: var(--color-danger); }
+    .xrow .setrow .stp { height: 38px; }
+    .xrow .setrow .ok { width: 36px; height: 36px; }
+    .xrow .pr-flag { font-size: 0.9rem; }
+    .xrow .add-set { margin-top: 8px; background: none; border: 1px dashed var(--color-border); border-radius: 8px; color: var(--color-gold); font: inherit; font-size: 0.74rem; padding: 6px 10px; cursor: pointer; }
+    .xrow-info { padding: 6px 2px 2px; font-size: 0.82rem; }
+    .xrow-info p { margin: 4px 0; }
+    .xrow-target { color: var(--color-text-muted); }
+    .xrow-note { color: var(--color-gold); }
+    .xrow-hint { font-size: 0.68rem; color: var(--color-text-muted); margin: 4px 2px 0; }
+    .xrow-nosession { font-size: 0.7rem; color: var(--color-gold); margin: 4px 2px 0; }
+    .rest-toggle { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--color-text-muted); margin: 0 0 10px; }
+    #rest-timer { position: fixed; left: 50%; transform: translateX(-50%); bottom: 14px; z-index: 900; display: flex; align-items: center; gap: 10px; background: var(--color-navy); color: #fff; padding: 8px 12px; border-radius: 999px; box-shadow: 0 6px 20px rgba(0,0,0,0.3); font-size: 0.8rem; }
+    #rest-timer[hidden] { display: none; }
+    #rest-timer .rt-time { font-size: 1.1rem; min-width: 42px; text-align: center; }
+    #rest-timer button { white-space: nowrap; background: rgba(255,255,255,0.15); color: #fff; border: none; border-radius: 999px; padding: 6px 10px; font-size: 0.72rem; cursor: pointer; }
+    #rest-timer.rt-over { background: var(--color-success); }
+    @media (max-width: 480px) { .plan-card { padding: 14px 10px; } .xrow { padding: 4px 5px; } .xrow-main { gap: 4px; } .xrow-steppers { gap: 4px; } .xrow .ok { width: 36px; } .stp .stp-ar button { width: 24px; } .stp .stp-val { width: 32px; font-size: 0.9rem; } .stp[data-kind=sec] .stp-val, .stp[data-kind=m] .stp-val { width: 46px; } .xrow .setrow .sn { width: 38px; } }
     .exercise-meta { flex: 1; min-width: 220px; }
     .exercise-meta h4 { margin: 0 0 2px 0; font-family: var(--font-body); font-weight: 600; font-size: 0.98rem; }
     /* Nutzer-Feedback Runde 18: "Sätze, Wiederholungen und Gewichte stehen
@@ -230,6 +285,7 @@
     import { awardAchievement } from './js/achievements.js';
     import {
       calcAge, updateBirthDate, STRENGTH_TESTS, MOBILITY_TESTS, CARDIO_TESTS, mobilityRatingLabel,
+      isInputTest, isRequiredTest, mobilityRatingValue, loadProfileBasics, updateSex, isKnownSex, SEX_HINT_TEXT,
       MOBILITY_RATING_VISUALS, getStaleTestSummary,
       evaluateStrengthBenchmark, evaluateBodyFatCategory, evaluateSittingScore,
       insertPreventionResult, listPreventionResults, deletePreventionResult,
@@ -238,6 +294,8 @@
       NUTRITION_QUIZ, NUTRITION_QUIZ_SOURCE, computeNutritionQuizScore, evaluateNutritionQuality,
       SMOKING_OPTIONS, SMOKING_SOURCE, evaluateSmokingStatus,
       ALCOHOL_SOURCE, evaluateAlcoholRisk,
+      evaluateBloodPressure, evaluateRestingHeartRate, bloodPressureSeries, insertPreventionResultsBatch,
+      summarizeVitals, restingHrReferenceRows, BP_REFERENCE_ROWS, bloodPressureAgeTable, VITAL_PROTOCOLS, BP_SOURCE, RHR_SOURCE,
     } from './js/prevention.js';
     import {
       CLIENT_SUBTABS, loadClientSubtabLocks, shouldGateSubtab, lockedSubtabHtml, setSubtabAccess,
@@ -792,6 +850,8 @@
       const prLogIds = prLogIdSet(prEvents);
       const trainingStreak = computeTrainingStreak((allLogsForRecords || []).map((l) => l.performed_at));
 
+      const exHistory = buildExerciseHistory(allLogsForRecords || []);
+
       let html = '';
 
       if (!navigator.onLine || queuedCount > 0) {
@@ -830,6 +890,10 @@
         html += `<div class="card"><h2 style="font-size:1.1rem;">Noch kein Trainingsplan zugewiesen</h2><p style="color:var(--color-text-muted);">Dein Coach hat dir noch keinen aktiven Trainingsplan zugewiesen. Melde dich gerne, falls du Fragen dazu hast.</p></div>`;
       }
 
+      if (plans && plans.length > 0) {
+        html += `<label class="rest-toggle"><input type="checkbox" id="rest-timer-toggle" checked /> Satzpausen-Timer nach jedem Satz (90 s)</label>`;
+      }
+
       for (const plan of plans || []) {
         const days = (plan.training_plan_days || []).sort((a, b) => a.sort_order - b.sort_order);
         const allExercises = (plan.plan_exercises || []).sort((a, b) => a.sort_order - b.sort_order);
@@ -843,12 +907,12 @@
             if (dayExercises.length === 0) return '';
             return `<div class="day-block">
               <h3>${escapeHtml(day.label)}</h3>
-              ${dayExercises.map((pe) => renderExerciseRow(pe, logsByPlanExercise[pe.id], activeSession)).join('')}
+              ${dayExercises.map((pe) => renderExerciseRow(pe, logsByPlanExercise[pe.id], activeSession, exHistory)).join('')}
             </div>`;
           }).join('')}
           ${looseExercises.length > 0 ? `<div class="day-block">
             ${days.length > 0 ? '<h3>Weitere Übungen</h3>' : ''}
-            ${looseExercises.map((pe) => renderExerciseRow(pe, logsByPlanExercise[pe.id], activeSession)).join('')}
+            ${looseExercises.map((pe) => renderExerciseRow(pe, logsByPlanExercise[pe.id], activeSession, exHistory)).join('')}
           </div>` : ''}
         </div>`;
       }
@@ -866,6 +930,7 @@
       if (myGeneration !== clientViewRenderGeneration) return;
 
       content.innerHTML = html;
+      bindExerciseRows(content, { profile, activeSession, history: exHistory });
 
       const startBtn = document.getElementById('start-session-btn');
       if (startBtn) {
@@ -997,57 +1062,409 @@
       }
     }
 
-    function renderExerciseRow(pe, logsForThis, activeSession) {
-      const ex = pe.exercises;
-      const isDurationBased = !!pe.target_duration_seconds;
-      const isDistanceBased = !!pe.target_distance_meters || ex.category === 'Cardio';
-      const target = [
-        pe.target_sets ? `${pe.target_sets} Sätze` : null,
-        pe.target_reps ? `${pe.target_reps} Wdh.` : null,
-        pe.target_weight_hint ? pe.target_weight_hint : null,
-        pe.target_duration_seconds ? `Ziel: ${formatDuration(pe.target_duration_seconds)}` : null,
-        pe.target_distance_meters ? `Ziel: ${pe.target_distance_meters} m` : null,
-        pe.target_speed_kmh ? `Ziel: ${pe.target_speed_kmh} km/h` : null,
-        pe.target_watt ? `Ziel: ${pe.target_watt} Watt` : null,
-        pe.target_heart_rate_percent ? `Ziel: ${pe.target_heart_rate_percent}% HFmax` : null,
-      ].filter(Boolean).join(' · ');
+    // =========================================================================
+    // TRAININGSZEILE (Runde 19, Variante C): pro Übung eine ca. 46 px hohe
+    // Zeile mit Vorschaubild, Name, Sätze/Muskel, Wdh.- und kg-Stepper (▲▼ plus
+    // Antippen des Werts für Direkteingabe) und ✓. Antippen des Namens klappt
+    // die Sätze auf (je Satz eigene Stepper + ✓), ⓘ zeigt die Beschreibung.
+    // Die Logik zum Speichern (Offline-Warteschlange, Sessions) ist unverändert.
+    // =========================================================================
 
-      const status = computeStatus(pe, logsForThis);
+    function fmtStp(n) {
+      if (n == null || Number.isNaN(n)) return '';
+      return String(Math.round(n * 100) / 100).replace('.', ',');
+    }
+    function parseStp(str) {
+      if (str == null) return null;
+      const n = parseFloat(String(str).replace(',', '.'));
+      return Number.isFinite(n) ? n : null;
+    }
+    function isSameLocalDay(iso, ref = new Date()) {
+      const d = new Date(iso);
+      return d.getFullYear() === ref.getFullYear() && d.getMonth() === ref.getMonth() && d.getDate() === ref.getDate();
+    }
 
-      // Runde 18: editierbare Felder werden mit den Trainer-Vorgaben
-      // vorausgefüllt, damit per Pfeiltasten (native Zahlenfeld-Spinner)
-      // angepasst statt komplett neu eingetippt werden muss. Die Satz-Nr.
-      // wird auf den nächsten noch nicht geloggten Satz hochgezählt, Wdh.
-      // kommt direkt aus der Plan-Vorgabe, Gewicht wird – soweit als Zahl
-      // erkennbar – aus dem freien "Gewicht-Hinweis"-Text des Trainers
-      // extrahiert (z.B. "ca. 20 kg" -> 20).
-      const nextSetNumber = (logsForThis ? logsForThis.length : 0) + 1;
-      const defaultReps = pe.target_reps || null;
-      const weightHintMatch = pe.target_weight_hint ? String(pe.target_weight_hint).match(/(\d+(?:[.,]\d+)?)/) : null;
-      const defaultWeight = weightHintMatch ? weightHintMatch[1].replace(',', '.') : null;
-
-      return `<div class="exercise-row">
-        ${ex.image_url ? `<img class="thumb" data-src="${escapeHtml(ex.image_url)}" src="${escapeHtml(ex.image_url)}" alt="${escapeHtml(ex.name)}" onerror="onExerciseImgError(this)" onclick="openLightbox('${escapeHtml(ex.image_url)}', '${escapeHtml(ex.name)}')" />` : ''}
-        <div class="exercise-meta">
-          <h4>${escapeHtml(ex.name)}</h4>
-          ${ex.muscle_group ? `<div class="muscle">Beanspruchte Muskulatur: ${escapeHtml(ex.muscle_group)}</div>` : ''}
-          ${target ? `<div class="target">${escapeHtml(target)}</div>` : ''}
-          ${ex.description ? `<details class="exercise-desc-details"><summary>Übungsbeschreibung</summary><p>${escapeHtml(ex.description)}</p></details>` : ''}
-          ${pe.notes ? `<p style="margin:4px 0 0; font-size:0.82rem; color:var(--color-gold);">Hinweis vom Coach: ${escapeHtml(pe.notes)}</p>` : ''}
-          ${status ? `<div style="margin-top:6px;"><span class="status-pill ${status.cls}">${escapeHtml(status.label)}</span></div>` : ''}
-          ${!activeSession ? `<p style="margin:6px 0 0; font-size:0.76rem; color:var(--color-gold);">Starte oben eine Trainingseinheit, damit dieser Satz einer Einheit zugeordnet wird.</p>` : ''}
-          <form class="log-form" data-exercise-id="${ex.id}" data-plan-exercise-id="${pe.id}">
-            ${isDurationBased ? `<input class="f-duration-min" type="number" min="0" placeholder="Min." style="width:64px;" />
-                 <input class="f-duration-sec" type="number" min="0" max="59" placeholder="Sek." style="width:64px;" />` : ''}
-            ${!isDurationBased ? `<input class="f-set" type="number" min="1" placeholder="Satz Nr." value="${nextSetNumber}" class="prefilled" required />
-                 <input class="f-reps" type="number" min="0" placeholder="Wdh." ${defaultReps ? `value="${defaultReps}" class="prefilled"` : ''} required />
-                 <input class="f-weight" type="number" min="0" step="0.5" placeholder="kg" ${defaultWeight ? `value="${defaultWeight}" class="prefilled"` : ''} />` : ''}
-            ${isDistanceBased ? `<input class="f-distance" type="number" min="0" step="1" placeholder="Distanz (m)" />` : ''}
-            <button class="btn secondary small-btn" type="submit">Eintragen</button>
-            ${(pe.target_sets || pe.target_duration_seconds) ? `<button class="btn secondary small-btn quick-log-btn" type="button" data-plan-exercise-id="${pe.id}" title="Übernimmt die Plan-Vorgaben als Ist-Werte – danach editierbar">Übung schnell loggen</button>` : ''}
-          </form>
-        </div>
+    function stepperHtml(kind, value, label) {
+      const unit = { sec: 's', m: 'm', kg: 'kg', reps: '' }[kind] || '';
+      return `<div class="stp" data-kind="${kind}">
+        <input class="stp-val" type="text" inputmode="decimal" autocomplete="off" aria-label="${escapeHtml(label)}" placeholder="–" value="${fmtStp(value)}" />
+        ${unit ? `<span class="stp-unit">${unit}</span>` : ''}
+        <span class="stp-ar"><button type="button" class="stp-up" aria-label="${escapeHtml(label)} erhöhen">▲</button><button type="button" class="stp-dn" aria-label="${escapeHtml(label)} verringern">▼</button></span>
       </div>`;
+    }
+
+    // Verlauf je Übung aus allen geloggten Sätzen: "Letztes Mal" (letzter
+    // Trainingstag VOR heute) und Bestwert (schwerster Satz, bei Gleichstand mehr Wdh.).
+    function buildExerciseHistory(allLogs) {
+      const byEx = new Map();
+      for (const l of allLogs || []) {
+        if (!l.exercise_id) continue;
+        if (!byEx.has(l.exercise_id)) byEx.set(l.exercise_id, []);
+        byEx.get(l.exercise_id).push(l);
+      }
+      const history = new Map();
+      const today = new Date();
+      byEx.forEach((logs, exId) => {
+        const sorted = logs.slice().sort((a, b) => new Date(a.performed_at) - new Date(b.performed_at));
+        const past = sorted.filter((l) => !isSameLocalDay(l.performed_at, today));
+        let lastSets = [];
+        if (past.length) {
+          const lastDay = new Date(past[past.length - 1].performed_at);
+          lastSets = past.filter((l) => isSameLocalDay(l.performed_at, lastDay))
+            .sort((a, b) => (a.set_number || 0) - (b.set_number || 0))
+            .map((l) => ({ reps: l.reps, weight: l.weight_kg }));
+        }
+        const bestByReps = new Map();
+        let best = null;
+        for (const l of sorted) {
+          const reps = Number(l.reps) || 0, w = Number(l.weight_kg) || 0;
+          if (!reps) continue;
+          if (w > 0 && w > (bestByReps.get(reps) || 0)) bestByReps.set(reps, w);
+          if (!best || w > best.weight || (w === best.weight && reps > best.reps)) best = { weight: w, reps };
+        }
+        history.set(exId, { lastSets, best, bestByReps });
+      });
+      return history;
+    }
+
+    function historyHintHtml(hist) {
+      if (!hist) return '';
+      const parts = [];
+      if (hist.lastSets.length) {
+        const s = hist.lastSets;
+        const same = s.every((x) => x.reps === s[0].reps && x.weight === s[0].weight);
+        const fmtSet = (x) => `${x.reps ?? '–'}${x.weight ? ' × ' + fmtStp(x.weight) + ' kg' : ' Wdh.'}`;
+        parts.push(`Letztes Mal: ${same ? `${s.length} × ${fmtSet(s[0])}` : s.map(fmtSet).join(' · ')}`);
+      }
+      if (hist.best) parts.push(`Bestwert: ${hist.best.weight ? `${fmtStp(hist.best.weight)} kg × ${hist.best.reps}` : `${hist.best.reps} Wdh.`}`);
+      return parts.length ? `<p class="xrow-hint">${escapeHtml(parts.join(' · '))}</p>` : '';
+    }
+
+    function setRowHtml(i, vals, kinds, opts = {}) {
+      const label = (k) => ({ reps: 'Wiederholungen', kg: 'Gewicht in kg', sec: 'Sekunden', m: 'Meter' }[k]);
+      return `<div class="setrow${opts.done ? ' done' : ''}" data-set="${i}">
+        <span class="sn">Satz ${i}</span>
+        ${kinds.map((k) => stepperHtml(k, vals[k], `Satz ${i} ${label(k)}`)).join('')}
+        <button type="button" class="ok set-ok${opts.done ? ' done' : ''}" aria-label="Satz ${i} loggen" ${opts.done ? 'disabled' : ''}>✓</button>
+        <span class="pr-flag" hidden>🏆</span>
+      </div>`;
+    }
+
+    function renderExerciseRow(pe, logsForThis, activeSession, history) {
+      const ex = pe.exercises;
+      const isDur = !!pe.target_duration_seconds;
+      const isDist = !!pe.target_distance_meters || ex.category === 'Cardio';
+      const kinds = isDur ? (isDist ? ['sec', 'm'] : ['sec']) : (isDist ? ['reps', 'kg', 'm'] : ['reps', 'kg']);
+      const N = Math.max(1, pe.target_sets || 1);
+      const hist = history ? history.get(ex.id) : null;
+      const todayLogs = (logsForThis || []).filter((l) => isSameLocalDay(l.performed_at))
+        .sort((a, b) => (a.set_number || 0) - (b.set_number || 0) || new Date(a.performed_at) - new Date(b.performed_at));
+      const planReps = parsePerSetValues(pe.target_reps, N);
+      const planKg = parsePerSetValues(pe.target_weight_hint, N);
+      const distTarget = pe.target_distance_meters != null ? extractLeadingNumber(pe.target_distance_meters) : null;
+      const lastSets = hist ? hist.lastSets : [];
+      const lastOf = (i, key) => {
+        if (!lastSets.length) return null;
+        const s = lastSets[Math.min(i, lastSets.length - 1)];
+        return s ? s[key] : null;
+      };
+
+      const total = Math.max(N, todayLogs.length);
+      const doneCount = Math.min(todayLogs.length, total);
+      const sets = [];
+      for (let i = 0; i < total; i++) {
+        const log = todayLogs[i];
+        const vals = log ? {
+          reps: log.reps, kg: log.weight_kg, sec: log.duration_seconds, m: log.distance_meters,
+        } : {
+          reps: planReps[i] != null ? Math.round(planReps[i]) : lastOf(i, 'reps'),
+          kg: planKg[i] != null ? planKg[i] : lastOf(i, 'weight'),
+          sec: pe.target_duration_seconds || null,
+          m: distTarget,
+        };
+        sets.push({ vals, done: !!log });
+      }
+      const masterVals = (sets.find((s) => !s.done) || sets[sets.length - 1]).vals;
+      const allDone = doneCount >= N;
+
+      const repsText = pe.target_reps ? ` ${String(pe.target_reps).replace('-', '–')}` : '';
+      const initials = ex.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+      const thumb = ex.image_url
+        ? `<img class="thumb-sm" data-src="${escapeHtml(ex.image_url)}" src="${escapeHtml(ex.image_url)}" alt="${escapeHtml(ex.name)}" onerror="onExerciseImgError(this)" onclick="openLightbox('${escapeHtml(ex.image_url)}', '${escapeHtml(ex.name)}')" />`
+        : `<div class="thumb-sm xthumb-ph">${escapeHtml(initials)}</div>`;
+      const target = [
+        pe.target_speed_kmh ? `${pe.target_speed_kmh} km/h` : null,
+        pe.target_watt ? `${pe.target_watt} Watt` : null,
+        pe.target_heart_rate_percent ? `${pe.target_heart_rate_percent}% HFmax` : null,
+      ].filter(Boolean).join(' · ');
+      const hasInfo = !!(ex.description || pe.notes || target);
+
+      return `<div class="xrow${allDone ? ' xrow-done' : ''}${kinds.length > 2 ? ' x3' : ''}" data-pe-id="${pe.id}" data-ex-id="${ex.id}" data-sets="${total}" data-target-sets="${N}" data-kind="${isDur ? 'dur' : 'str'}" data-rest="${pe.rest_seconds || ''}">
+        <div class="xrow-main">
+          ${thumb}
+          <div class="xrow-name">
+            <button type="button" class="xrow-toggle xrow-title" aria-expanded="false" title="Sätze auf-/zuklappen"><b>${escapeHtml(ex.name)}</b></button>
+            <div class="xrow-sub">
+              <button type="button" class="xrow-toggle xrow-subtext" tabindex="-1"><u>${N}×</u>${escapeHtml(repsText)}${ex.muscle_group ? ' · ' + escapeHtml(ex.muscle_group) : ''} · <span class="xrow-count">${doneCount}/${N}</span></button>
+              ${hasInfo ? `<button type="button" class="xrow-info-btn" aria-label="Übungsbeschreibung" aria-expanded="false">ⓘ</button>` : ''}
+            </div>
+          </div>
+          <div class="xrow-steppers">${kinds.map((k) => stepperHtml(k, masterVals[k], { reps: 'Wiederholungen', kg: 'Gewicht in kg', sec: 'Sekunden', m: 'Meter' }[k])).join('')}</div>
+          <button type="button" class="ok row-ok${allDone ? ' done' : ''}" aria-label="Alle Sätze loggen" ${allDone ? 'disabled' : ''}>✓</button>
+        </div>
+        <div class="xrow-sets" hidden>
+          ${sets.map((s, i) => setRowHtml(i + 1, s.vals, kinds, { done: s.done })).join('')}
+          <button type="button" class="add-set">+ Satz hinzufügen</button>
+        </div>
+        <div class="xrow-info" hidden>
+          ${ex.description ? `<p>${escapeHtml(ex.description)}</p>` : ''}
+          ${target ? `<p class="xrow-target">Vorgabe: ${escapeHtml(target)}</p>` : ''}
+          ${pe.notes ? `<p class="xrow-note">Hinweis vom Coach: ${escapeHtml(pe.notes)}</p>` : ''}
+        </div>
+        ${historyHintHtml(hist)}
+      </div>`;
+    }
+
+    // ---- Satzpausen-Timer: fester Balken unten, unabhängig vom Neu-Rendern ----
+    const REST_DEFAULT_SECONDS = 90;
+    let restTimerHandle = null;
+    function restTimerEnabled() {
+      try { return localStorage.getItem('dadi_rest_timer') !== 'off'; } catch (e) { return true; }
+    }
+    function setRestTimerEnabled(on) {
+      try { localStorage.setItem('dadi_rest_timer', on ? 'on' : 'off'); } catch (e) { /* optional */ }
+    }
+    function stopRestTimer() {
+      if (restTimerHandle) clearInterval(restTimerHandle);
+      restTimerHandle = null;
+      const bar = document.getElementById('rest-timer');
+      if (bar) bar.hidden = true;
+    }
+    function startRestTimer(seconds) {
+      if (!restTimerEnabled() || !seconds) return;
+      let bar = document.getElementById('rest-timer');
+      if (!bar) {
+        bar = document.createElement('div');
+        bar.id = 'rest-timer';
+        bar.setAttribute('role', 'timer');
+        bar.innerHTML = '<span class="rt-label">Satzpause</span><b class="rt-time">0:00</b><button type="button" class="rt-plus">+15 s</button><button type="button" class="rt-skip">Überspringen</button>';
+        document.body.appendChild(bar);
+        bar.querySelector('.rt-skip').addEventListener('click', stopRestTimer);
+        bar.querySelector('.rt-plus').addEventListener('click', () => { bar.dataset.end = String(Number(bar.dataset.end) + 15000); });
+      }
+      bar.hidden = false;
+      bar.classList.remove('rt-over');
+      bar.querySelector('.rt-label').textContent = 'Satzpause';
+      bar.dataset.end = String(Date.now() + seconds * 1000);
+      if (restTimerHandle) clearInterval(restTimerHandle);
+      const tick = () => {
+        const left = Math.round((Number(bar.dataset.end) - Date.now()) / 1000);
+        if (left <= 0) {
+          bar.classList.add('rt-over');
+          bar.querySelector('.rt-label').textContent = 'Weiter geht’s';
+          bar.querySelector('.rt-time').textContent = '0:00';
+          try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) { /* optional */ }
+          clearInterval(restTimerHandle); restTimerHandle = null;
+          setTimeout(() => { if (!restTimerHandle) bar.hidden = true; }, 6000);
+          return;
+        }
+        bar.querySelector('.rt-time').textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+      };
+      tick();
+      restTimerHandle = setInterval(tick, 500);
+    }
+
+    function stepperStepFor(kind, current) {
+      if (kind === 'reps') return 1;
+      if (kind === 'kg') return current != null && current > 0 && current <= 10 ? 1.25 : 2.5;
+      if (kind === 'sec') return 5;
+      return 50; // Meter
+    }
+
+    function bindExerciseRows(root, ctx) {
+      const { profile, activeSession, history, onAfterLog } = ctx;
+
+      const valueOf = (el, kind) => {
+        const inp = el.querySelector(`.stp[data-kind="${kind}"] .stp-val`);
+        return inp ? parseStp(inp.value) : null;
+      };
+      const setValue = (el, kind, v) => {
+        const inp = el.querySelector(`.stp[data-kind="${kind}"] .stp-val`);
+        if (inp) inp.value = fmtStp(v);
+      };
+      const kindsOf = (row) => Array.from(row.querySelectorAll('.xrow-steppers .stp')).map((s) => s.dataset.kind);
+      const pendingSets = (row) => Array.from(row.querySelectorAll('.setrow:not(.done)'));
+
+      function refreshCounter(row) {
+        const total = row.querySelectorAll('.setrow').length;
+        const done = row.querySelectorAll('.setrow.done').length;
+        const target = Number(row.dataset.targetSets) || total;
+        row.querySelector('.xrow-count').textContent = `${done}/${Math.max(target, 1)}`;
+        const all = done >= target && done > 0;
+        row.classList.toggle('xrow-done', all);
+        const rowOk = row.querySelector('.row-ok');
+        rowOk.classList.toggle('done', all);
+        rowOk.disabled = all && pendingSets(row).length === 0;
+      }
+
+      function entryFor(row, setEl) {
+        const kind = row.dataset.kind;
+        const kinds = kindsOf(row);
+        return {
+          client_id: profile.id,
+          exercise_id: row.dataset.exId,
+          plan_exercise_id: row.dataset.peId || null,
+          session_id: activeSession ? activeSession.id : null,
+          performed_at: new Date().toISOString(),
+          set_number: Number(setEl.dataset.set),
+          reps: kind === 'str' ? (valueOf(setEl, 'reps') != null ? Math.round(valueOf(setEl, 'reps')) : null) : null,
+          weight_kg: kind === 'str' && kinds.includes('kg') ? valueOf(setEl, 'kg') : null,
+          duration_seconds: kind === 'dur' ? (valueOf(setEl, 'sec') != null ? Math.round(valueOf(setEl, 'sec')) : null) : null,
+          distance_meters: kinds.includes('m') ? valueOf(setEl, 'm') : null,
+        };
+      }
+
+      function flashInvalid(setEl) {
+        const inp = setEl.querySelector('.stp-val');
+        if (inp) { inp.focus(); setEl.classList.add('invalid'); setTimeout(() => setEl.classList.remove('invalid'), 1200); }
+      }
+
+      async function persist(entries) {
+        if (navigator.onLine) {
+          const { error } = entries.length === 1 ? await insertTrainingLog(entries[0]) : await insertTrainingLogs(entries);
+          if (!error) return true;
+        }
+        let ok = true;
+        for (const e of entries) ok = (await queueTrainingLog(e)) && ok;
+        return ok;
+      }
+
+      function markDone(row, setEls, entries) {
+        const hist = history.get(row.dataset.exId);
+        setEls.forEach((setEl, idx) => {
+          setEl.classList.add('done');
+          const ok = setEl.querySelector('.set-ok');
+          ok.classList.add('done'); ok.disabled = true;
+          setEl.querySelectorAll('.stp-val').forEach((i) => { i.readOnly = true; });
+          setEl.querySelectorAll('.stp button').forEach((b) => { b.disabled = true; });
+          const e = entries[idx];
+          if (hist && e.weight_kg > 0 && e.reps) {
+            if (e.weight_kg > (hist.bestByReps.get(e.reps) || 0)) {
+              hist.bestByReps.set(e.reps, e.weight_kg);
+              const flag = setEl.querySelector('.pr-flag');
+              if (flag) { flag.hidden = false; flag.title = 'Neuer persönlicher Rekord'; }
+            }
+          }
+        });
+        refreshCounter(row);
+      }
+
+      async function logSets(row, setEls, { rest }) {
+        const entries = setEls.map((s) => entryFor(row, s));
+        if (row.dataset.kind === 'str') {
+          const bad = setEls.find((s, i) => entries[i].reps == null);
+          if (bad) { flashInvalid(bad); return; }
+        } else {
+          const bad = setEls.find((s, i) => entries[i].duration_seconds == null);
+          if (bad) { flashInvalid(bad); return; }
+        }
+        const btns = setEls.map((s) => s.querySelector('.set-ok')).concat(row.querySelector('.row-ok'));
+        btns.forEach((b) => { b.disabled = true; });
+        const ok = await persist(entries);
+        if (!ok) {
+          btns.forEach((b) => { b.disabled = false; });
+          alert('Der Eintrag konnte weder gespeichert noch in die Offline-Warteschlange gelegt werden.');
+          return;
+        }
+        markDone(row, setEls, entries);
+        const next = pendingSets(row)[0];
+        if (rest && next) startRestTimer(Number(row.dataset.rest) || REST_DEFAULT_SECONDS);
+        if (onAfterLog) onAfterLog();
+      }
+
+      root.querySelectorAll('.xrow').forEach((row) => {
+        const setsEl = row.querySelector('.xrow-sets');
+        const infoEl = row.querySelector('.xrow-info');
+
+        row.querySelectorAll('.xrow-toggle').forEach((tg) => tg.addEventListener('click', () => {
+          const open = setsEl.hidden;
+          setsEl.hidden = !open;
+          row.querySelector('.xrow-title').setAttribute('aria-expanded', String(open));
+          row.classList.toggle('open', open);
+        }));
+        const infoBtn = row.querySelector('.xrow-info-btn');
+        if (infoBtn) infoBtn.addEventListener('click', () => {
+          const open = infoEl.hidden;
+          infoEl.hidden = !open;
+          infoBtn.setAttribute('aria-expanded', String(open));
+        });
+
+        // Stepper (▲▼ und Direkteingabe) – Änderungen am Zeilenwert wandern in alle noch offenen Sätze.
+        row.addEventListener('click', (e) => {
+          const btn = e.target.closest('.stp-up, .stp-dn');
+          if (!btn || btn.disabled) return;
+          const stp = btn.closest('.stp');
+          const kind = stp.dataset.kind;
+          const inp = stp.querySelector('.stp-val');
+          const cur = parseStp(inp.value);
+          const step = stepperStepFor(kind, cur);
+          let next = (cur == null ? 0 : cur) + (btn.classList.contains('stp-up') ? step : -step);
+          next = Math.max(0, Math.round(next * 100) / 100);
+          inp.value = fmtStp(next);
+          if (stp.closest('.xrow-steppers')) pendingSets(row).forEach((s) => setValue(s, kind, next));
+        });
+        row.addEventListener('change', (e) => {
+          const inp = e.target.closest('.stp-val');
+          if (!inp) return;
+          const v = parseStp(inp.value);
+          inp.value = v == null ? '' : fmtStp(Math.max(0, v));
+          if (inp.closest('.xrow-steppers')) pendingSets(row).forEach((s) => setValue(s, inp.closest('.stp').dataset.kind, v == null ? null : Math.max(0, v)));
+        });
+        row.addEventListener('focusin', (e) => { if (e.target.classList && e.target.classList.contains('stp-val') && !e.target.readOnly) e.target.select(); });
+
+        // ✓ je Satz: loggt den Satz, der nächste offene Satz übernimmt dessen Werte, danach Satzpause.
+        row.addEventListener('click', async (e) => {
+          const ok = e.target.closest('.set-ok');
+          if (!ok || ok.disabled) return;
+          const setEl = ok.closest('.setrow');
+          const kinds = kindsOf(row);
+          await logSets(row, [setEl], { rest: true });
+          if (setEl.classList.contains('done')) {
+            const next = pendingSets(row)[0];
+            if (next) kinds.forEach((k) => { const v = valueOf(setEl, k); setValue(next, k, v); });
+            const first = pendingSets(row)[0];
+            if (first) kinds.forEach((k) => { const v = valueOf(first, k); const m = row.querySelector(`.xrow-steppers .stp[data-kind="${k}"] .stp-val`); if (m) m.value = fmtStp(v); });
+          }
+        });
+        // ✓ in der Zeile: alle noch offenen Sätze mit den aktuellen Werten loggen.
+        row.querySelector('.row-ok').addEventListener('click', async () => {
+          const pending = pendingSets(row);
+          if (pending.length === 0) return;
+          await logSets(row, pending, { rest: false });
+        });
+        // Weiterer Satz
+        row.querySelector('.add-set').addEventListener('click', () => {
+          const all = row.querySelectorAll('.setrow');
+          const last = all[all.length - 1];
+          const kinds = kindsOf(row);
+          const vals = {};
+          kinds.forEach((k) => { vals[k] = valueOf(last, k); });
+          const n = all.length + 1;
+          last.insertAdjacentHTML('afterend', setRowHtml(n, vals, kinds));
+          row.dataset.sets = String(n);
+          row.querySelector('.row-ok').disabled = false;
+          row.classList.remove('xrow-done');
+          row.querySelector('.row-ok').classList.remove('done');
+          row.dataset.targetSets = String(Math.max(Number(row.dataset.targetSets) || 1, n));
+          refreshCounter(row);
+        });
+      });
+
+      const toggle = root.querySelector('#rest-timer-toggle');
+      if (toggle) {
+        toggle.checked = restTimerEnabled();
+        toggle.addEventListener('change', () => { setRestTimerEnabled(toggle.checked); if (!toggle.checked) stopRestTimer(); });
+      }
     }
 
     // =========================================================================
@@ -1205,7 +1622,7 @@
         </svg>`;
     }
 
-    function bodyVisualHtml(markers, notices) {
+    function bodyVisualHtml(markers, notices, { sexHint = false } = {}) {
       // Vier Ansichten (Runde 9): Gelenke vorne/hinten, Muskeln vorne/hinten –
       // jeweils nicht gespiegelt, Bildseiten entsprechen den Körperseiten.
       return `
@@ -1233,12 +1650,15 @@
           ${notices.length === 0
             ? '<p style="color:var(--color-text-muted); font-size:0.85rem;">Noch keine auffälligen Befunde bzw. noch keine ausreichenden Daten.</p>'
             : `<ul style="margin:0; padding-left:18px; font-size:0.85rem;">${notices.map((n) => `<li class="dysbalance-verdict ${n.sev === 'unknown' ? '' : n.sev}" style="margin-bottom:4px;">${escapeHtml(n.text)}</li>`).join('')}</ul>`}
+          ${sexHint ? `<p style="font-size:0.8rem; color:var(--color-gold); margin-top:10px;">${escapeHtml(SEX_HINT_TEXT)} <a href="dashboard.html">Zur Startseite</a></p>` : ''}
           <p style="font-size:0.72rem; color:var(--color-text-muted); margin-top:12px;">
-            Vorder- und Rückansicht, jeweils nicht gespiegelt – Bildseiten entsprechen den Körperseiten. Für Knie,
-            Fußgelenke und oberen Rücken gibt es aktuell keinen eigenen Test, sie werden ehrlich als "keine Daten"
-            ausgewiesen statt geschätzt. Handgelenke, Ellbogen und die seitengetrennte Beinrückseite lassen sich im
-            Reiter „Tests" eintragen (Handgelenk-Streck-Test, Ellbogen-Streckungs-Test, wandgestützter AKE-Test) –
-            alle drei ohne Hilfsperson durchführbar.
+            Vorder- und Rückansicht, jeweils nicht gespiegelt – Bildseiten entsprechen den Körperseiten. Zuordnung der
+            Tests: Schulter = Schultertest (Apley); Ellbogen = Stuhl-Hebetest; Handgelenk = Phalen-Test; Hüfte = Thomas-Test;
+            Knie und Oberschenkel = Kniebeuge; Fußgelenk und Wade = einbeiniges Fersenheben (je Seite); Unterer Rücken und
+            Bauch = Plank; Brust und Arme = Liegestütz; Beinrückseite = Sit-and-Reach (ein Wert für beide Seiten);
+            Oberer Rücken = Seated Wall Angel (schlechterer der beiden Werte); Nacken = Schlafseite. Die Tests trägst du im
+            Reiter „Tests" ein; fehlt ein Test, erscheint der Marker als „keine Daten". Für Marker mit geschlechts-
+            spezifischen Vergleichswerten wird ohne Geschlechtsangabe keine Einstufung angezeigt.
             Vereinfachte Darstellung, ersetzt keine individuelle physiotherapeutische oder ärztliche Untersuchung.
           </p>
         </div>
@@ -1265,14 +1685,27 @@
       `;
     }
 
-    function strengthTestCardHtml(t, latestRow, ageYears, sex, history) {
-      const evalRes = latestRow ? evaluateStrengthBenchmark(t.key, ageYears, latestRow.value, sex) : null;
-      const points = history.filter((r) => r.test_key === t.key).map((r) => ({ date: r.measured_at, value: r.value }));
+    function benchmarkResultHtml(evalRes) {
+      if (!evalRes) return '';
+      if (evalRes.needsSex) {
+        return `<div style="font-size:0.8rem; color:var(--color-gold); margin-top:4px;">${escapeHtml(SEX_HINT_TEXT)} <a href="dashboard.html">Zur Startseite</a></div>`;
+      }
+      return `
+        ${evalRes.bandFound ? `<div style="font-size:0.85rem; margin-top:4px;">Einstufung: <strong>${escapeHtml(evalRes.label)}</strong></div>` : `<div style="font-size:0.8rem; color:var(--color-text-muted); margin-top:4px;">${escapeHtml(evalRes.label || '')}</div>`}
+        ${evalRes.note ? `<div style="font-size:0.72rem; color:var(--color-text-muted); margin-top:4px;">${escapeHtml(evalRes.note)}</div>` : ''}`;
+    }
+
+    function strengthTestCardHtml(t, latestMap, ageYears, sex, history) {
+      const sides = t.hasSide ? ['left', 'right'] : [null];
+      const rowOf = (side) => latestMap[side ? `${t.key}:${side}` : t.key];
+      const anyRow = sides.map(rowOf).filter(Boolean);
+      const newest = anyRow.length ? anyRow.reduce((a, b) => (a.measured_at >= b.measured_at ? a : b)) : null;
+      const pointsOf = (side) => history.filter((r) => r.test_key === t.key && (side ? r.side === side : true)).map((r) => ({ date: r.measured_at, value: r.value }));
       return `
         <div class="card mt-24 pv-test-card" data-test-key="${t.key}">
           <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
             <h3 style="margin:0; font-size:1rem;">${escapeHtml(t.label)}</h3>
-            ${latestRow ? `<span class="status-pill ${isStale(latestRow.measured_at) ? 'under' : 'active'}">${isStale(latestRow.measured_at) ? 'älter als 12 Wochen' : 'aktuell'}</span>` : ''}
+            ${newest ? `<span class="status-pill ${isStale(newest.measured_at) ? 'under' : 'active'}">${isStale(newest.measured_at) ? 'älter als 12 Wochen' : 'aktuell'}</span>` : ''}
           </div>
           <details class="qn-details mt-16"><summary>Testprotokoll ansehen (Ausführung, Abbruchkriterium, Kontraindikation)</summary>
             <div style="padding:10px 0 0; font-size:0.85rem;">
@@ -1285,20 +1718,35 @@
               <p><strong>Typische Fehler:</strong> ${escapeHtml(t.typischeFehler)}</p>
               <p><strong>Abbruchkriterium:</strong> ${escapeHtml(t.abbruchkriterium)}</p>
               <p style="color:var(--color-danger);"><strong>Kontraindikation:</strong> ${escapeHtml(t.kontraindikation)}</p>
+              ${t.feeds ? `<p style="color:var(--color-text-muted); font-size:0.78rem;">${escapeHtml(t.feeds)}</p>` : ''}
               <p style="color:var(--color-text-muted); font-size:0.78rem;">Quelle: ${escapeHtml(t.source)}</p>
             </div>
           </details>
-          ${latestRow ? `
-            <div class="result-box mt-16">
-              <div class="big" style="font-size:1.3rem;">${latestRow.value} ${escapeHtml(t.unit)}</div>
-              ${evalRes && evalRes.bandFound ? `<div style="font-size:0.85rem; margin-top:4px;">Einstufung: <strong>${escapeHtml(evalRes.label)}</strong></div>` : `<div style="font-size:0.8rem; color:var(--color-text-muted); margin-top:4px;">${escapeHtml(evalRes ? evalRes.label : '')}</div>`}
-              ${evalRes && evalRes.genderNote ? `<div style="font-size:0.75rem; color:var(--color-text-muted); margin-top:4px;">${escapeHtml(evalRes.genderNote)}</div>` : ''}
-              <div style="font-size:0.75rem; color:var(--color-text-muted); margin-top:4px;">Gemessen am ${formatDateOnly(latestRow.measured_at)} von ${latestRow.measured_by === 'trainer' ? 'Trainer/Coach' : 'Kunde selbst'}</div>
-            </div>
-          ` : '<p style="color:var(--color-text-muted); font-size:0.85rem; margin-top:12px;">Noch kein Test eingetragen.</p>'}
-          ${points.length >= 2 ? `<div class="mt-16">${miniSparklineHtml(points, t.unit)}</div>` : ''}
+          <div class="${t.hasSide ? 'grid-2 ' : ''}mt-16">
+            ${sides.map((side) => {
+              const row = rowOf(side);
+              const evalRes = row ? evaluateStrengthBenchmark(t.key, ageYears, row.value, sex) : null;
+              return `
+                <div class="result-box">
+                  ${side ? `<div style="font-size:0.78rem; color:var(--color-text-muted); margin-bottom:4px;">Seite: ${SIDE_LABEL[side]}</div>` : ''}
+                  ${row ? `
+                    <div class="big" style="font-size:1.3rem;">${row.value} ${escapeHtml(t.unit)}</div>
+                    ${benchmarkResultHtml(evalRes)}
+                    <div style="font-size:0.75rem; color:var(--color-text-muted); margin-top:4px;">Gemessen am ${formatDateOnly(row.measured_at)} von ${row.measured_by === 'trainer' ? 'Trainer/Coach' : 'Kunde selbst'}</div>
+                  ` : '<p style="color:var(--color-text-muted); font-size:0.85rem; margin:0;">Noch kein Test eingetragen.</p>'}
+                </div>`;
+            }).join('')}
+          </div>
+          ${sides.map((side) => { const pts = pointsOf(side); return pts.length >= 2 ? `<div class="mt-16">${side ? `<div style="font-size:0.72rem; color:var(--color-text-muted);">Verlauf ${SIDE_LABEL[side]}</div>` : ''}${miniSparklineHtml(pts, t.unit)}</div>` : ''; }).join('')}
           <form class="pv-entry-form mt-16" data-test-key="${t.key}">
             <div class="grid-2">
+              ${t.hasSide ? `
+              <div class="field"><label>Seite</label>
+                <select class="pv-side">
+                  <option value="left">links</option>
+                  <option value="right">rechts</option>
+                </select>
+              </div>` : ''}
               <div class="field"><label>${escapeHtml(t.valueLabel)}</label><input type="number" step="1" min="0" class="pv-value" required /></div>
               <div class="field"><label>Datum</label><input type="date" class="pv-date" value="${new Date().toISOString().slice(0, 10)}" required /></div>
               <div class="field"><label>Wer hat gemessen?</label>
@@ -1314,8 +1762,10 @@
       `;
     }
 
-    function mobilityTestCardHtml(t, latestBySide, history) {
+    function mobilityTestCardHtml(t, latestBySide, history, ageYears, sex) {
       const sides = t.hasSide ? ['left', 'right'] : [null];
+      const isMeasure = t.kind === 'measure';
+      const ratingOf = (row) => mobilityRatingValue(t.key, row.value);
       return `
         <div class="card mt-24 pv-test-card" data-test-key="${t.key}">
           <h3 style="margin:0; font-size:1rem;">${escapeHtml(t.label)}</h3>
@@ -1324,12 +1774,13 @@
               ${(t.goodImage || t.limitedImage) ? `
               <div class="grid-2" style="margin-bottom:12px;">
                 ${t.goodImage ? `<div class="pv-test-img-wrap"><img src="${t.goodImage}" alt="Gut/normal: ${escapeHtml(t.label)}" style="width:100%; border-radius:10px; display:block;" loading="lazy" onerror="this.closest('.pv-test-img-wrap').style.display='none'" /><div style="font-size:0.72rem; color:var(--color-success); margin-top:4px; text-align:center;">+ / 0 – gut bzw. normal</div></div>` : ''}
-                ${t.limitedImage ? `<div class="pv-test-img-wrap"><img src="${t.limitedImage}" alt="Eingeschränkt: ${escapeHtml(t.label)}" style="width:100%; border-radius:10px; display:block;" loading="lazy" onerror="this.closest('.pv-test-img-wrap').style.display='none'" /><div style="font-size:0.72rem; color:var(--color-danger); margin-top:4px; text-align:center;">– eingeschränkt</div></div>` : ''}
+                ${t.limitedImage ? `<div class="pv-test-img-wrap"><img src="${t.limitedImage}" alt="Eingeschränkt: ${escapeHtml(t.label)}" style="width:100%; border-radius:10px; display:block;" loading="lazy" onerror="this.closest('.pv-test-img-wrap').style.display='none'" /><div style="font-size:0.72rem; color:var(--color-danger); margin-top:4px; text-align:center;">– eingeschränkt / auffällig</div></div>` : ''}
               </div>` : ''}
               <p><strong>Ausführung:</strong> ${escapeHtml(t.ausfuehrung)}</p>
               <p><strong>Typische Fehler:</strong> ${escapeHtml(t.typischeFehler)}</p>
               <p><strong>Abbruchkriterium:</strong> ${escapeHtml(t.abbruchkriterium)}</p>
               <p style="color:var(--color-danger);"><strong>Kontraindikation:</strong> ${escapeHtml(t.kontraindikation)}</p>
+              ${isMeasure ? '' : `
               <div class="rating-scale-legend" style="display:flex; gap:10px; flex-wrap:wrap; margin:8px 0;">
                 ${['1', '0', '-1'].map((k) => `
                   <span style="display:flex; align-items:center; gap:5px; font-size:0.75rem; color:var(--color-text-muted);">
@@ -1337,20 +1788,27 @@
                     ${escapeHtml(t.ratingLabels[k])}
                   </span>
                 `).join('')}
-              </div>
+              </div>`}
+              ${t.feeds ? `<p style="color:var(--color-text-muted); font-size:0.78rem;">${escapeHtml(t.feeds)}</p>` : ''}
               <p style="color:var(--color-text-muted); font-size:0.78rem;">Quelle: ${escapeHtml(t.source)}</p>
             </div>
           </details>
-          <div class="grid-2 mt-16">
+          <div class="${t.hasSide ? 'grid-2 ' : ''}mt-16">
             ${sides.map((side) => {
               const row = latestBySide[side ? `${t.key}:${side}` : t.key];
-              const rating = row ? mobilityRatingLabel(row.value) : null;
+              const rating = row && !isMeasure ? ratingLabelFor(ratingOf(row)) : null;
+              const evalRes = row && isMeasure ? evaluateStrengthBenchmark(t.key, ageYears, row.value, sex) : null;
               return `
                 <div class="result-box">
                   ${side ? `<div style="font-size:0.78rem; color:var(--color-text-muted); margin-bottom:4px;">Seite: ${SIDE_LABEL[side]}</div>` : ''}
-                  ${row ? `
-                    <div style="display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:50%; background:${MOBILITY_RATING_VISUALS[String(Math.sign(row.value))].color}; color:#fff; font-weight:700; font-size:1.2rem;">${rating.symbol}</div>
-                    <div style="font-size:0.8rem; margin-top:6px;">${escapeHtml(t.ratingLabels[String(Math.sign(row.value))] || '')}</div>
+                  ${row && isMeasure ? `
+                    <div class="big" style="font-size:1.3rem;">${row.value} cm</div>
+                    ${benchmarkResultHtml(evalRes)}
+                    <div style="font-size:0.72rem; color:var(--color-text-muted); margin-top:4px;">${formatDateOnly(row.measured_at)} · ${row.measured_by === 'trainer' ? 'Trainer/Coach' : 'Kunde selbst'}${isStale(row.measured_at) ? ' · <span style="color:var(--color-gold);">älter als 12 Wochen</span>' : ''}</div>
+                  ` : row ? `
+                    <div style="display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:50%; background:${MOBILITY_RATING_VISUALS[String(ratingOf(row))].color}; color:#fff; font-weight:700; font-size:1.2rem;">${rating.symbol}</div>
+                    <div style="font-size:0.8rem; margin-top:6px;">${t.key === 'wall_angel' ? `${row.value} von 3 Punkten – ` : ''}${escapeHtml(t.ratingLabels[String(ratingOf(row))] || '')}</div>
+                    ${ratingOf(row) < 0 && t.alertNotice ? `<div style="font-size:0.75rem; color:var(--color-danger); margin-top:4px;">${escapeHtml(t.alertNotice)}</div>` : ''}
                     <div style="font-size:0.72rem; color:var(--color-text-muted); margin-top:4px;">${formatDateOnly(row.measured_at)} · ${row.measured_by === 'trainer' ? 'Trainer/Coach' : 'Kunde selbst'}${isStale(row.measured_at) ? ' · <span style="color:var(--color-gold);">älter als 12 Wochen</span>' : ''}</div>
                   ` : '<p style="color:var(--color-text-muted); font-size:0.82rem; margin:0;">Noch kein Test.</p>'}
                 </div>
@@ -1366,13 +1824,18 @@
                   <option value="right">rechts</option>
                 </select>
               </div>` : ''}
+              ${isMeasure ? `
+              <div class="field"><label>${escapeHtml(t.valueLabel)}</label><input type="number" step="0.5" min="-60" max="60" class="pv-value" required /></div>
+              ` : `
               <div class="field"><label>Bewertung</label>
                 <select class="pv-value">
-                  <option value="1">+ (${escapeHtml(t.ratingLabels['1'])})</option>
+                  ${t.inputOptions
+                    ? t.inputOptions.map((o) => `<option value="${o.value}">${escapeHtml(o.label)}</option>`).join('')
+                    : `<option value="1">+ (${escapeHtml(t.ratingLabels['1'])})</option>
                   <option value="0">0 (${escapeHtml(t.ratingLabels['0'])})</option>
-                  <option value="-1">– (${escapeHtml(t.ratingLabels['-1'])})</option>
+                  <option value="-1">– (${escapeHtml(t.ratingLabels['-1'])})</option>`}
                 </select>
-              </div>
+              </div>`}
               <div class="field"><label>Datum</label><input type="date" class="pv-date" value="${new Date().toISOString().slice(0, 10)}" required /></div>
               <div class="field"><label>Wer hat gemessen?</label>
                 <select class="pv-measured-by">
@@ -1381,10 +1844,14 @@
                 </select>
               </div>
             </div>
-            <button class="btn secondary small-btn" type="submit">Bewertung speichern</button>
+            <button class="btn secondary small-btn" type="submit">${isMeasure ? 'Testergebnis speichern' : 'Bewertung speichern'}</button>
           </form>
         </div>
       `;
+    }
+
+    function ratingLabelFor(ratingValue) {
+      return mobilityRatingLabel(ratingValue);
     }
 
     function nutritionQuizFormHtml() {
@@ -1438,7 +1905,7 @@
       const birthDate = profileRow ? profileRow.birth_date : null;
       const ageYears = calcAge(birthDate);
       const latestBodyMeasurement = (bodyMeasurements || [])[(bodyMeasurements || []).length - 1] || null;
-      const sex = latestBodyMeasurement ? latestBodyMeasurement.sex : null;
+      const sex = (await loadProfileBasics(clientId)).sex;
       const bodyFatPercent = latestBodyMeasurement ? latestBodyMeasurement.body_fat_percent : null;
 
       const results = allResults || [];
@@ -1468,48 +1935,32 @@
       const displayBreakdown = breakdown.filter((b) => b.key !== 'strength');
 
       // Körper-Visual: Marker-Schweregrade berechnen
-      const asymmetrySeverity = (leftCm, rightCm) => {
-        if (leftCm == null || rightCm == null) return { sev: 'unknown', title: 'Keine Umfangsmessung vorhanden' };
-        const diffPct = Math.abs(leftCm - rightCm) / Math.max(leftCm, rightCm) * 100;
-        if (diffPct >= 8) return { sev: 'alert', title: `Deutliche Seitendifferenz (${diffPct.toFixed(1)}%): links ${leftCm}cm / rechts ${rightCm}cm` };
-        if (diffPct >= 4) return { sev: 'warn', title: `Leichte Seitendifferenz (${diffPct.toFixed(1)}%): links ${leftCm}cm / rechts ${rightCm}cm` };
-        return { sev: 'ok', title: `Ausgeglichen: links ${leftCm}cm / rechts ${rightCm}cm` };
-      };
-      const mobilitySeverity = (row, label) => {
+      const mobilitySeverity = (row, label, testKey) => {
         if (!row) return { sev: 'unknown', title: `${label}: keine Daten` };
-        const v = Math.sign(row.value);
-        if (v < 0) return { sev: 'alert', title: `${label}: eingeschränkt` };
-        if (v === 0) return { sev: 'warn', title: `${label}: normal` };
-        return { sev: 'ok', title: `${label}: gut` };
+        const v = mobilityRatingValue(testKey || row.test_key, row.value);
+        const def = MOBILITY_TESTS.find((t) => t.key === (testKey || row.test_key));
+        const pts = (testKey || row.test_key) === 'wall_angel' ? ` (${row.value} von 3 Punkten)` : '';
+        if (v < 0) return { sev: 'alert', title: `${label}${pts}: ${def && def.alertNotice ? def.alertNotice : 'eingeschränkt'}` };
+        if (v === 0) return { sev: 'warn', title: `${label}${pts}: normal` };
+        return { sev: 'ok', title: `${label}${pts}: gut` };
       };
       // Runde 9: Brustmuskulatur/Bauchmuskeln auf der Muskeln-Vorderansicht
       // bekommen keinen eigenen neuen Test, sondern nutzen die ohnehin
       // erfassten Kraftausdauertests als Näherung (Liegestütz beansprucht
       // primär die Brustmuskulatur, Plank primär die Bauchmuskeln/den Rumpf).
-      const strengthSeverity = (testKey, label) => {
-        const row = latest[testKey];
+      const strengthSeverity = (testKey, side, label) => {
+        const row = latest[side ? `${testKey}:${side}` : testKey];
         if (!row) return { sev: 'unknown', title: `${label}: keine Daten` };
         if (ageYears == null) return { sev: 'unknown', title: `${label}: kein Geburtsdatum hinterlegt` };
         const evalRes = evaluateStrengthBenchmark(testKey, ageYears, row.value, sex);
+        if (evalRes.needsSex) return { sev: 'unknown', title: `${label}: Geschlecht nicht hinterlegt – Einstufung ausgeblendet` };
         if (!evalRes.bandFound || !evalRes.key) return { sev: 'unknown', title: `${label}: keine Referenzwerte für dieses Alter` };
         if (evalRes.key === 'below') return { sev: 'alert', title: `${label}: ${evalRes.label}` };
         if (evalRes.key === 'low') return { sev: 'warn', title: `${label}: ${evalRes.label}` };
         return { sev: 'ok', title: `${label}: ${evalRes.label}` };
       };
-      // Für Knie, Fußgelenke und oberen Rücken gibt es aktuell keinen Test –
-      // ehrlich als "keine Daten" ausweisen statt zu schätzen.
-      const noData = (label) => ({ sev: 'unknown', title: `${label}: aktuell kein Test hinterlegt` });
-      // Nutzer-Feedback Runde 14: neue Mess-/Visualisierungspunkte (Handgelenke,
-      // Ellbogen, zweiter Punkt Beinrückseite) – nach Absegnung durch den Nutzer
-      // ("Beide anpassen (empfohlen)") jetzt mit echten, evidenzbasierten Tests
-      // hinterlegt (wrist_extension, elbow_extension, ake_hamstring in
-      // js/prevention.js), inkl. wandgestützter AKE-Variante und Spiegel-/
-      // Handyfoto-Hinweis beim Thomas-Test, damit alle Tests ohne Hilfsperson
-      // durchführbar sind.
-
-      const armSev = latestBodyMeasurement ? asymmetrySeverity(latestBodyMeasurement.arm_left_cm, latestBodyMeasurement.arm_right_cm) : { sev: 'unknown', title: 'Keine Umfangsmessung vorhanden' };
-      const thighSev = latestBodyMeasurement ? asymmetrySeverity(latestBodyMeasurement.thigh_left_cm, latestBodyMeasurement.thigh_right_cm) : { sev: 'unknown', title: 'Keine Umfangsmessung vorhanden' };
-      const calfSev = latestBodyMeasurement ? asymmetrySeverity(latestBodyMeasurement.calf_left_cm, latestBodyMeasurement.calf_right_cm) : { sev: 'unknown', title: 'Keine Umfangsmessung vorhanden' };
+      // Runde 19: Sitzzeit fließt nur noch in den Score ein (kein Marker mehr);
+      // Umfangsmessungen speisen keine Marker mehr.
 
       const sittingRow = latest.sitting_hours;
       const sittingEval = sittingRow ? evaluateSittingScore(sittingRow.value) : null;
@@ -1536,52 +1987,61 @@
       // dieselbe zugrundeliegende Auswertung (dieselbe Körperregion, nur aus
       // zwei Perspektiven gezeigt) – daher tauchen sie in `notices` nur EINMAL
       // auf, um keine doppelten Hinweise zu erzeugen.
-      const shoulderLeftSev = mobilitySeverity(latest['shoulder_mobility:left'], 'Schulter links');
-      const shoulderRightSev = mobilitySeverity(latest['shoulder_mobility:right'], 'Schulter rechts');
-      const hipLeftSev = mobilitySeverity(latest['thomas_mobility:left'], 'Hüfte links');
-      const hipRightSev = mobilitySeverity(latest['thomas_mobility:right'], 'Hüfte rechts');
-      const hamstringSev = mobilitySeverity(latest.hamstring_mobility, 'Beinrückseite (Hamstring)');
-      const akeLeftSev = mobilitySeverity(latest['ake_hamstring:left'], 'Beinrückseite links');
-      const akeRightSev = mobilitySeverity(latest['ake_hamstring:right'], 'Beinrückseite rechts');
-      const wristLeftSev = mobilitySeverity(latest['wrist_extension:left'], 'Handgelenk links');
-      const wristRightSev = mobilitySeverity(latest['wrist_extension:right'], 'Handgelenk rechts');
-      const elbowLeftSev = mobilitySeverity(latest['elbow_extension:left'], 'Ellbogen links');
-      const elbowRightSev = mobilitySeverity(latest['elbow_extension:right'], 'Ellbogen rechts');
-      const chestSev = strengthSeverity('pushup', 'Brustmuskulatur');
-      const absSev = strengthSeverity('plank', 'Bauchmuskeln');
+      // Runde 19 (Testüberarbeitung): jeder Marker wird von GENAU einem Test
+      // gespeist (Zuordnung siehe Fußnote unter der Visualisierung).
+      const shoulderLeftSev = mobilitySeverity(latest['shoulder_mobility:left'], 'Schulter links', 'shoulder_mobility');
+      const shoulderRightSev = mobilitySeverity(latest['shoulder_mobility:right'], 'Schulter rechts', 'shoulder_mobility');
+      const hipLeftSev = mobilitySeverity(latest['thomas_mobility:left'], 'Hüfte links', 'thomas_mobility');
+      const hipRightSev = mobilitySeverity(latest['thomas_mobility:right'], 'Hüfte rechts', 'thomas_mobility');
+      const elbowLeftSev = mobilitySeverity(latest['chair_pickup:left'], 'Ellbogen links', 'chair_pickup');
+      const elbowRightSev = mobilitySeverity(latest['chair_pickup:right'], 'Ellbogen rechts', 'chair_pickup');
+      const wristLeftSev = mobilitySeverity(latest['phalen_test:left'], 'Handgelenk links', 'phalen_test');
+      const wristRightSev = mobilitySeverity(latest['phalen_test:right'], 'Handgelenk rechts', 'phalen_test');
+      // Oberer Rücken: schlechterer der beiden Wall-Angel-Werte.
+      const sevRank = { alert: 3, warn: 2, ok: 1, unknown: 0 };
+      const wallLeftSev = mobilitySeverity(latest['wall_angel:left'], 'Oberer Rücken links', 'wall_angel');
+      const wallRightSev = mobilitySeverity(latest['wall_angel:right'], 'Oberer Rücken rechts', 'wall_angel');
+      const upperBackSev = sevRank[wallLeftSev.sev] >= sevRank[wallRightSev.sev] ? wallLeftSev : wallRightSev;
+      const upperBackNotices = [wallLeftSev, wallRightSev];
+
+      const chestSev = strengthSeverity('pushup', null, 'Brustmuskulatur (Liegestütz)');
+      const armSev = strengthSeverity('pushup', null, 'Muskeln Arm (Liegestütz)');
+      const absSev = strengthSeverity('plank', null, 'Bauchmuskeln (Plank)');
+      const lowerBackSev = strengthSeverity('plank', null, 'Unterer Rücken (Plank)');
+      const squatSev = strengthSeverity('squat', null, 'Knie und Oberschenkel (Kniebeuge)');
+      const ankleLeftSev = strengthSeverity('heel_raise', 'left', 'Fußgelenk und Wade links (Fersenheben)');
+      const ankleRightSev = strengthSeverity('heel_raise', 'right', 'Fußgelenk und Wade rechts (Fersenheben)');
+      const hamstringSev = strengthSeverity('sit_reach_cm', null, 'Beinrückseite (Sit-and-Reach)');
 
       const markers = {
         cervicalSpine: sleepSev,
         neck: sleepSev,
         shoulderLeft: shoulderLeftSev,
         shoulderRight: shoulderRightSev,
-        kneeLeft: noData('Knie links'),
-        kneeRight: noData('Knie rechts'),
-        ankleLeft: noData('Fußgelenk links'),
-        ankleRight: noData('Fußgelenk rechts'),
-        lowerBack: sittingSev,
+        kneeLeft: squatSev,
+        kneeRight: squatSev,
+        ankleLeft: ankleLeftSev,
+        ankleRight: ankleRightSev,
+        lowerBack: lowerBackSev,
         hipLeft: hipLeftSev,
         hipRight: hipRightSev,
         chest: chestSev,
         abs: absSev,
         armLeft: armSev, armRight: armSev,
-        thighLeft: thighSev, thighRight: thighSev,
-        upperBack: noData('Oberer Rücken'),
-        // Runde 14: zweiter Punkt für die Beinrückseite (Rückansicht) – zeigt
-        // jetzt den seitengetrennten, wandgestützten AKE-Test (ergänzt den
-        // weiterhin genutzten bilateralen Sit-and-Reach-Test, der in den Score
-        // eingeht, hier aber nicht separat als Marker auftaucht).
-        hamstringLeft: akeLeftSev, hamstringRight: akeRightSev,
-        calfLeft: calfSev, calfRight: calfSev,
-        // Runde 14: neue Punkte Handgelenke & Ellbogen (Vorderansicht).
+        thighLeft: squatSev, thighRight: squatSev,
+        upperBack: upperBackSev,
+        hamstringLeft: hamstringSev, hamstringRight: hamstringSev,
+        calfLeft: ankleLeftSev, calfRight: ankleRightSev,
         wristLeft: wristLeftSev,
         wristRight: wristRightSev,
         elbowLeft: elbowLeftSev,
         elbowRight: elbowRightSev,
       };
-      const notices = [sleepSev, shoulderLeftSev, shoulderRightSev, sittingSev, hipLeftSev, hipRightSev, chestSev, absSev, armSev, thighSev, hamstringSev, calfSev, akeLeftSev, akeRightSev, wristLeftSev, wristRightSev, elbowLeftSev, elbowRightSev]
+      // Hinweise: jeder Test nur einmal (Knie/Oberschenkel, Bauch/Rücken, Brust/Arme teilen sich je einen Test).
+      const notices = [sleepSev, shoulderLeftSev, shoulderRightSev, hipLeftSev, hipRightSev, elbowLeftSev, elbowRightSev, wristLeftSev, wristRightSev, ...upperBackNotices, chestSev, absSev, squatSev, ankleLeftSev, ankleRightSev, hamstringSev]
         .filter((m) => m.sev === 'warn' || m.sev === 'alert')
         .map((m) => ({ sev: m.sev, text: m.title }));
+      const sexHintNeeded = !isKnownSex(sex) && ['pushup', 'squat', 'heel_raise:left', 'heel_raise:right', 'sit_reach_cm'].some((k) => latest[k]);
 
       el.innerHTML = `
         <div class="card">
@@ -1590,8 +2050,8 @@
               <h2 style="font-size:1.1rem; margin:0 0 4px;">Präventions-Score</h2>
               <p style="color:var(--color-text-muted); font-size:0.82rem; margin:0; max-width:520px;">
                 0–100 Punkte, 100 = für das Alter maximal gesund/leistungsfähig. Berechnet aus Kraftausdauer- und
-                Beweglichkeitstests, letzter Körperfett-Messung, Trainings-Balance sowie den Lebensstil-Faktoren
-                Sitzverhalten, Ernährung, Rauchen und Alkohol. Fehlende Kategorien werden ausgeschlossen, die übrigen
+                Beweglichkeitstests, letzter Körperfett-Messung, Trainings-Balance, den Lebensstil-Faktoren
+                Sitzverhalten, Ernährung, Rauchen und Alkohol sowie – falls erfasst – Blutdruck und Ruhepuls. Fehlende Kategorien werden ausgeschlossen, die übrigen
                 Gewichte entsprechend angepasst.
               </p>
               <details class="qn-details mt-16">
@@ -1604,6 +2064,7 @@
                     <li><strong>Körperfettanteil</strong> – ein etablierter Risikomarker für kardiometabolische Erkrankungen.</li>
                     <li><strong>Trainings-Balance</strong> (Push/Pull, vordere/hintere Beinkette, Rumpf) – einseitige Belastung begünstigt muskuläre Dysbalancen.</li>
                     <li><strong>Lebensstil-Faktoren</strong> (Sitzverhalten, Ernährung, Rauchen, Alkohol) – gut belegte Einflussgrößen auf Herz-Kreislauf-Gesundheit und Rückenbeschwerden.</li>
+                    <li><strong>Blutdruck &amp; Ruhepuls</strong> (optional) – etablierte Vitalwerte für das Herz-Kreislauf-Risiko; Blutdruck nach der Einteilung der Deutschen Hochdruckliga/DGK, Ruhepuls nach Geschlecht (Normtabellen von praktischArzt). Du findest sie im Reiter „Tests".</li>
                   </ul>
                   <p style="margin:0;">Jeder Bereich wird zunächst einzeln bewertet (0–100) und anschließend gewichtet gemittelt. Fehlt ein Bereich komplett (z.B. noch kein Test eingetragen), wird er ausgeschlossen und die Gewichte der übrigen Bereiche entsprechend hochskaliert – der Score bleibt so auch bei unvollständigen Daten aussagekräftig, beruht dann aber auf weniger Informationen. Die einzelnen Werte findest du in der Aufschlüsselung unten bzw. im Reiter „Tests".</p>
                 </div>
@@ -1625,6 +2086,13 @@
           </div>` : total == null ? `<p style="color:var(--color-text-muted); font-size:0.85rem; margin-top:12px;">Noch keine Daten für einen Score – trage unten mindestens einen Test ein.</p>` : ''}
           <p style="font-size:0.78rem; color:var(--color-text-muted); margin-top:12px;">${ageYears != null ? `Alter: ${ageYears} Jahre` : 'Kein Geburtsdatum hinterlegt – Kraftausdauer-Benchmarks können ohne Alter nicht ausgewertet werden.'}</p>
           ${isAdminView ? `
+          <div class="field" style="max-width:260px; margin-top:12px;"><label>Geschlecht (für Vergleichswerte)</label>
+            <select id="pv-sex-select">
+              <option value="" ${isKnownSex(sex) ? '' : 'selected'}>nicht angegeben</option>
+              <option value="male" ${sex === 'male' ? 'selected' : ''}>Männlich</option>
+              <option value="female" ${sex === 'female' ? 'selected' : ''}>Weiblich</option>
+            </select>
+          </div>
           <button class="icon-btn" id="pv-edit-birthdate" type="button">Geburtsdatum ${birthDate ? 'ändern' : 'hinterlegen'}</button>
           <form id="pv-birthdate-form" class="hidden mt-16">
             <div class="field"><label>Geburtsdatum</label><input type="date" id="pv-birthdate-input" value="${birthDate || ''}" required /></div>
@@ -1632,14 +2100,14 @@
           </form>
           <p style="font-size:0.7rem; color:var(--color-text-muted); margin-top:6px;">Als Trainer/Coach hier für den Kunden hinterlegbar, falls dieser es noch nicht selbst eingetragen hat.</p>
           ` : `
-          <p style="font-size:0.72rem; color:var(--color-text-muted); margin-top:6px;">Geburtsdatum wird zentral auf der <a href="dashboard.html">Startseite</a> gepflegt (eine Stelle für PAL-Rechner, Präventionscheck etc.) – dort änderbar.</p>
+          <p style="font-size:0.72rem; color:var(--color-text-muted); margin-top:6px;">Geburtsdatum und Geschlecht werden zentral auf der <a href="dashboard.html">Startseite</a> gepflegt (eine Stelle für PAL-Rechner, Präventionscheck etc.) – dort änderbar.${isKnownSex(sex) ? '' : ' <span style="color:var(--color-gold);">Ohne Geschlechtsangabe werden geschlechtsspezifische Einstufungen ausgeblendet.</span>'}</p>
           `}
         </div>
 
         <div class="card mt-24">
           <h2 style="font-size:1.05rem;">Körperliche Balance &amp; Risikofaktoren</h2>
           <p style="color:var(--color-text-muted); font-size:0.82rem;">Zusammenfassung aus Umfangsmessungen (Körperfett-Verlauf), Beweglichkeits- und Kraftausdauertests sowie Sitz-/Schlafgewohnheiten, getrennt nach Gelenken und Muskeln dargestellt. Die Tests selbst trägst du im Reiter „Tests" ein.</p>
-          ${bodyVisualHtml(markers, notices)}
+          ${bodyVisualHtml(markers, notices, { sexHint: sexHintNeeded })}
         </div>
 
         ${hideLifestyleForms ? `
@@ -1742,6 +2210,14 @@
       // vorhanden (siehe renderPreventionSection oben) – Kunden sehen nur
       // noch den Lesewert mit Link zur Startseite, damit das Geburtsdatum
       // wirklich nur an einer Stelle gepflegt werden muss.
+      const sexSelect = document.getElementById('pv-sex-select');
+      if (sexSelect) {
+        sexSelect.addEventListener('change', async () => {
+          const { error } = await updateSex(clientId, sexSelect.value);
+          if (error) { alert('Fehler: ' + error.message); return; }
+          renderPreventionSection(el, clientId, { isAdminView, hideLifestyleForms });
+        });
+      }
       const birthBtn = document.getElementById('pv-edit-birthdate');
       const birthForm = document.getElementById('pv-birthdate-form');
       if (birthBtn && birthForm) {
@@ -1858,25 +2334,32 @@
       const birthDate = profileRow ? profileRow.birth_date : null;
       const ageYears = calcAge(birthDate);
       const latestBodyMeasurement = (bodyMeasurements || [])[(bodyMeasurements || []).length - 1] || null;
-      const sex = latestBodyMeasurement ? latestBodyMeasurement.sex : null;
+      const sex = (await loadProfileBasics(clientId)).sex;
       const results = allResults || [];
 
-      const mobilityScoreOf = (value) => ({ '-1': 40, '0': 70, '1': 100 }[String(Math.sign(value))] ?? 70);
       const strengthScoreOf = (testKey, value) => {
         if (ageYears == null) return null;
         const evalRes = evaluateStrengthBenchmark(testKey, ageYears, value, sex);
         if (!evalRes.bandFound || !evalRes.key) return null;
         return { top: 100, mid: 80, low: 60, below: 35 }[evalRes.key] ?? null;
       };
+      const mobilityScoreOf = (key, value) => {
+        const testKey = key.split(':')[0];
+        if (testKey === 'sit_reach_cm') return strengthScoreOf(testKey, value);
+        return { '-1': 40, '0': 70, '1': 100 }[String(mobilityRatingValue(testKey, value))] ?? 70;
+      };
 
       const mobilityKeys = [];
       MOBILITY_TESTS.forEach((t) => {
         if (t.hasSide) { mobilityKeys.push(`${t.key}:left`, `${t.key}:right`); } else { mobilityKeys.push(t.key); }
       });
-      const strengthKeys = STRENGTH_TESTS.map((t) => t.key);
+      const strengthKeys = [];
+      STRENGTH_TESTS.forEach((t) => {
+        if (t.hasSide) { strengthKeys.push(`${t.key}:left`, `${t.key}:right`); } else { strengthKeys.push(t.key); }
+      });
 
-      const mobilityComposite = buildCompositeTrend(results, mobilityKeys, (key, value) => mobilityScoreOf(value));
-      const strengthComposite = buildCompositeTrend(results, strengthKeys, (key, value) => strengthScoreOf(key, value));
+      const mobilityComposite = buildCompositeTrend(results, mobilityKeys, (key, value) => mobilityScoreOf(key, value));
+      const strengthComposite = buildCompositeTrend(results, strengthKeys, (key, value) => strengthScoreOf(key.split(':')[0], value));
 
       function perTestPoints(testKey, side) {
         return results
@@ -1890,22 +2373,49 @@
         sides.forEach((side) => {
           const pts = perTestPoints(t.key, side);
           if (pts.length === 0) return;
+          const chartOpts = t.kind === 'measure' ? { unit: ' cm' }
+            : t.key === 'wall_angel' ? { minY: 0, maxY: 3, formatValue: (v) => `${Math.round(v)} Pkt.` }
+            : { minY: -1, maxY: 1, formatValue: (v) => mobilityRatingLabel(v).text };
           mobilityChartsArr.push(`<div class="trend-card">
             <div class="trend-title">${escapeHtml(t.label)}${side ? ` (${SIDE_LABEL[side]})` : ''}</div>
-            ${renderTrendChartHtml(pts, { minY: -1, maxY: 1, formatValue: (v) => mobilityRatingLabel(v).text })}
+            ${renderTrendChartHtml(pts, chartOpts)}
           </div>`);
         });
       });
 
       const strengthChartsArr = [];
       STRENGTH_TESTS.forEach((t) => {
-        const pts = perTestPoints(t.key, null);
-        if (pts.length === 0) return;
-        strengthChartsArr.push(`<div class="trend-card">
-          <div class="trend-title">${escapeHtml(t.label)}</div>
-          ${renderTrendChartHtml(pts, { unit: t.key === 'plank' ? ' Sek.' : ' Wdh.' })}
-        </div>`);
+        const sides = t.hasSide ? ['left', 'right'] : [null];
+        sides.forEach((side) => {
+          const pts = perTestPoints(t.key, side);
+          if (pts.length === 0) return;
+          strengthChartsArr.push(`<div class="trend-card">
+            <div class="trend-title">${escapeHtml(t.label)}${side ? ` (${SIDE_LABEL[side]})` : ''}</div>
+            ${renderTrendChartHtml(pts, { unit: t.key === 'plank' ? ' Sek.' : ' Wdh.' })}
+          </div>`);
+        });
       });
+
+      // Runde 20: Vitalwerte (Blutdruck, Ruhepuls)
+      const bpSeriesTrend = bloodPressureSeries(results);
+      const vitalsChartsArr = [];
+      if (bpSeriesTrend.length > 0) {
+        vitalsChartsArr.push(`<div class="trend-card">
+          <div class="trend-title">Blutdruck systolisch</div>
+          ${renderTrendChartHtml(bpSeriesTrend.map((b) => ({ date: b.date, value: b.systolic })), { unit: ' mmHg', formatValue: (v) => `${Math.round(v)} mmHg` })}
+        </div>`);
+        vitalsChartsArr.push(`<div class="trend-card">
+          <div class="trend-title">Blutdruck diastolisch</div>
+          ${renderTrendChartHtml(bpSeriesTrend.map((b) => ({ date: b.date, value: b.diastolic })), { unit: ' mmHg', formatValue: (v) => `${Math.round(v)} mmHg` })}
+        </div>`);
+      }
+      const hrTrendPts = perTestPoints('resting_hr', null);
+      if (hrTrendPts.length > 0) {
+        vitalsChartsArr.push(`<div class="trend-card">
+          <div class="trend-title">Ruhepuls</div>
+          ${renderTrendChartHtml(hrTrendPts, { unit: ' bpm', formatValue: (v) => `${Math.round(v)} bpm` })}
+        </div>`);
+      }
 
       el.innerHTML = `
         <div class="trend-group">
@@ -1924,7 +2434,8 @@
         </div>
         ${mobilityChartsArr.length > 0 ? `<h3 class="mt-24" style="font-size:0.95rem;">Beweglichkeit je Gelenk</h3><div class="trend-grid">${mobilityChartsArr.join('')}</div>` : ''}
         ${strengthChartsArr.length > 0 ? `<h3 class="mt-24" style="font-size:0.95rem;">Kraftausdauer je Übung</h3><div class="trend-grid">${strengthChartsArr.join('')}</div>` : ''}
-        ${mobilityChartsArr.length === 0 && strengthChartsArr.length === 0 ? '<p style="color:var(--color-text-muted); font-size:0.85rem;">Noch keine Testdaten – trage im Reiter „Tests" deine ersten Beweglichkeits- und Kraftausdauertests ein, um hier Verläufe zu sehen.</p>' : ''}
+        ${vitalsChartsArr.length > 0 ? `<h3 class="mt-24" style="font-size:0.95rem;">Blutdruck &amp; Ruhepuls</h3><div class="trend-grid">${vitalsChartsArr.join('')}</div>` : ''}
+        ${mobilityChartsArr.length === 0 && strengthChartsArr.length === 0 && vitalsChartsArr.length === 0 ? '<p style="color:var(--color-text-muted); font-size:0.85rem;">Noch keine Testdaten – trage im Reiter „Tests" deine ersten Beweglichkeits- und Kraftausdauertests ein, um hier Verläufe zu sehen.</p>' : ''}
       `;
     }
 
@@ -2021,7 +2532,7 @@
       const birthDate = profileRow ? profileRow.birth_date : null;
       const ageYears = calcAge(birthDate);
       const latestBodyMeasurement = (bodyMeasurements || [])[(bodyMeasurements || []).length - 1] || null;
-      const sex = latestBodyMeasurement ? latestBodyMeasurement.sex : null;
+      const sex = (await loadProfileBasics(clientId)).sex;
       const bodyFatPercent = latestBodyMeasurement ? latestBodyMeasurement.body_fat_percent : null;
       const latest = latestByKey(allPreventionResults || []);
 
@@ -2041,6 +2552,7 @@
       });
 
       const preventionScore = computePreventionScore({ ageYears, sex, latestResults: latest, bodyFatPercent, balancePairRatios });
+      const vitals = summarizeVitals(allPreventionResults || [], ageYears, sex);
 
       const { prEvents } = computePersonalRecords(allLogsForRecords || []);
       const monthPrEvents = prEvents.filter((e) => e.performedAt >= fromISO && e.performedAt < toISO);
@@ -2059,6 +2571,7 @@
         nutritionLogs: nutritionLogsMonth,
         energyTargetKcal: energyTarget ? energyTarget.tee_kcal || null : null,
         preventionScore,
+        vitals,
         streak,
         monthPrEvents,
         moduleAccess,
@@ -2171,7 +2684,7 @@
           notes = `Rockport-Gehtest: 1 Meile in ${timeMinutes} Min, Puls ${heartRateBpm}, Gewicht ${weightKgInput} kg`;
         }
         if (!vo2max || vo2max <= 0) {
-          alert('Bitte alle Felder korrekt ausfüllen – die Berechnung war nicht möglich (bei Rockport wird zusätzlich ein hinterlegtes Geburtsdatum benötigt).');
+          alert('Bitte alle Felder korrekt ausfüllen – die Berechnung war nicht möglich (bei Rockport werden zusätzlich ein hinterlegtes Geburtsdatum und Geschlecht benötigt – beides auf der Startseite ergänzbar).');
           submitBtn.disabled = false;
           return;
         }
@@ -2182,6 +2695,123 @@
           notes,
         });
         if (error) { alert('Fehler: ' + error.message); submitBtn.disabled = false; return; }
+        renderTestsSection(el, clientId, { isAdminView });
+      });
+    }
+
+    // Runde 20: Blutdruck & Ruhepuls. Eigene Karte mit gemeinsamem Formular:
+    // Blutdruck (systolisch + diastolisch, beide nötig) und/oder Ruhepuls,
+    // dazu Datum und "Selbsttest / Trainer". Speicherung als zwei bzw. drei
+    // Zeilen in prevention_test_results (bp_systolic, bp_diastolic, resting_hr).
+    function vitalsNormTableHtml(rows, activeFn) {
+      return `<table style="width:100%; border-collapse:collapse; font-size:0.78rem; margin:6px 0 0;">
+        ${rows.map((r) => `<tr style="${activeFn && activeFn(r) ? 'background:rgba(200,160,60,0.18); font-weight:600;' : ''}"><td style="padding:3px 6px; border-bottom:1px solid var(--color-border);">${escapeHtml(r.label)}</td><td style="padding:3px 6px; border-bottom:1px solid var(--color-border); text-align:right;">${escapeHtml(r.range)}</td></tr>`).join('')}
+      </table>`;
+    }
+
+    function vitalsCardHtml(latest, results, ageYears, sex) {
+      const bpSeries = bloodPressureSeries(results);
+      const lastBp = bpSeries[bpSeries.length - 1] || null;
+      const bpEval = lastBp ? evaluateBloodPressure(lastBp.systolic, lastBp.diastolic) : null;
+      const hrRow = latest.resting_hr || null;
+      const hrEval = hrRow ? evaluateRestingHeartRate(ageYears, sex, hrRow.value) : null;
+      const hrRef = restingHrReferenceRows(ageYears, sex);
+      const bpAgeTable = bloodPressureAgeTable(ageYears, sex);
+      const who = (v) => (v === 'trainer' ? 'Trainer/Coach' : 'Selbsttest');
+      const newest = [lastBp ? lastBp.date : null, hrRow ? hrRow.measured_at : null].filter(Boolean).sort().pop() || null;
+      const hrPoints = results.filter((r) => r.test_key === 'resting_hr').map((r) => ({ date: r.measured_at, value: r.value }));
+      const sysPoints = bpSeries.map((b) => ({ date: b.date, value: b.systolic }));
+      const diaPoints = bpSeries.map((b) => ({ date: b.date, value: b.diastolic }));
+      const today = new Date().toISOString().slice(0, 10);
+      return `
+        <div class="card mt-24 pv-test-card" data-test-key="vitals">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+            <h3 style="margin:0; font-size:1rem;">Blutdruck &amp; Ruhepuls</h3>
+            ${newest ? `<span class="status-pill ${isStale(newest) ? 'under' : 'active'}">${isStale(newest) ? 'älter als 12 Wochen' : 'aktuell'}</span>` : ''}
+          </div>
+          <p style="color:var(--color-text-muted); font-size:0.8rem; margin:8px 0 0;">Optionale Vitalwerte – sie fließen in den Präventions-Score und in die Berichte ein.</p>
+          <details class="qn-details mt-16"><summary>Messprotokoll &amp; Normtabellen ansehen</summary>
+            <div style="padding:10px 0 0; font-size:0.85rem;">
+              <p><strong>Blutdruck – Ausführung:</strong> ${escapeHtml(VITAL_PROTOCOLS.bp.ausfuehrung)}</p>
+              <p style="color:var(--color-danger);"><strong>Hinweis:</strong> ${escapeHtml(VITAL_PROTOCOLS.bp.hinweis)}</p>
+              <p style="margin-bottom:0;"><strong>Normtabelle Blutdruck (Einteilung DGK/Deutsche Hochdruckliga, Erwachsene)</strong></p>
+              ${vitalsNormTableHtml(BP_REFERENCE_ROWS, (r) => bpEval && bpEval.category === r.category)}
+              ${bpAgeTable ? `<p style="margin:12px 0 0;"><strong>Durchschnittswerte der Bevölkerung (${sex === 'female' ? 'Frauen' : 'Männer'}, nach Alter)</strong> – zur Orientierung, keine Zielwerte</p>${vitalsNormTableHtml(bpAgeTable, (r) => r.active)}` : `<p style="color:var(--color-text-muted); font-size:0.8rem;">Die Altersmittelwerte werden mit Geschlechtsangabe angezeigt.</p>`}
+              <p style="color:var(--color-text-muted); font-size:0.78rem;">Quelle: ${escapeHtml(BP_SOURCE)}</p>
+              <p class="mt-16"><strong>Ruhepuls – Ausführung:</strong> ${escapeHtml(VITAL_PROTOCOLS.hr.ausfuehrung)}</p>
+              <p style="color:var(--color-danger);"><strong>Hinweis:</strong> ${escapeHtml(VITAL_PROTOCOLS.hr.hinweis)}</p>
+              ${hrRef ? `
+              <p style="margin-bottom:0;"><strong>Normtabelle Ruhepuls für dein Geschlecht</strong> (niedriger ist günstiger; Normalwert Erwachsene: ${sex === 'female' ? '75' : '70'} pro Minute)</p>
+              ${vitalsNormTableHtml(hrRef, (r) => hrEval && hrEval.bandFound && hrEval.label === r.label)}` : `<p style="color:var(--color-text-muted); font-size:0.8rem;">Die Ruhepuls-Normtabelle wird mit Geschlechtsangabe angezeigt.${!isKnownSex(sex) ? ' ' + escapeHtml(SEX_HINT_TEXT) + ' <a href="dashboard.html">Zur Startseite</a>' : ''}</p>`}
+              <p style="color:var(--color-text-muted); font-size:0.78rem;">Quelle: ${escapeHtml(RHR_SOURCE)}</p>
+            </div>
+          </details>
+          <div class="grid-2 mt-16">
+            <div class="result-box">
+              <div style="font-size:0.78rem; color:var(--color-text-muted); margin-bottom:4px;">Blutdruck</div>
+              ${lastBp ? `
+                <div class="big" style="font-size:1.3rem;">${Math.round(lastBp.systolic)}/${Math.round(lastBp.diastolic)} mmHg</div>
+                <div style="font-size:0.85rem; margin-top:4px;">Einstufung: <strong>${escapeHtml(bpEval.label)}</strong></div>
+                <div style="font-size:0.72rem; color:var(--color-text-muted); margin-top:4px;">${escapeHtml(bpEval.note)}</div>
+                <div style="font-size:0.75rem; color:var(--color-text-muted); margin-top:4px;">Gemessen am ${formatDateOnly(lastBp.date)} · ${who(lastBp.measuredBy)}</div>
+              ` : '<p style="color:var(--color-text-muted); font-size:0.85rem; margin:0;">Noch kein Wert eingetragen.</p>'}
+            </div>
+            <div class="result-box">
+              <div style="font-size:0.78rem; color:var(--color-text-muted); margin-bottom:4px;">Ruhepuls</div>
+              ${hrRow ? `
+                <div class="big" style="font-size:1.3rem;">${Math.round(hrRow.value)} bpm</div>
+                ${hrEval && hrEval.needsSex ? `<div style="font-size:0.8rem; color:var(--color-gold); margin-top:4px;">${escapeHtml(SEX_HINT_TEXT)} <a href="dashboard.html">Zur Startseite</a></div>` : hrEval && hrEval.bandFound ? `<div style="font-size:0.85rem; margin-top:4px;">Einstufung: <strong>${escapeHtml(hrEval.label)}</strong></div><div style="font-size:0.72rem; color:var(--color-text-muted); margin-top:4px;">${escapeHtml(hrEval.note)}</div>` : `<div style="font-size:0.8rem; color:var(--color-text-muted); margin-top:4px;">${escapeHtml(hrEval ? hrEval.label : '')}</div>`}
+                <div style="font-size:0.75rem; color:var(--color-text-muted); margin-top:4px;">Gemessen am ${formatDateOnly(hrRow.measured_at)} · ${who(hrRow.measured_by)}</div>
+              ` : '<p style="color:var(--color-text-muted); font-size:0.85rem; margin:0;">Noch kein Wert eingetragen.</p>'}
+            </div>
+          </div>
+          ${sysPoints.length >= 2 ? `<div class="grid-2 mt-16"><div><div style="font-size:0.72rem; color:var(--color-text-muted);">Verlauf systolisch</div>${miniSparklineHtml(sysPoints, 'mmHg')}</div><div><div style="font-size:0.72rem; color:var(--color-text-muted);">Verlauf diastolisch</div>${miniSparklineHtml(diaPoints, 'mmHg')}</div></div>` : ''}
+          ${hrPoints.length >= 2 ? `<div class="mt-16"><div style="font-size:0.72rem; color:var(--color-text-muted);">Verlauf Ruhepuls</div>${miniSparklineHtml(hrPoints, 'bpm')}</div>` : ''}
+          <form class="vitals-entry-form mt-16">
+            <div class="grid-2">
+              <div class="field"><label>Blutdruck systolisch (oberer Wert, mmHg)</label><input type="number" step="1" min="60" max="260" class="vt-sys" inputmode="numeric" /></div>
+              <div class="field"><label>Blutdruck diastolisch (unterer Wert, mmHg)</label><input type="number" step="1" min="30" max="160" class="vt-dia" inputmode="numeric" /></div>
+              <div class="field"><label>Ruhepuls (Schläge pro Minute)</label><input type="number" step="1" min="25" max="220" class="vt-hr" inputmode="numeric" /></div>
+              <div class="field"><label>Datum</label><input type="date" class="vt-date" value="${today}" required /></div>
+              <div class="field"><label>Wer hat gemessen?</label>
+                <select class="vt-measured-by">
+                  <option value="client">Selbsttest</option>
+                  <option value="trainer">Trainer/Coach</option>
+                </select>
+              </div>
+            </div>
+            <p class="vt-msg" style="font-size:0.78rem; color:var(--color-danger); margin:6px 0 0;"></p>
+            <button class="btn secondary small-btn" type="submit">Vitalwerte speichern</button>
+          </form>
+        </div>
+      `;
+    }
+
+    function bindVitalsForm(el, clientId, { isAdminView }) {
+      const form = el.querySelector('.vitals-entry-form');
+      if (!form) return;
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const msg = form.querySelector('.vt-msg');
+        const num = (sel) => { const v = form.querySelector(sel).value; return v === '' ? null : parseFloat(v); };
+        const sys = num('.vt-sys'), dia = num('.vt-dia'), hr = num('.vt-hr');
+        if (sys == null && dia == null && hr == null) { msg.textContent = 'Bitte Blutdruck und/oder Ruhepuls eintragen.'; return; }
+        if ((sys == null) !== (dia == null)) { msg.textContent = 'Für den Blutdruck bitte beide Werte (systolisch und diastolisch) eintragen.'; return; }
+        if (sys != null && (sys < 60 || sys > 260 || dia < 30 || dia > 160 || dia >= sys)) { msg.textContent = 'Blutdruck unplausibel – bitte prüfen (systolisch muss größer als diastolisch sein).'; return; }
+        if (hr != null && (hr < 25 || hr > 220)) { msg.textContent = 'Ruhepuls unplausibel – bitte prüfen.'; return; }
+        msg.textContent = '';
+        const measuredBy = form.querySelector('.vt-measured-by').value;
+        const measuredAt = form.querySelector('.vt-date').value;
+        const rows = [];
+        if (sys != null) {
+          rows.push({ clientId, testKey: 'bp_systolic', value: sys, measuredBy, measuredAt });
+          rows.push({ clientId, testKey: 'bp_diastolic', value: dia, measuredBy, measuredAt });
+        }
+        if (hr != null) rows.push({ clientId, testKey: 'resting_hr', value: hr, measuredBy, measuredAt });
+        const btn = form.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        const { error } = await insertPreventionResultsBatch(rows);
+        if (error) { alert('Fehler: ' + error.message); btn.disabled = false; return; }
         renderTestsSection(el, clientId, { isAdminView });
       });
     }
@@ -2203,7 +2833,7 @@
       const birthDate = profileRow ? profileRow.birth_date : null;
       const ageYears = calcAge(birthDate);
       const latestBodyMeasurement = (bodyMeasurements || [])[(bodyMeasurements || []).length - 1] || null;
-      const sex = latestBodyMeasurement ? latestBodyMeasurement.sex : null;
+      const sex = (await loadProfileBasics(clientId)).sex;
 
       const results = allResults || [];
       const latest = latestByKey(results);
@@ -2213,7 +2843,7 @@
       // der Kundendatei der Traineransicht (dieselbe Berechnung, siehe
       // js/prevention.js getStaleTestSummary()).
       const staleItems = [];
-      [...STRENGTH_TESTS, ...MOBILITY_TESTS, ...CARDIO_TESTS].forEach((t) => {
+      [...STRENGTH_TESTS, ...MOBILITY_TESTS, ...CARDIO_TESTS].filter(isRequiredTest).forEach((t) => {
         const sides = t.hasSide ? ['left', 'right'] : [null];
         sides.forEach((side) => {
           const key = side ? `${t.key}:${side}` : t.key;
@@ -2225,8 +2855,12 @@
       });
 
       el.innerHTML = `
-        ${staleItems.length > 0 ? `
+        ${!isKnownSex(sex) ? `
         <div class="card" style="border-color: rgba(200,124,0,0.4);">
+          <p style="font-size:0.85rem; margin:0; color:var(--color-text-muted);">${escapeHtml(SEX_HINT_TEXT)} <a href="dashboard.html">Zur Startseite</a>${isAdminView ? ' (Trainer/Coach: im Reiter „Präventionscheck" des Kunden ergänzbar.)' : ''}</p>
+        </div>` : ''}
+        ${staleItems.length > 0 ? `
+        <div class="card mt-24" style="border-color: rgba(200,124,0,0.4);">
           <h3 style="font-size:0.95rem; margin:0 0 8px; color:var(--color-gold);">Erinnerung: Tests aktualisieren</h3>
           <p style="color:var(--color-text-muted); font-size:0.78rem; margin:0 0 8px;">Diesen Hinweis siehst du auch als Banner im Nachrichten-Tab${isAdminView ? ', dein Trainer sieht ihn ebenfalls in deiner Kundendatei' : ''}.</p>
           <ul style="margin:0; padding-left:18px; font-size:0.85rem; color:var(--color-text-muted);">
@@ -2238,16 +2872,20 @@
         </div>`}
 
         <h2 class="mt-24" style="font-size:1.1rem;">Kraftausdauertests</h2>
-        ${STRENGTH_TESTS.map((t) => strengthTestCardHtml(t, latest[t.key], ageYears, sex, results)).join('')}
+        ${STRENGTH_TESTS.map((t) => strengthTestCardHtml(t, latest, ageYears, sex, results)).join('')}
 
         <h2 class="mt-24" style="font-size:1.1rem;">Herz-Kreislauf-Fitness</h2>
         ${cardioTestCardHtml(latest.cardio_fitness, ageYears, sex, latestBodyMeasurement ? latestBodyMeasurement.weight_kg : null, results)}
 
+        <h2 class="mt-24" style="font-size:1.1rem;">Blutdruck &amp; Ruhepuls</h2>
+        ${vitalsCardHtml(latest, results, ageYears, sex)}
+
         <h2 class="mt-24" style="font-size:1.1rem;">Beweglichkeitstests</h2>
-        ${MOBILITY_TESTS.map((t) => mobilityTestCardHtml(t, latest, results)).join('')}
+        ${MOBILITY_TESTS.filter(isInputTest).map((t) => mobilityTestCardHtml(t, latest, results, ageYears, sex)).join('')}
       `;
 
       bindCardioTestForm(el, clientId, ageYears, sex, { isAdminView });
+      bindVitalsForm(el, clientId, { isAdminView });
 
       el.querySelectorAll('.pv-entry-form').forEach((form) => {
         form.addEventListener('submit', async (e) => {
@@ -2285,7 +2923,7 @@
 
       const latest = latestByKey(allResults || []);
       const staleItems = [];
-      [...STRENGTH_TESTS, ...MOBILITY_TESTS, ...CARDIO_TESTS].forEach((t) => {
+      [...STRENGTH_TESTS, ...MOBILITY_TESTS, ...CARDIO_TESTS].filter(isRequiredTest).forEach((t) => {
         const sides = t.hasSide ? ['left', 'right'] : [null];
         sides.forEach((side) => {
           const key = side ? `${t.key}:${side}` : t.key;
