@@ -958,3 +958,232 @@ tr.pr-row td:first-child { border-left: 3px solid var(--color-gold); }
 .subtab-access-group h4 { margin: 0 0 8px; font-size: 0.88rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-gold); }
 .subtab-access-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 0.9rem; cursor: pointer; }
 .subtab-access-row input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--color-gold); cursor: pointer; }
+
+/* ==========================================================================
+   Runde 19: Profilleiste & Kachelraster
+   Q6: schlanke Profilleiste (Geburtsdatum, Größe, Geschlecht) statt zweier
+       großer Karten – dashboard.html (renderProfileStrip).
+   Q7: symmetrisches Kachelraster der Startseite (Kunde: 2×2 bzw. 4 in einer
+       Reihe; Trainer: 3+2 bzw. 5 in einer Reihe) mit Kurztext + „Mehr“.
+       Bewusst NEUE Klassen (.tile*), weil .benefit-grid/.benefit-card auf den
+       Teaser-Seiten von Training/Ernährung/Coaching weiter genutzt werden.
+   ========================================================================== */
+
+/* Profilleiste --------------------------------------------------------------- */
+.profile-strip {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 9px 10px;
+}
+.profile-strip [hidden] { display: none; }
+.profile-strip-row { display: flex; align-items: center; gap: 8px; }
+.profile-chips { display: flex; flex: 1; min-width: 0; flex-wrap: wrap; gap: 6px; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  line-height: 1.2;
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  padding: 4px 11px;
+  white-space: nowrap;
+}
+.chip small { color: var(--color-text-muted); font-size: 0.74rem; }
+.chip-loading { color: var(--color-text-muted); border-style: dashed; }
+button.chip { cursor: pointer; }
+.chip.missing {
+  min-height: 40px;
+  border-style: dashed;
+  border-color: var(--color-gold);
+  color: var(--color-gold);
+  background: rgba(200, 124, 0, 0.06);
+  font-weight: 600;
+}
+.profile-edit-btn {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: none;
+  color: var(--color-text-muted);
+  font-size: 1.05rem;
+  cursor: pointer;
+}
+.profile-edit-btn:hover,
+.profile-edit-btn[aria-expanded="true"] { border-color: var(--color-gold); color: var(--color-gold); }
+.profile-hint { margin: 6px 4px 0; font-size: 0.74rem; color: var(--color-text-muted); line-height: 1.4; }
+.profile-hint.is-missing { color: var(--color-gold); }
+
+.profile-form { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--color-border); }
+.profile-form-grid { display: grid; grid-template-columns: 1fr; gap: 0 14px; }
+.profile-form .field { margin-bottom: 12px; }
+.profile-sex { border: 0; margin: 0 0 12px; padding: 0; min-width: 0; }
+.profile-sex legend { font-size: 0.82rem; color: var(--color-text-muted); padding: 0; margin-bottom: 5px; }
+.profile-sex-options { display: flex; gap: 8px; }
+.sex-opt { position: relative; flex: 1; cursor: pointer; }
+.sex-opt input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.sex-opt span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg);
+  font-size: 0.95rem;
+}
+.sex-opt input:checked + span {
+  border-color: var(--color-gold);
+  background: rgba(200, 124, 0, 0.12);
+  font-weight: 600;
+}
+.sex-opt input:focus-visible + span { outline: 2px solid var(--color-gold); outline-offset: 2px; }
+.profile-sex-why {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--color-gold);
+  border-radius: 6px;
+  background: var(--color-bg);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+.profile-sex-why strong { display: block; color: var(--color-text); margin-bottom: 2px; }
+.profile-form-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.profile-btn {
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text);
+  font-family: var(--font-heading);
+  font-size: 0.85rem;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+}
+.profile-btn.primary { background: var(--color-navy); border-color: var(--color-navy); color: #fff; }
+.profile-btn.primary:hover { background: var(--color-navy-light); }
+.profile-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.profile-form .msg { margin: 12px 0 0; }
+@media (min-width: 480px) {
+  .profile-form-grid { grid-template-columns: 1fr 1fr; }
+  .profile-sex-options { max-width: 360px; }
+}
+
+/* Link „Alle Erfolge & Rekorde“ in der Erfolge-Karte ------------------------- */
+.ach-all-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 8px;
+  background: var(--color-gold-light);
+  color: var(--color-navy);
+  font-family: var(--font-heading);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-decoration: none;
+}
+.ach-all-link:hover { filter: brightness(0.95); }
+.ach-all-link:focus-visible { outline: 2px solid var(--color-gold); outline-offset: 2px; }
+
+/* Kachelraster --------------------------------------------------------------- */
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  gap: 10px;
+  margin: 18px 0;
+}
+.tile-grid.mt-24 { margin-top: 24px; }
+.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 12px 12px 4px;
+  transition: border-color 0.15s ease;
+}
+.tile:hover { border-color: var(--color-gold); }
+.tile-link { display: flex; flex-direction: column; color: inherit; text-decoration: none; }
+/* gestreckter Link: die ganze Kachel ist anklickbar, „Mehr“ liegt darüber */
+.tile-link::after { content: ""; position: absolute; inset: 0; border-radius: inherit; z-index: 1; }
+.tile-link:focus-visible { outline: none; }
+.tile-link:focus-visible::after { outline: 2px solid var(--color-gold); outline-offset: 2px; }
+.tile .t-head { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
+.tile .t-ico { font-size: 1.15rem; line-height: 1; flex: 0 0 auto; }
+.tile h4.t-title {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 0.9rem;
+  line-height: 1.2;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.tile .tile-badge { font-size: 0.68rem; color: var(--color-danger); font-weight: 400; }
+.tile .t-short { font-size: 0.8rem; line-height: 1.4; color: var(--color-text-muted); overflow-wrap: break-word; hyphens: auto; }
+.tile.is-open .t-short { display: none; }
+.tile .t-full { position: relative; z-index: 2; }
+.tile .t-full[hidden] { display: none; }
+.tile .t-full p { margin: 0; font-size: 0.8rem; line-height: 1.5; color: var(--color-text-muted); overflow-wrap: break-word; hyphens: auto; }
+.tile-more {
+  position: relative;
+  z-index: 2;
+  align-self: flex-start;
+  margin: auto 0 0 -8px;
+  min-height: 40px;
+  padding: 0 8px;
+  background: none;
+  border: 0;
+  color: var(--color-gold);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tile-more:focus-visible { outline: 2px solid var(--color-gold); border-radius: 6px; }
+:root[data-theme="dark"] .tile-more { color: var(--color-gold-light); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tile-more { color: var(--color-gold-light); } }
+
+/* Trainer-Startseite: 5 Kacheln – schmal 3 + 2 (untere Reihe zentriert),
+   breit 5 in einer Reihe. */
+.tile-grid--5 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.tile-grid--5 > .tile { grid-column: span 2; }
+.tile-grid--5 > .tile:nth-child(4) { grid-column: 2 / span 2; }
+.tile-grid--5 > .tile:nth-child(5) { grid-column: 4 / span 2; }
+/* drei Spalten sind schmal: Symbol über dem Titel, etwas kleinere Schrift */
+.tile-grid--5 .t-head { flex-direction: column; align-items: flex-start; gap: 2px; }
+.tile-grid--5 h4.t-title { font-size: 0.82rem; }
+.tile-grid--5 .t-short,
+.tile-grid--5 .t-full p { font-size: 0.74rem; }
+.tile-grid--5 > .tile { padding-left: 10px; padding-right: 10px; }
+
+@media (min-width: 900px) {
+  .tile-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+  .tile-grid--5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .tile-grid--5 > .tile,
+  .tile-grid--5 > .tile:nth-child(4),
+  .tile-grid--5 > .tile:nth-child(5) { grid-column: auto; }
+  .tile-grid--5 .t-head { flex-direction: row; align-items: center; gap: 7px; }
+  .tile-grid--5 .t-short,
+  .tile-grid--5 .t-full p { font-size: 0.78rem; }
+  .tile-grid--5 > .tile { padding-left: 12px; padding-right: 12px; }
+}
+:root[data-theme="dark"] .profile-btn.primary { background: var(--color-gold-light); border-color: var(--color-gold-light); color: var(--color-navy); }
+:root[data-theme="dark"] .chip.missing,
+:root[data-theme="dark"] .profile-hint.is-missing,
+:root[data-theme="dark"] .profile-edit-btn:hover { color: var(--color-gold-light); }
