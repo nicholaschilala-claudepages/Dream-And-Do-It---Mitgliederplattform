@@ -21,6 +21,10 @@ export const SECTION_INFO = {
     title: 'Training',
     fieldName: 'training_enabled',
     heroLine: 'Technik vor Intensität — dein Plan, deine Entwicklung, sauber dokumentiert.',
+    // Runde 19 (Q7): Ein-Satz-Kurztexte für die Startseiten-Kacheln; der volle
+    // Text (clientIntro/adminIntro) steht hinter „Mehr“.
+    clientShort: 'Dein Plan, dein Tagebuch, deine Entwicklung.',
+    adminShort: 'Übungen, Plan-Vorlagen und Kunden&shy;analyse.',
     clientIntro:
       'Hier findest du deinen persönlichen Trainingsplan, trägst nach jeder Einheit Sätze, Wiederholungen, ' +
       'Gewicht oder Distanz ein — so, wie es tatsächlich war — und siehst, wie sich deine bewegten Kilos und ' +
@@ -49,6 +53,10 @@ export const SECTION_INFO = {
     title: 'Ernährung',
     fieldName: 'nutrition_enabled',
     heroLine: 'Klare Daten statt Vermutungen — für deine Ernährung genauso wie für dein Training.',
+    // Runde 19 (Q7): Ein-Satz-Kurztexte für die Startseiten-Kacheln; der volle
+    // Text (clientIntro/adminIntro) steht hinter „Mehr“.
+    clientShort: 'Kalorienbedarf, Körperfett-Verlauf, Protokoll, 30+ Rezepte.',
+    adminShort: 'Rezepte, Lebensmittel und Kunden&shy;protokolle.',
     clientIntro:
       'Hier berechnest du deinen individuellen Kalorienbedarf, verfolgst deinen Körperfettanteil nach der ' +
       'Navy-Methode, protokollierst deine Mahlzeiten mit Soll-Ist-Vergleich und findest über 30 abwechslungsreiche ' +
@@ -75,6 +83,10 @@ export const SECTION_INFO = {
     title: 'Coaching',
     fieldName: 'coaching_enabled',
     heroLine: 'Mentale Stärke ist trainierbar — genau wie Kraft und Ausdauer.',
+    // Runde 19 (Q7): Ein-Satz-Kurztexte für die Startseiten-Kacheln; der volle
+    // Text (clientIntro/adminIntro) steht hinter „Mehr“.
+    clientShort: 'Mentale Stärke, Fragebögen, Ziele nach GROW.',
+    adminShort: 'Inhalte, Fragebögen und GROW-Ziele deiner Kunden.',
     clientIntro:
       'Hier findest du Inhalte zu mentaler Stärke und persönlicher Entwicklung, kannst wissenschaftlich ' +
       'validierte Fragebögen zur Standortbestimmung ausfüllen und deine Ziele strukturiert nach dem GROW-Modell ' +
@@ -96,6 +108,31 @@ export const SECTION_INFO = {
       'Hier pflegst du die Coaching-Content-Bibliothek und siehst sowohl die verfügbaren Fragebogen-Vorlagen als ' +
       'auch die ausgefüllten Fragebögen und GROW-Ziele deiner Kunden.',
     lockedLead: 'Dieser Bereich ist für dich aktuell noch nicht freigeschaltet.',
+  },
+};
+
+/**
+ * Runde 19 (Q7): Kurztexte/Volltexte für die beiden Start-Kacheln, die keinen
+ * eigenen SECTION_INFO-Eintrag haben (Nachrichten, Trainer-Betrieb).
+ */
+export const START_TILE_EXTRAS = {
+  messages: {
+    title: 'Nachrichten',
+    clientShort: 'Direkter Austausch mit mir, immer erreichbar.',
+    clientIntro:
+      'Direkter Austausch mit mir zu deinen Leistungen — dieser Bereich ist für dich immer zugänglich, egal ' +
+      'welche anderen Bereiche freigeschaltet sind.',
+    adminShort: 'Austausch mit all deinen Kunden.',
+    adminIntro:
+      'Direkter Austausch mit all deinen Kunden zu ihren Leistungen — immer erreichbar, unabhängig von ' +
+      'Reiter-Freigaben.',
+  },
+  betrieb: {
+    title: 'Trainer-Dashboard (Betrieb)',
+    adminShort: 'Kunden&shy;übersicht, Früh&shy;warn&shy;system, Reiter-Freigabe.',
+    adminIntro:
+      'Kundenübersicht mit Aktivitäts-Frühwarnsystem, Wochenreport-Erstellung, Geräteverwaltung und die ' +
+      'Reiter-Freigabe je Kunde (Training/Ernährung/Coaching einzeln sperr-/freischaltbar).',
   },
 };
 

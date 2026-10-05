@@ -100,7 +100,7 @@ const SECTION_SUBTABS = {
  * @param {object} profile - das geladene Profil (role, training_enabled, ...)
  * @param {object} [opts]
  * @param {string} [opts.currentPage] - Schlüssel des aktuell aktiven Reiters
- *   ('dashboard' | 'training' | 'nutrition' | 'coaching' | 'messages' | 'betrieb')
+ *   ('dashboard' | 'training' | 'nutrition' | 'coaching' | 'erfolge' | 'messages' | 'betrieb')
  * @param {number} [opts.unreadMessages] - Anzahl ungelesener Nachrichten (Badge)
  * @param {number} [opts.newSignups] - Anzahl neuer, ungesichteter Anmeldungen
  *   (Badge auf dem Trainer-Dashboard-Reiter, nur für Admins relevant)
@@ -116,6 +116,10 @@ export function navTabsHtml(profile, opts) {
     { key: 'training', href: 'training.html', label: 'Training', locked: !isAdmin && !profile.training_enabled },
     { key: 'nutrition', href: 'nutrition.html', label: 'Ernährung', locked: !isAdmin && !profile.nutrition_enabled },
     { key: 'coaching', href: 'coaching.html', label: 'Coaching', locked: !isAdmin && !profile.coaching_enabled },
+    // Q5: Rekorde & Erfolge über 24 Monate (erfolge.html, eigene Tabs in der
+    // Seite) – bewusst ein einfacher Link ohne Untermenü (SECTION_SUBTABS),
+    // damit es nicht wieder zwei Menüebenen für dieselben Tabs gibt.
+    { key: 'erfolge', href: 'erfolge.html', label: 'Erfolge' },
     { key: 'messages', href: 'messages.html', label: 'Nachrichten', badge: unreadMessages },
   ];
   if (isAdmin) {
