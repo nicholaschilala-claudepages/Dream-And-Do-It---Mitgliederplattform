@@ -63,6 +63,11 @@
     .stp .stp-val:focus { outline: 2px solid var(--color-gold); outline-offset: -2px; }
     .stp[data-kind=sec] .stp-val, .stp[data-kind=m] .stp-val { width: 48px; }
     .stp .stp-unit { align-self: center; font-size: 0.6rem; color: var(--color-text-muted); margin-left: -3px; margin-right: 2px; }
+    .stp .stp-unit-toggle { cursor: pointer; background: transparent; border: 1px solid var(--color-border); border-radius: 6px; padding: 1px 5px; font: inherit; font-size: 0.62rem; font-weight: 700; color: var(--color-gold); margin-left: 0; }
+    .stp .stp-unit-toggle:hover { border-color: var(--color-gold); }
+    .dur-field { display: flex; gap: 4px; align-items: stretch; flex: 1; min-width: 150px; }
+    .dur-field input, .cardio-fields .dur-field input { flex: 1; min-width: 0; }
+    .dur-field select { flex: 0 0 auto; width: auto; }
     .stp .stp-ar { display: flex; flex-direction: column; border-left: 1px solid var(--color-border); }
     .stp .stp-ar button { flex: 1; width: 28px; min-height: 20px; border: none; background: transparent; color: var(--color-navy); font-size: 0.62rem; line-height: 1; padding: 0; cursor: pointer; }
     .stp .stp-ar button + button { border-top: 1px solid var(--color-border); }
@@ -242,7 +247,7 @@
   <div class="page">
     <div class="topbar">
       <div class="brand">
-        <img src="icons/logo-mark.png" alt="Dream And Do It Logo" onerror="this.style.display='none'" />
+        <img class="brand-mark" src="icons/logo-mark-badge.png" alt="Dream And Do It Logo" onerror="this.style.display='none'" />
         <span class="brand-text">
           <span class="brand-name">DREAM AND DO IT</span>
           <span class="brand-tagline">Training und Coaching für Ihren Erfolg</span>
@@ -331,6 +336,44 @@
     function formatDateOnly(iso) {
       return new Date(iso).toLocaleDateString('de-DE');
     }
+
+    // Dauer-Eingaben: Sekunden oder Minuten wählbar (gespeichert wird immer in Sekunden).
+    function durToSeconds(val, unit) {
+      const n = parseFloat(String(val == null ? '' : val).replace(',', '.'));
+      if (!Number.isFinite(n) || n < 0) return null;
+      return Math.round(n * (unit === 'min' ? 60 : 1));
+    }
+    function durDisplay(sec) {
+      const n = Number(sec);
+      if (!Number.isFinite(n) || n <= 0) return { value: '', unit: 's' };
+      return n >= 120 && n % 60 === 0 ? { value: String(n / 60), unit: 'min' } : { value: String(n), unit: 's' };
+    }
+    function durFieldHtml(inputHtml, unit = 's') {
+      return `<span class="dur-field">${inputHtml}<select class="dur-unit" data-prev="${unit}" aria-label="Einheit der Dauer"><option value="s" ${unit === 's' ? 'selected' : ''}>Sek.</option><option value="min" ${unit === 'min' ? 'selected' : ''}>Min.</option></select></span>`;
+    }
+    function durSecondsOf(inputEl) {
+      if (!inputEl || inputEl.value === '') return null;
+      const sel = inputEl.parentElement && inputEl.parentElement.querySelector('.dur-unit');
+      return durToSeconds(inputEl.value, sel ? sel.value : 's');
+    }
+    function setDurField(inputEl, sec) {
+      const d = durDisplay(sec);
+      inputEl.value = d.value;
+      const sel = inputEl.parentElement && inputEl.parentElement.querySelector('.dur-unit');
+      if (sel) { sel.value = d.unit; sel.dataset.prev = d.unit; }
+    }
+    // Wechselt der Trainer die Einheit, wird die angezeigte Zahl umgerechnet (2 Min. <-> 120 Sek.).
+    document.addEventListener('change', (e) => {
+      const sel = e.target.closest && e.target.closest('select.dur-unit');
+      if (!sel) return;
+      const inp = sel.parentElement.querySelector('input');
+      const prev = sel.dataset.prev || 's';
+      if (inp && inp.value !== '' && prev !== sel.value) {
+        const n = parseFloat(String(inp.value).replace(',', '.'));
+        if (Number.isFinite(n)) inp.value = String(Math.round((sel.value === 'min' ? n / 60 : n * 60) * 100) / 100);
+      }
+      sel.dataset.prev = sel.value;
+    });
 
     function formatDuration(sec) {
       if (sec == null) return '–';
@@ -1137,7 +1180,7 @@
       const unit = { sec: 's', m: 'm', kg: 'kg', reps: '' }[kind] || '';
       return `<div class="stp" data-kind="${kind}">
         <input class="stp-val" type="text" inputmode="decimal" autocomplete="off" aria-label="${escapeHtml(label)}" placeholder="–" value="${fmtStp(value)}" />
-        ${unit ? `<span class="stp-unit">${unit}</span>` : ''}
+        ${kind === 'sec' ? `<button type="button" class="stp-unit stp-unit-toggle" title="Einheit wechseln: Sekunden / Minuten" aria-label="Einheit wechseln: Sekunden oder Minuten">${unit}</button>` : (unit ? `<span class="stp-unit">${unit}</span>` : '')}
         <span class="stp-ar"><button type="button" class="stp-up" aria-label="${escapeHtml(label)} erhöhen">▲</button><button type="button" class="stp-dn" aria-label="${escapeHtml(label)} verringern">▼</button></span>
       </div>`;
     }
@@ -1248,7 +1291,7 @@
       ].filter(Boolean).join(' · ');
       const hasInfo = !!(ex.description || pe.notes || target);
 
-      return `<div class="xrow${allDone ? ' xrow-done' : ''}${kinds.length > 2 ? ' x3' : ''}" data-pe-id="${pe.id}" data-ex-id="${ex.id}" data-sets="${total}" data-target-sets="${N}" data-kind="${isDur ? 'dur' : 'str'}" data-rest="${pe.rest_seconds || ''}">
+      return `<div class="xrow${allDone ? ' xrow-done' : ''}${kinds.length > 2 ? ' x3' : ''}" data-pe-id="${pe.id}" data-ex-id="${ex.id}" data-sets="${total}" data-target-sets="${N}" data-kind="${isDur ? 'dur' : 'str'}" data-dur-unit="${isDur ? defaultDurUnit(pe, ex) : 's'}" data-rest="${pe.rest_seconds || ''}">
         <div class="xrow-main">
           ${thumb}
           <div class="xrow-name">
@@ -1323,6 +1366,16 @@
       restTimerHandle = setInterval(tick, 500);
     }
 
+    function durUnitPref(exId) { try { const v = localStorage.getItem('dadi-dur-unit-' + exId); return v === 'min' || v === 's' ? v : null; } catch (e) { return null; } }
+    function setDurUnitPref(exId, u) { try { localStorage.setItem('dadi-dur-unit-' + exId, u); } catch (e) { /* optional */ } }
+    // Standard: Cardio-Ziele ab 2 Minuten (glatte Minuten) in Minuten, sonst Sekunden; eigene Wahl wird je Übung gemerkt.
+    function defaultDurUnit(pe, ex) {
+      const pref = durUnitPref(ex.id);
+      if (pref) return pref;
+      const t = Number(pe.target_duration_seconds) || 0;
+      return t >= 120 && t % 60 === 0 ? 'min' : 's';
+    }
+
     function stepperStepFor(kind, current) {
       if (kind === 'reps') return 1;
       if (kind === 'kg') return current != null && current > 0 && current <= 10 ? 1.25 : 2.5;
@@ -1370,7 +1423,7 @@
           set_number: Number(setEl.dataset.set),
           reps: kind === 'str' ? (valueOf(setEl, 'reps') != null ? Math.round(valueOf(setEl, 'reps')) : null) : null,
           weight_kg: kind === 'str' && kinds.includes('kg') ? valueOf(setEl, 'kg') : null,
-          duration_seconds: kind === 'dur' ? (valueOf(setEl, 'sec') != null ? Math.round(valueOf(setEl, 'sec')) : null) : null,
+          duration_seconds: kind === 'dur' ? (valueOf(setEl, 'sec') != null ? Math.round(valueOf(setEl, 'sec') * (row.dataset.durUnit === 'min' ? 60 : 1)) : null) : null,
           distance_meters: kinds.includes('m') ? valueOf(setEl, 'm') : null,
         };
       }
@@ -1434,9 +1487,39 @@
         if (onAfterLog) onAfterLog();
       }
 
+      // Dauer-Einheit je Übung (Sekunden/Minuten): Anzeige umrechnen, geloggt wird immer in Sekunden.
+      function convertDurRow(row, from, to) {
+        if (from === to) return;
+        row.querySelectorAll('.stp[data-kind="sec"] .stp-val').forEach((inp) => {
+          const v = parseStp(inp.value);
+          if (v == null) return;
+          inp.value = fmtStp(to === 'min' ? v / 60 : v * 60);
+        });
+      }
+      function syncDurLabels(row) {
+        const u = row.dataset.durUnit === 'min' ? 'min' : 's';
+        row.querySelectorAll('.stp[data-kind="sec"] .stp-unit-toggle').forEach((b) => { b.textContent = u; });
+      }
+
       root.querySelectorAll('.xrow').forEach((row) => {
         const setsEl = row.querySelector('.xrow-sets');
         const infoEl = row.querySelector('.xrow-info');
+
+        if (row.querySelector('.stp[data-kind="sec"]')) {
+          // Werte wurden in Sekunden gerendert; auf die gewählte Einheit umstellen.
+          if (row.dataset.durUnit === 'min') convertDurRow(row, 's', 'min');
+          syncDurLabels(row);
+          row.addEventListener('click', (e) => {
+            const t = e.target.closest('.stp-unit-toggle');
+            if (!t) return;
+            const from = row.dataset.durUnit === 'min' ? 'min' : 's';
+            const to = from === 'min' ? 's' : 'min';
+            convertDurRow(row, from, to);
+            row.dataset.durUnit = to;
+            setDurUnitPref(row.dataset.exId, to);
+            syncDurLabels(row);
+          });
+        }
 
         row.querySelectorAll('.xrow-toggle').forEach((tg) => tg.addEventListener('click', () => {
           const open = setsEl.hidden;
@@ -1459,7 +1542,7 @@
           const kind = stp.dataset.kind;
           const inp = stp.querySelector('.stp-val');
           const cur = parseStp(inp.value);
-          const step = stepperStepFor(kind, cur);
+          const step = kind === 'sec' && row.dataset.durUnit === 'min' ? 1 : stepperStepFor(kind, cur);
           let next = (cur == null ? 0 : cur) + (btn.classList.contains('stp-up') ? step : -step);
           next = Math.max(0, Math.round(next * 100) / 100);
           inp.value = fmtStp(next);
@@ -1503,6 +1586,7 @@
           kinds.forEach((k) => { vals[k] = valueOf(last, k); });
           const n = all.length + 1;
           last.insertAdjacentHTML('afterend', setRowHtml(n, vals, kinds));
+          syncDurLabels(row);
           row.dataset.sets = String(n);
           row.querySelector('.row-ok').disabled = false;
           row.classList.remove('xrow-done');
@@ -1942,6 +2026,19 @@
     // mehr zusätzlich im Bereich "Meine Entwicklung" (renderAnalyticsView).
     // Die zugrundeliegenden Werte fließen unabhängig davon weiterhin in Score
     // und Körper-Visualisierung ein, nur die Eingabe-Karten werden versteckt.
+    // Runde 22 (Nachtrag): Der Trainer ist kein Kunde. In der Trainer-Ansicht
+    // dienen alle Test-/Messformulare ausschließlich dazu, eine Messung einem
+    // ausgewählten Kundenprofil zuzuweisen – "Ich selbst" gibt es dort nicht.
+    function lockMeasuredByToTrainer(el, isAdminView) {
+      if (!isAdminView || !el) return;
+      el.querySelectorAll('.pv-measured-by, .cardio-measured-by, .vt-measured-by').forEach((sel) => {
+        Array.from(sel.options).forEach((o) => { if (o.value === 'client') o.remove(); });
+        sel.value = 'trainer';
+        const label = sel.closest('.field') && sel.closest('.field').querySelector('label');
+        if (label) label.textContent = 'Gemessen von';
+      });
+    }
+
     async function renderPreventionSection(el, clientId, { isAdminView, hideLifestyleForms } = {}) {
       el.innerHTML = '<p class="center-text">Lade Präventionscheck …</p>';
 
@@ -2118,7 +2215,7 @@
                     <li><strong>Lebensstil-Faktoren</strong> (Sitzverhalten, Ernährung, Rauchen, Alkohol) – gut belegte Einflussgrößen auf Herz-Kreislauf-Gesundheit und Rückenbeschwerden.</li>
                     <li><strong>Blutdruck &amp; Ruhepuls</strong> (optional) – etablierte Vitalwerte für das Herz-Kreislauf-Risiko; Blutdruck nach der Einteilung der Deutschen Hochdruckliga/DGK, Ruhepuls nach Geschlecht (Normtabellen von praktischArzt). Du findest sie im Reiter „Tests".</li>
                   </ul>
-                  <p style="margin:0;">Jeder Bereich wird zunächst einzeln bewertet (0–100) und anschließend gewichtet gemittelt. Fehlt ein Bereich komplett (z.B. noch kein Test eingetragen), wird er ausgeschlossen und die Gewichte der übrigen Bereiche entsprechend hochskaliert – der Score bleibt so auch bei unvollständigen Daten aussagekräftig, beruht dann aber auf weniger Informationen. Die einzelnen Werte findest du in der Aufschlüsselung unten bzw. im Reiter „Tests".</p>
+                  <p style="margin:0;">Jeder Bereich wird zunächst einzeln bewertet (0–100) und anschließend gewichtet gemittelt. Fehlt ein Bereich komplett (z.B. noch kein Test eingetragen), wird er ausgeschlossen und die Gewichte der übrigen Bereiche entsprechend hochskaliert – der Score bleibt so auch bei unvollständigen Daten aussagekräftig, beruht dann aber auf weniger Informationen. Die einzelnen Werte findest du in der Aufschlüsselung unten bzw. ${isAdminView ? 'im Abschnitt „Tests &amp; Messungen"' : 'im Reiter „Tests"'}.</p>
                 </div>
               </details>
             </div>
@@ -2135,7 +2232,7 @@
                 <strong>${b.score}</strong>
               </div>
             `).join('')}
-          </div>` : total == null ? `<p style="color:var(--color-text-muted); font-size:0.85rem; margin-top:12px;">Noch keine Daten für einen Score – trage unten mindestens einen Test ein.</p>` : ''}
+          </div>` : total == null ? `<p style="color:var(--color-text-muted); font-size:0.85rem; margin-top:12px;">Noch keine Daten für einen Score – ${isAdminView ? 'trage unten mindestens einen Test für den Kunden ein.' : 'trage unten mindestens einen Test ein.'}</p>` : ''}
           <p style="font-size:0.78rem; color:var(--color-text-muted); margin-top:12px;">${ageYears != null ? `Alter: ${ageYears} Jahre` : 'Kein Geburtsdatum hinterlegt – Kraftausdauer-Benchmarks können ohne Alter nicht ausgewertet werden.'}</p>
           ${isAdminView ? `
           <div class="field" style="max-width:260px; margin-top:12px;"><label>Geschlecht (für Vergleichswerte)</label>
@@ -2158,7 +2255,7 @@
 
         <div class="card mt-24">
           <h2 style="font-size:1.05rem;">Körperliche Balance &amp; Risikofaktoren</h2>
-          <p style="color:var(--color-text-muted); font-size:0.82rem;">Zusammenfassung aus Umfangsmessungen (Körperfett-Verlauf), Beweglichkeits- und Kraftausdauertests sowie Sitz-/Schlafgewohnheiten, getrennt nach Gelenken und Muskeln dargestellt. Die Tests selbst trägst du im Reiter „Tests" ein.</p>
+          <p style="color:var(--color-text-muted); font-size:0.82rem;">Zusammenfassung aus Umfangsmessungen (Körperfett-Verlauf), Beweglichkeits- und Kraftausdauertests sowie Sitz-/Schlafgewohnheiten, getrennt nach Gelenken und Muskeln dargestellt. ${isAdminView ? 'Die Tests selbst trägst du weiter unten für diesen Kunden ein.' : 'Die Tests selbst trägst du im Reiter „Tests" ein.'}</p>
           ${bodyVisualHtml(markers, notices, { sexHint: sexHintNeeded })}
         </div>
 
@@ -2247,6 +2344,7 @@
         </div>
         `}
       `;
+      lockMeasuredByToTrainer(el, isAdminView);
 
       el.querySelectorAll('.nq-answer').forEach((sel) => {
         sel.addEventListener('change', () => {
@@ -2909,12 +3007,12 @@
       el.innerHTML = `
         ${!isKnownSex(sex) ? `
         <div class="card" style="border-color: rgba(200,124,0,0.4);">
-          <p style="font-size:0.85rem; margin:0; color:var(--color-text-muted);">${escapeHtml(SEX_HINT_TEXT)} <a href="dashboard.html">Zur Startseite</a>${isAdminView ? ' (Trainer/Coach: im Reiter „Präventionscheck" des Kunden ergänzbar.)' : ''}</p>
+          <p style="font-size:0.85rem; margin:0; color:var(--color-text-muted);">${escapeHtml(SEX_HINT_TEXT)}${isAdminView ? ' Als Trainer/Coach kannst du das Geschlecht des Kunden oben im Abschnitt „Präventionscheck" ergänzen.' : ' <a href="dashboard.html">Zur Startseite</a>'}</p>
         </div>` : ''}
         ${staleItems.length > 0 ? `
         <div class="card mt-24" style="border-color: rgba(200,124,0,0.4);">
           <h3 style="font-size:0.95rem; margin:0 0 8px; color:var(--color-gold);">Erinnerung: Tests aktualisieren</h3>
-          <p style="color:var(--color-text-muted); font-size:0.78rem; margin:0 0 8px;">Diesen Hinweis siehst du auch als Banner im Nachrichten-Tab${isAdminView ? ', dein Trainer sieht ihn ebenfalls in deiner Kundendatei' : ''}.</p>
+          <p style="color:var(--color-text-muted); font-size:0.78rem; margin:0 0 8px;">${isAdminView ? 'Dieselbe Erinnerung sieht der Kunde als Banner im Nachrichten-Tab.' : 'Diesen Hinweis siehst du auch als Banner im Nachrichten-Tab, dein Trainer sieht ihn ebenfalls in deiner Kundendatei.'}</p>
           <ul style="margin:0; padding-left:18px; font-size:0.85rem; color:var(--color-text-muted);">
             ${staleItems.map((i) => `<li>${escapeHtml(i)}</li>`).join('')}
           </ul>
@@ -2936,6 +3034,7 @@
         ${MOBILITY_TESTS.filter(isInputTest).map((t) => mobilityTestCardHtml(t, latest, results, ageYears, sex)).join('')}
       `;
 
+      lockMeasuredByToTrainer(el, isAdminView);
       bindCardioTestForm(el, clientId, ageYears, sex, { isAdminView });
       bindVitalsForm(el, clientId, { isAdminView });
 
@@ -3192,7 +3291,7 @@
         </div>
 
         <div class="row-cardio-fields hidden cardio-fields">
-          <input class="row-duration" type="number" min="0" placeholder="Dauer (Sek.)" />
+          ${durFieldHtml('<input class="row-duration" type="number" min="0" step="any" placeholder="Dauer" />')}
           <input class="row-distance" type="number" min="0" step="1" placeholder="Distanz (m)" />
           <input class="row-speed" type="number" min="0" step="0.1" placeholder="Geschwindigkeit (km/h)" />
           <input class="row-watt" type="number" min="0" placeholder="Watt" />
@@ -3312,7 +3411,8 @@
       const isCardioMode = !row.querySelector('.row-cardio-fields').classList.contains('hidden');
 
       if (isCardioMode) {
-        const duration = row.querySelector('.row-duration').value;
+        const durSec = durSecondsOf(row.querySelector('.row-duration'));
+        const duration = durSec == null ? '' : String(durSec);
         const distance = row.querySelector('.row-distance').value;
         const speed = row.querySelector('.row-speed').value;
         const watt = row.querySelector('.row-watt').value;
@@ -3367,7 +3467,7 @@
 
       const isCardioMode = !row.querySelector('.row-cardio-fields').classList.contains('hidden');
       if (isCardioMode) {
-        row.querySelector('.row-duration').value = tplEx.target_duration_seconds ?? '';
+        setDurField(row.querySelector('.row-duration'), tplEx.target_duration_seconds);
         row.querySelector('.row-distance').value = tplEx.target_distance_meters ?? '';
         row.querySelector('.row-speed').value = tplEx.target_speed_kmh ?? '';
         row.querySelector('.row-watt').value = tplEx.target_watt ?? '';
@@ -3776,7 +3876,7 @@
 
       const FIELDS = [
         ['targetSets', 'Sätze', 'number', 1], ['targetReps', 'Wdh.', 'text'], ['targetWeightHint', 'Gewicht/Hinweis', 'text'],
-        ['targetDurationSeconds', 'Dauer (Sek.)', 'number', 0], ['targetDistanceMeters', 'Distanz (m)', 'number', 0],
+        ['targetDurationSeconds', 'Dauer', 'number', 0], ['targetDistanceMeters', 'Distanz (m)', 'number', 0],
         ['targetSpeedKmh', 'km/h', 'number', 0], ['targetWatt', 'Watt', 'number', 0], ['targetHeartRatePercent', '% HFmax', 'number', 0],
       ];
 
@@ -3788,7 +3888,12 @@
         area.querySelectorAll('.pe-ex').forEach((row) => {
           const ex = model.exercises.find((x) => x.id === row.dataset.exId);
           if (!ex) return;
-          FIELDS.forEach(([f]) => { const el = row.querySelector(`[data-f="${f}"]`); if (el) ex[f] = el.value; });
+          FIELDS.forEach(([f]) => {
+            const el = row.querySelector(`[data-f="${f}"]`);
+            if (!el) return;
+            // Dauer: Einheit (Sek./Min.) berücksichtigen, im Modell immer Sekunden
+            ex[f] = f === 'targetDurationSeconds' ? (durSecondsOf(el) ?? '') : el.value;
+          });
           ex.notes = row.querySelector('[data-f="notes"]').value;
           const sel = row.querySelector('.pe-ex-day');
           ex.dayKey = sel.value || null;
@@ -3808,7 +3913,13 @@
             <button type="button" class="btn secondary small-btn pe-ex-del" title="Übung aus dem Plan entfernen" aria-label="Übung entfernen">✕</button>
           </div>
           <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(96px, 1fr)); gap:6px;">
-            ${FIELDS.map(([f, label, type, min]) => `<label style="font-size:0.7rem; color:var(--color-text-muted);">${label}<input data-f="${f}" type="${type}" ${type === 'number' ? `min="${min}" step="any"` : ''} value="${escapeHtml(String(ex[f] ?? ''))}" style="width:100%;" /></label>`).join('')}
+            ${FIELDS.map(([f, label, type, min]) => {
+              if (f === 'targetDurationSeconds') {
+                const d = durDisplay(ex[f]);
+                return `<label style="font-size:0.7rem; color:var(--color-text-muted);">${label}${durFieldHtml(`<input data-f="${f}" type="number" min="0" step="any" value="${escapeHtml(d.value)}" style="width:100%;" />`, d.unit)}</label>`;
+              }
+              return `<label style="font-size:0.7rem; color:var(--color-text-muted);">${label}<input data-f="${f}" type="${type}" ${type === 'number' ? `min="${min}" step="any"` : ''} value="${escapeHtml(String(ex[f] ?? ''))}" style="width:100%;" /></label>`;
+            }).join('')}
           </div>
           <label style="display:block; font-size:0.7rem; color:var(--color-text-muted); margin-top:6px;">Notiz / Hinweis für den Kunden<input data-f="notes" type="text" value="${escapeHtml(ex.notes || '')}" style="width:100%;" /></label>
           ${ex.logs > 0 ? `<div style="font-size:0.7rem; color:var(--color-text-muted); margin-top:4px;">${ex.logs} geloggte ${ex.logs === 1 ? 'Satz' : 'Sätze'} des Kunden zu dieser Übung</div>` : ''}
@@ -3941,7 +4052,7 @@
           <input class="add-ex-sets" type="number" min="1" placeholder="Sätze" />
           <input class="add-ex-reps" type="text" placeholder="Wdh." />
           <input class="add-ex-weight" type="text" placeholder="Gewicht/Hinweis" />
-          <input class="add-ex-duration" type="number" min="0" placeholder="Dauer (Sek.)" />
+          ${durFieldHtml('<input class="add-ex-duration" type="number" min="0" step="any" placeholder="Dauer" />')}
           <button class="btn small-btn add-ex-submit" type="button">Hinzufügen</button>
         </div>
       `;
@@ -3955,7 +4066,7 @@
           targetSets: area.querySelector('.add-ex-sets').value,
           targetReps: area.querySelector('.add-ex-reps').value,
           targetWeightHint: area.querySelector('.add-ex-weight').value,
-          targetDurationSeconds: area.querySelector('.add-ex-duration').value ? parseInt(area.querySelector('.add-ex-duration').value, 10) : null,
+          targetDurationSeconds: durSecondsOf(area.querySelector('.add-ex-duration')),
           sortOrder: nextSort,
         });
         if (error) { alert('Fehler: ' + error.message); return; }
@@ -4168,8 +4279,11 @@
           <p style="color:var(--color-text-muted); font-size:0.82rem; margin:-4px 0 12px;">Beweglichkeit und Kraftausdauer über die Zeit – insgesamt sowie je Gelenk/Übung, auf Basis deiner Testhistorie im Reiter „Tests".</p>
           <div id="trends-section"></div>
 
+          ${isAdminView ? `
+          <h2 class="mt-24" style="font-size:1.15rem;">Tests &amp; Messungen für diesen Kunden</h2>
+          <p style="color:var(--color-text-muted); font-size:0.82rem; margin:-4px 0 12px;">Hier trägst du als Trainer/Coach Tests und Messungen ausschließlich für den oben ausgewählten Kunden ein – sie werden dessen Profil zugewiesen und als „vom Trainer gemessen" gekennzeichnet.</p>` : `
           <h2 class="mt-24" style="font-size:1.15rem;">Tests – Erinnerung</h2>
-          <p style="color:var(--color-text-muted); font-size:0.82rem; margin:-4px 0 12px;">Nur ein Status-Hinweis – Tests selbst werden im eigenen Reiter „Tests" eingetragen, nicht hier.</p>
+          <p style="color:var(--color-text-muted); font-size:0.82rem; margin:-4px 0 12px;">Nur ein Status-Hinweis – Tests selbst werden im eigenen Reiter „Tests" eingetragen, nicht hier.</p>`}
           <div id="tests-section"></div>
         `;
 
@@ -4199,11 +4313,14 @@
         renderProgressChart(logs);
         renderDysbalanceSection(logs);
         const preventionEl = document.getElementById('prevention-section');
-        if (preventionEl) renderPreventionSection(preventionEl, clientId, { isAdminView, hideLifestyleForms: true });
+        if (preventionEl) renderPreventionSection(preventionEl, clientId, { isAdminView, hideLifestyleForms: !isAdminView });
         const trendsEl = document.getElementById('trends-section');
         if (trendsEl) renderTrendsSection(trendsEl, clientId);
         const testsEl = document.getElementById('tests-section');
-        if (testsEl) renderTestsReminder(testsEl, clientId, { isAdminView });
+        if (testsEl) {
+          if (isAdminView) renderTestsSection(testsEl, clientId, { isAdminView: true });
+          else renderTestsReminder(testsEl, clientId, { isAdminView });
+        }
       }
 
       function renderProgressChart(logs) {

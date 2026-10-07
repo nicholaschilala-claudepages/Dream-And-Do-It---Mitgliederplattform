@@ -5,7 +5,7 @@
 // neue Version bekommen.
 // ============================================================================
 
-const CACHE_NAME = 'dadi-plattform-v46';
+const CACHE_NAME = 'dadi-plattform-v48';
 const APP_SHELL = [
   './',
   'index.html',
@@ -55,6 +55,7 @@ const APP_SHELL = [
   'vendor/jspdf-2.5.1.umd.min.js',
   'icons/nicholas-portrait.jpg',
   'icons/logo-mark.png',
+  'icons/logo-mark-badge.png',
   'icons/icon-192.png',
   'icons/icon-512.png',
   'icons/icon-maskable-512.png',
