@@ -4,14 +4,15 @@
 # Ablauf: Dump (Tabellen im Schema "public" + Konten aus "auth") -> Packen ->
 #         Verschlüsseln (AES-256, Passphrase) -> Entschlüsselungs-Probe ->
 #         Upload zu Google Drive (rclone) -> Upload-Kontrolle.
-# Es wird NIEMALS etwas gelöscht, außer Du setzt ausdrücklich KEEP_DAYS.
+# Es wird nur gelöscht, wenn KEEP_DAYS gesetzt ist. Der GitHub-Workflow setzt
+# KEEP_DAYS standardmäßig auf 365 (Vorgabe von Nicholas, passend zu den Datenschutzhinweisen).
 #
 # Benötigte Umgebungsvariablen:
 #   SUPABASE_DB_URL      Verbindungs-URI (Session Pooler, Port 5432)
 #   BACKUP_PASSPHRASE    Passphrase für die Verschlüsselung
 #   RCLONE_GDRIVE_TOKEN  rclone-Token (JSON) für Google Drive – nicht nötig bei SKIP_UPLOAD=1
 # Optional:
-#   GDRIVE_FOLDER (Standard: DreamAndDoIt-Backups), KEEP_DAYS (Standard: leer = nie löschen),
+#   GDRIVE_FOLDER (Standard: DreamAndDoIt-Backups), KEEP_DAYS (lokal: leer = nie löschen; im GitHub-Workflow Standard 365),
 #   AUTH_TABLES (Standard: "auth.users auth.identities"), SKIP_UPLOAD=1, OUT_DIR,
 #   ALLOW_EMPTY=1 (erlaubt eine Sicherung ohne Kundenkonten)
 set -euo pipefail
