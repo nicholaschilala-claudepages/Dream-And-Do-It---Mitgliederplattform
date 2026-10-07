@@ -8,6 +8,7 @@ Ergebnis in icons/:
   logo-full-darkbg.png   Vollversion für dunkle Flächen (transparent; das dunkelblaue
                          Tropfen-Element und die Tagline werden hell, Gold bleibt)
   logo-mark.png          nur das runde Zeichen für dunkle Flächen (Kopfzeile)
+  logo-mark-badge.png    nur das Zeichen in Originalfarben, klein (Kopfzeile, weißes Badge per CSS)
   logo-mark-light.png    nur das runde Zeichen, Originalfarben, weißer Grund (Quelle für App-Icons)
 Danach:  python3 tools/make-icons.py icons/logo-mark-light.png
 """
@@ -73,6 +74,7 @@ def main(src):
     to_rgba_for_dark(full).resize((1000, round(full.height * 1000 / full.width)), Image.LANCZOS).save('icons/logo-full-darkbg.png', optimize=True)
     to_rgba_for_dark(mark).resize((320, round(mark.height * 320 / mark.width)), Image.LANCZOS).save('icons/logo-mark.png', optimize=True)
     scaled(mark, 1024).save('icons/logo-mark-light.png', optimize=True)
+    scaled(mark, 300).save('icons/logo-mark-badge.png', optimize=True)  # Kopfzeile: Originalfarben auf weißem Badge
     print('ok', full_box, mark_box)
 
 if __name__ == '__main__':
