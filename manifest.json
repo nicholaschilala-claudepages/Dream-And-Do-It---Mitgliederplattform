@@ -1,6 +1,6 @@
 {
   "name": "Dream And Do It – Kundenplattform",
-  "short_name": "DADI Plattform",
+  "short_name": "Dream And Do It",
   "description": "Training, Ernährung und Coaching für Dream-And-Do-It-Kunden",
   "start_url": "index.html",
   "scope": ".",
@@ -13,13 +13,19 @@
       "src": "icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

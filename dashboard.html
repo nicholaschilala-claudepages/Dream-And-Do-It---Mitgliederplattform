@@ -2,13 +2,16 @@
 <html lang="de" data-theme="light">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="base-uri 'self'; object-src 'none'; form-action 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dashboard – Dream And Do It</title>
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#053446" />
-  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="stylesheet" href="css/styles.css" />
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script type="module" src="js/icons.js"></script>
+  <script src="vendor/supabase-js-2.117.2.min.js"></script>
 </head>
 <body>
   <div class="page">
@@ -41,7 +44,9 @@
     import { getUnreadCount } from './js/messages.js';
     import { getNewSignupCount } from './js/betrieb.js';
     import { navTabsHtml, bindNavSubmenus } from './js/nav.js';
-    import { SECTION_INFO, START_TILE_EXTRAS, welcomeParagraphs } from './js/section-info.js';
+    import { SECTION_INFO, START_TILE_EXTRAS, welcomeParagraphs, hydrateSectionInfo, loadSectionCounts, platformOverview } from './js/section-info.js';
+    import { renderInterestsCard, messageLink } from './js/recommendations.js';
+    import { computeNextStep, nextStepHtml, maybeShowOnboarding } from './js/onboarding.js';
     import { collapsibleHtml, initCollapsibles } from './js/collapsible.js';
     // Nutzer-Feedback Runde 14: Geburtsdatum wird jetzt auf der Startseite
     // erfasst (statt nur im Präventionscheck) und von dort für PAL-Rechner
@@ -155,6 +160,7 @@
       // (siehe #nav-tabs-slot / js/nav.js), die jetzt auf jeder Seite verfügbar ist.
       initCollapsibles(container);
       bindTiles(container);
+      hydrateSectionInfo(container);
     }
 
     // Runde 19 (Q7): gemeinsame Kachel-Komponente für Kunden- und Trainer-
@@ -169,6 +175,7 @@
           <a class="tile-link" href="${escapeHtml(t.href)}">
             <span class="t-head"><span class="t-ico" aria-hidden="true">${t.icon}</span><h4 class="t-title">${escapeHtml(t.title)}${t.badge || ''}</h4></span>
             <span class="t-short">${t.short}</span>
+            ${['training', 'nutrition', 'coaching'].includes(t.key) ? `<span class="t-facts" data-tile-facts="${escapeHtml(t.key)}"></span>` : ''}
           </a>
           <div class="t-full" id="${fullId}" hidden><p>${t.full}</p></div>
           <button type="button" class="tile-more" aria-expanded="false" aria-controls="${fullId}">Mehr ▾</button>
@@ -210,6 +217,7 @@
       ];
 
       container.innerHTML = `
+        <div id="next-step-slot"></div>
         <div class="welcome-card">
           <div class="welcome-card-header">
             <img class="welcome-card-photo" src="icons/nicholas-portrait.jpg" alt="Nicholas Chilala" />
@@ -272,6 +280,7 @@
             <a class="icon-btn" style="text-decoration:none;" href="coaching.html?tab=ziele">Alle Ziele öffnen →</a>
           </div>
           <div id="grow-summary-list" class="mt-16"><p class="center-text" style="font-size:0.85rem;">Lade Ziele …</p></div>
+          <div id="reco-slot"></div>
         </div>
 
         <div class="card mt-24" id="achievements-summary-card">
@@ -281,6 +290,8 @@
           </div>
           <div id="achievements-summary-list" class="mt-16"><p class="center-text" style="font-size:0.85rem;">Lade Erfolge …</p></div>
         </div>
+
+        <div class="card mt-24 access-card" id="access-overview-card" hidden></div>
 
         <div class="tile-grid mt-24">
           ${[
@@ -308,6 +319,70 @@
       renderProfileStrip(profile);
       renderGrowSummary(profile);
       renderAchievementsCard(profile);
+      renderAccessOverview(profile);
+      hydrateSectionInfo(container);
+      renderNextStep(profile);
+      maybeShowOnboarding(profile);
+    }
+
+    // Runde 22: „Dein nächster Schritt“ – genau ein Vorschlag, der zum Stand
+    // des Kunden passt (siehe computeNextStep in js/onboarding.js). Schlägt
+    // eine Abfrage fehl, bleibt die Karte einfach weg.
+    async function renderNextStep(profile) {
+      const slot = document.getElementById('next-step-slot');
+      if (!slot) return;
+      try {
+        let basics = await supabaseClient.from('profiles').select('birth_date, height_cm, sex').eq('id', profile.id).maybeSingle();
+        if (basics.error && /sex/i.test(basics.error.message || '')) {
+          basics = await supabaseClient.from('profiles').select('birth_date, height_cm').eq('id', profile.id).maybeSingle();
+        }
+        const row = basics.data || {};
+        const hasBasics = !!(row.birth_date && row.height_cm != null);
+        const { data: goals } = profile.coaching_enabled ? await listMyGoals(profile.id) : { data: [] };
+        let trainingLogs = 1;
+        if (profile.training_enabled) {
+          const r = await supabaseClient.from('training_logs').select('id', { count: 'exact', head: true }).eq('client_id', profile.id);
+          if (!r.error && typeof r.count === 'number') trainingLogs = r.count;
+        }
+        const step = computeNextStep(profile, { hasBasics, goalsCount: (goals || []).length, trainingLogs });
+        slot.innerHTML = nextStepHtml(step);
+        const act = slot.querySelector('[data-next-action="profile"]');
+        if (act) {
+          act.addEventListener('click', (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('profile-edit-btn');
+            const strip = document.getElementById('profile-strip');
+            if (strip) strip.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (btn && btn.getAttribute('aria-expanded') !== 'true') btn.click();
+          });
+        }
+      } catch (e) { slot.innerHTML = ''; }
+    }
+
+    // Runde 21 / Q12: „Dein Zugang auf einen Blick“ – was steht dem Kunden zur
+    // Verfügung, was käme mit den noch nicht freigeschalteten Rubriken dazu.
+    async function renderAccessOverview(profile) {
+      const card = document.getElementById('access-overview-card');
+      if (!card) return;
+      try {
+        const counts = await loadSectionCounts();
+        const ov = platformOverview(counts, profile);
+        const names = { training: 'Training', nutrition: 'Ernährung', coaching: 'Coaching' };
+        const list = (pack) => pack.items.map((i) => `${i.value.toLocaleString('de-DE')} ${i.label}`).join(' · ');
+        let html = `<h3>Dein Zugang auf einen Blick</h3>`;
+        if (ov.have.length > 0) {
+          html += `<p class="access-line">Dir stehen aktuell <b>${ov.available.features} Funktionen</b> zur Verfügung${ov.available.items.length ? ': ' + list(ov.available) : ''}.</p>`;
+        }
+        if (ov.missing.length > 0) {
+          const missingNames = ov.missing.map((k) => names[k]).join(' und ');
+          const ask = `Hallo Nicholas, ich interessiere mich für ${ov.missing.length > 1 ? 'die Bereiche' : 'den Bereich'} ${missingNames}. Wie kann ich ${ov.missing.length > 1 ? 'sie' : 'ihn'} bekommen?`;
+          html += `<div class="access-more">Mit <b>${escapeHtml(missingNames)}</b> kämen noch <b>${ov.potential.features - (counts.features ? counts.features.platform : 0)} weitere Funktionen</b> dazu${ov.potential.items.filter((i) => !/Erfolge/.test(i.label)).length ? ': ' + list({ items: ov.potential.items.filter((i) => !/Erfolge/.test(i.label)) }) : ''}. <a href="${escapeHtml(messageLink('Sonstiges', ask))}">Interesse? Jetzt nachfragen →</a></div>`;
+        } else {
+          html += `<p class="access-line" style="color:var(--color-text-muted);">Du hast Zugriff auf alle Rubriken – nutze sie voll aus.</p>`;
+        }
+        card.innerHTML = html;
+        card.hidden = false;
+      } catch (e) { card.hidden = true; }
     }
 
     // Runde 16: berechnet alle Erfolge aus bereits vorhandenen Daten (nur für
@@ -381,6 +456,8 @@
       if (error) { listEl.innerHTML = `<div class="msg error">${escapeHtml(error.message)}</div>`; return; }
 
       const active = (goals || []).filter((g) => g.status === 'active');
+      // Runde 21 / Q13: ist ein Ziel aktiv, erscheint die Interessen-Auswahl samt Empfehlungen.
+      renderInterestsCard(document.getElementById('reco-slot'), { profile, viewer: profile, adminView: false, hasActiveGoal: active.length > 0 });
       const shown = (active.length > 0 ? active : (goals || [])).slice(0, 3);
 
       if (shown.length === 0) {
@@ -526,9 +603,7 @@
     }
 
     function escapeHtml(str) {
-      const div = document.createElement('div');
-      div.textContent = str;
-      return div.innerHTML;
+      return String(str == null ? '' : str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
 
     if ('serviceWorker' in navigator) {
@@ -537,5 +612,6 @@
       });
     }
   </script>
+  <script type="module" src="js/legal-links.js"></script>
 </body>
 </html>

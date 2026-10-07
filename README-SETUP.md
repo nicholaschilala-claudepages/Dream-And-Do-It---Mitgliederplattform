@@ -62,3 +62,8 @@ genannten Pixelgrößen exportiert), Dateinamen beibehalten.
 
 Trainingsbereich: Übungsbibliothek, personalisierte Plan-Zuweisung, Tracking
 von Wiederholungen/Gewicht/Datum, offline-fähig.
+
+## Datensicherung & Sicherheit (Runde 22)
+
+* `BACKUP-UND-WIEDERHERSTELLUNG.md` – automatische, verschlüsselte Tagessicherung nach Google Drive (GitHub Actions, `.github/workflows/backup-supabase.yml`, `tools/backup/`) inkl. Einrichtung und Wiederherstellung.
+* `sql/056_sicherheitspruefung_runde22.sql` – Sicherheitskorrekturen aus der Prüfung (nach 052–055 im SQL Editor ausführen). Details: `sicherheitspruefung-runde-22.md`.

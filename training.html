@@ -2,17 +2,20 @@
 <html lang="de" data-theme="light">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="base-uri 'self'; object-src 'none'; form-action 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Training – Dream And Do It</title>
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#053446" />
-  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="stylesheet" href="css/styles.css" />
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script type="module" src="js/icons.js"></script>
+  <script src="vendor/supabase-js-2.117.2.min.js"></script>
   <!-- Runde 15: für den On-Demand-Monatsbericht (js/monthly-report.js) — analog
        zum bestehenden Wochenreport in betrieb.html, per CDN wie überall sonst
        in dieser Plattform, kein zusätzlicher Build-Schritt nötig. -->
-  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="vendor/jspdf-2.5.1.umd.min.js"></script>
   <style>
     :root { --chart-teal: #1479a3; }
     .plan-card { margin-bottom: 20px; }
@@ -270,7 +273,7 @@
       listClients,
       listTemplates, getTemplate, createTemplate, updateTemplate, deleteTemplate,
       listMyActivePlans, listPlansForAdmin, getPlanForAdmin, createPlan, assignTemplateToClient,
-      addExerciseToPlan, removePlanExercise, setPlanActive,
+      addExerciseToPlan, removePlanExercise, setPlanActive, savePlanEdits, countLogsPerPlanExercise,
       insertTrainingLog, insertTrainingLogs, listMyTrainingLogs, listMyRecentSessions, listLogsForPlanExercises,
       getActiveSession, startSession, endSession, listLogsForAnalytics, listSessions,
       listAllTrainingLogsForRecords, computePersonalRecords, prLogIdSet, computeTrainingStreak,
@@ -279,10 +282,11 @@
     import { getUnreadCount } from './js/messages.js';
     import { getNewSignupCount } from './js/betrieb.js';
     import { navTabsHtml, bindNavSubmenus } from './js/nav.js';
-    import { SECTION_INFO } from './js/section-info.js';
+    import { celebrateSessionComplete, computeSessionStats, buildHighlights, miniSetDone, miniRowDone, miniPr } from './js/celebrate.js';
+    import { SECTION_INFO, hydrateSectionInfo } from './js/section-info.js';
     import { listMyBodyMeasurements, listNutritionLogs, getLatestEnergyTarget } from './js/nutrition.js';
     import { buildMonthlyReportPdf } from './js/monthly-report.js';
-    import { awardAchievement } from './js/achievements.js';
+    import { awardAchievement, loadAchievementRaw, analyzeAchievements, syncEarnedAchievements } from './js/achievements.js';
     import {
       calcAge, updateBirthDate, STRENGTH_TESTS, MOBILITY_TESTS, CARDIO_TESTS, mobilityRatingLabel,
       isInputTest, isRequiredTest, mobilityRatingValue, loadProfileBasics, updateSex, isKnownSex, SEX_HINT_TEXT,
@@ -316,9 +320,7 @@
     let subtabLocks = new Set();
 
     function escapeHtml(str) {
-      const div = document.createElement('div');
-      div.textContent = str == null ? '' : String(str);
-      return div.innerHTML;
+      return String(str == null ? '' : str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
 
     function formatDate(iso) {
@@ -347,6 +349,10 @@
       lightboxImg.alt = alt || '';
       lightboxOverlay.classList.add('open');
     };
+    document.addEventListener('click', (ev) => {
+      const t = ev.target.closest && ev.target.closest('[data-lightbox-src]');
+      if (t) window.openLightbox(t.dataset.lightboxSrc, t.dataset.lightboxAlt || '');
+    });
     lightboxOverlay.addEventListener('click', () => lightboxOverlay.classList.remove('open'));
 
     // Runde 18 (Nachtrag): Übungsbilder, die trotz korrekt hinterlegter
@@ -474,8 +480,9 @@
             <span class="kicker">Wissenschaftlicher Hintergrund</span>
             <p>${info.scienceText}</p>
           </div>
+          <div class="fact-strip" data-section-facts="training" hidden></div>
           <p class="lead">${info.clientIntro}</p>
-          <div class="benefit-grid">
+          <div class="benefit-grid" data-section-benefits="training">
             ${info.benefits.map((b) => `<div class="benefit-card"><h4>${escapeHtml(b.h)}</h4><p>${escapeHtml(b.t)}</p></div>`).join('')}
           </div>
           <a class="btn mt-16" style="display:inline-block; width:auto; padding:12px 24px;" href="messages.html">
@@ -483,6 +490,7 @@
           </a>
         </div>
       `;
+      hydrateSectionInfo(container);
     }
 
     async function trySyncOfflineLogs() {
@@ -551,12 +559,14 @@
           <span class="kicker">Wissenschaftlicher Hintergrund</span>
           <p>${info.scienceText}</p>
         </div>
-        <p class="lead">${isAdmin ? info.adminIntro : info.clientIntro}</p>
+        <div class="fact-strip" data-section-facts="training" hidden></div>
+          <p class="lead">${isAdmin ? info.adminIntro : info.clientIntro}</p>
         ${isAdmin ? '' : `
-        <div class="benefit-grid">
+        <div class="benefit-grid" data-section-benefits="training">
           ${info.benefits.map((b) => `<div class="benefit-card"><h4>${escapeHtml(b.h)}</h4><p>${escapeHtml(b.t)}</p></div>`).join('')}
         </div>`}
       `;
+      hydrateSectionInfo(content);
     }
 
     function computeStatus(pe, logsForThis) {
@@ -810,6 +820,34 @@
     // neueren Aufruf überholter Lauf bricht vor dem finalen Schreiben ab.
     let clientViewRenderGeneration = 0;
 
+    // Runde 21 / Q10: Kennzahlen, Rekorde, Serie und neue Erfolge der gerade
+    // beendeten Einheit für das Belohnungs-Overlay. Liefert null, wenn in der
+    // Einheit nichts geloggt wurde (dann gibt es keinen Effekt).
+    async function buildSessionCelebration(profile, session, endedAt) {
+      const [{ data: allLogs }] = await Promise.all([listAllTrainingLogsForRecords(profile.id)]);
+      const logs = allLogs || [];
+      const { data: recent } = await listMyTrainingLogs(profile.id);
+      const sessionLogs = (recent || []).filter((l) => l.session_id === session.id);
+      if (sessionLogs.length === 0) return null;
+      const stats = computeSessionStats(sessionLogs, session.started_at, endedAt);
+      const sessionLogIds = new Set(sessionLogs.map((l) => l.id));
+      const { prEvents } = computePersonalRecords(logs);
+      const prsHere = prEvents.filter((e) => sessionLogIds.has(e.logId));
+      const streak = computeTrainingStreak(logs.map((l) => l.performed_at));
+      let newAchievements = [];
+      try {
+        const raw = await loadAchievementRaw(profile.id, { trainingEnabled: true, nutritionEnabled: false, coachingEnabled: false });
+        const analysis = analyzeAchievements(raw, { now: new Date() });
+        const existing = new Set((raw.achievementRows || []).map((a) => a.achievement_key));
+        const fresh = analysis.evaluated.filter((a) => a.earned && !a.manual && !existing.has(a.key));
+        if (fresh.length) {
+          const { error: syncErr } = await syncEarnedAchievements(profile.id, fresh);
+          if (!syncErr) newAchievements = fresh.map((a) => ({ icon: a.icon, title: a.title }));
+        }
+      } catch (e) { console.warn('Erfolge nicht ausgewertet', e); }
+      return { stats, highlights: buildHighlights({ prEvents: prsHere, streak, newAchievements }) };
+    }
+
     async function renderClientView(content, profile) {
       const myGeneration = ++clientViewRenderGeneration;
       content.innerHTML = `<p class="center-text">Lade deinen Trainingsplan …</p>`;
@@ -950,8 +988,19 @@
           endBtn.disabled = true;
           const caloriesInput = document.getElementById('end-session-calories');
           const caloriesBurned = caloriesInput && caloriesInput.value ? parseFloat(caloriesInput.value) : null;
+          const endedAt = new Date();
           const { error } = await endSession(activeSession.id, { caloriesBurned });
           if (error) { alert('Fehler: ' + error.message); endBtn.disabled = false; return; }
+          // Runde 21 / Q10: kurzer Belohnungs-Effekt. Der Effekt darf den
+          // Ablauf nie blockieren oder verhindern: jede Berechnung ist in
+          // try/catch gekapselt und auf wenige Sekunden begrenzt.
+          try {
+            const celebration = await Promise.race([
+              buildSessionCelebration(profile, activeSession, endedAt),
+              new Promise((resolve) => setTimeout(() => resolve(null), 3500)),
+            ]);
+            if (celebration) await celebrateSessionComplete(celebration);
+          } catch (e) { console.warn('Belohnungs-Effekt übersprungen', e); }
           renderClientView(content, profile);
         });
       }
@@ -1190,7 +1239,7 @@
       const repsText = pe.target_reps ? ` ${String(pe.target_reps).replace('-', '–')}` : '';
       const initials = ex.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
       const thumb = ex.image_url
-        ? `<img class="thumb-sm" data-src="${escapeHtml(ex.image_url)}" src="${escapeHtml(ex.image_url)}" alt="${escapeHtml(ex.name)}" onerror="onExerciseImgError(this)" onclick="openLightbox('${escapeHtml(ex.image_url)}', '${escapeHtml(ex.name)}')" />`
+        ? `<img class="thumb-sm" data-src="${escapeHtml(ex.image_url)}" src="${escapeHtml(ex.image_url)}" alt="${escapeHtml(ex.name)}" onerror="onExerciseImgError(this)" data-lightbox-src="${escapeHtml(ex.image_url)}" data-lightbox-alt="${escapeHtml(ex.name)}" />`
         : `<div class="thumb-sm xthumb-ph">${escapeHtml(initials)}</div>`;
       const target = [
         pe.target_speed_kmh ? `${pe.target_speed_kmh} km/h` : null,
@@ -1303,7 +1352,9 @@
         const all = done >= target && done > 0;
         row.classList.toggle('xrow-done', all);
         const rowOk = row.querySelector('.row-ok');
+        const wasDone = rowOk.classList.contains('done');
         rowOk.classList.toggle('done', all);
+        if (all && !wasDone) miniRowDone(row);
         rowOk.disabled = all && pendingSets(row).length === 0;
       }
 
@@ -1345,6 +1396,7 @@
           setEl.classList.add('done');
           const ok = setEl.querySelector('.set-ok');
           ok.classList.add('done'); ok.disabled = true;
+          miniSetDone(ok);
           setEl.querySelectorAll('.stp-val').forEach((i) => { i.readOnly = true; });
           setEl.querySelectorAll('.stp button').forEach((b) => { b.disabled = true; });
           const e = entries[idx];
@@ -1352,7 +1404,7 @@
             if (e.weight_kg > (hist.bestByReps.get(e.reps) || 0)) {
               hist.bestByReps.set(e.reps, e.weight_kg);
               const flag = setEl.querySelector('.pr-flag');
-              if (flag) { flag.hidden = false; flag.title = 'Neuer persönlicher Rekord'; }
+              if (flag) { flag.hidden = false; flag.title = 'Neuer persönlicher Rekord'; miniPr(flag); }
             }
           }
         });
@@ -3021,7 +3073,7 @@
             <h3 style="font-size:0.9rem; text-transform:uppercase; letter-spacing:0.04em; color:var(--color-gold); margin:16px 0 6px;">${escapeHtml(cat)}</h3>
             ${groups[cat].map((ex) => `
               <div class="exercise-row">
-                ${ex.image_url ? `<img class="thumb" data-src="${escapeHtml(ex.image_url)}" src="${escapeHtml(ex.image_url)}" alt="${escapeHtml(ex.name)}" onerror="onExerciseImgError(this)" onclick="openLightbox('${escapeHtml(ex.image_url)}', '${escapeHtml(ex.name)}')" />` : ''}
+                ${ex.image_url ? `<img class="thumb" data-src="${escapeHtml(ex.image_url)}" src="${escapeHtml(ex.image_url)}" alt="${escapeHtml(ex.name)}" onerror="onExerciseImgError(this)" data-lightbox-src="${escapeHtml(ex.image_url)}" data-lightbox-alt="${escapeHtml(ex.name)}" />` : ''}
                 <div class="exercise-meta">
                   <h4>${escapeHtml(ex.name)}</h4>
                   ${ex.muscle_group ? `<div class="muscle">Beanspruchte Muskulatur: ${escapeHtml(ex.muscle_group)}</div>` : ''}
@@ -3389,7 +3441,13 @@
           <h2 style="font-size:1.05rem;">Vorhandene Vorlagen (${(templates || []).length})</h2>
           ${(templates || []).length === 0 ? '<p style="color:var(--color-text-muted);">Noch keine Vorlagen erstellt.</p>' : (templates || []).map((tpl) => `
             <div class="template-card">
-              <h3>${escapeHtml(tpl.title)}</h3>
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:space-between;">
+                <h3 style="margin:0;">${escapeHtml(tpl.title)}</h3>
+                <span style="display:flex; gap:6px;">
+                  <button class="btn small-btn" data-edit-template="${tpl.id}" type="button">Vorlage bearbeiten</button>
+                  <button class="btn secondary small-btn" data-delete-template="${tpl.id}" type="button">Vorlage löschen</button>
+                </span>
+              </div>
               ${tpl.description ? `<p style="color:var(--color-text-muted); font-size:0.85rem; margin-top:0;">${escapeHtml(tpl.description)}</p>` : ''}
               ${(tpl.plan_template_days || []).sort((a,b) => a.sort_order - b.sort_order).map((day) => `
                 <div style="margin:10px 0;">
@@ -3397,15 +3455,13 @@
                   <div style="margin-top:4px;">
                     ${(day.plan_template_exercises || []).sort((a,b) => a.sort_order - b.sort_order).map((ex) => `
                       <span class="template-exercise-chip">
-                        ${ex.exercises && ex.exercises.image_url ? `<img src="${escapeHtml(ex.exercises.image_url)}" alt="" onclick="openLightbox('${escapeHtml(ex.exercises.image_url)}','${escapeHtml(ex.exercises.name)}')" />` : ''}
+                        ${ex.exercises && ex.exercises.image_url ? `<img src="${escapeHtml(ex.exercises.image_url)}" alt="" data-lightbox-src="${escapeHtml(ex.exercises.image_url)}" data-lightbox-alt="${escapeHtml(ex.exercises.name)}" />` : ''}
                         ${escapeHtml(ex.exercises ? ex.exercises.name : '?')}
                       </span>
                     `).join('') || '<span style="font-size:0.8rem; color:var(--color-text-muted);">– keine Übungen –</span>'}
                   </div>
                 </div>
               `).join('')}
-              <button class="btn secondary small-btn" data-edit-template="${tpl.id}" type="button">Vorlage bearbeiten</button>
-              <button class="btn secondary small-btn" data-delete-template="${tpl.id}" type="button">Vorlage löschen</button>
             </div>
           `).join('')}
         </div>
@@ -3488,6 +3544,13 @@
           if (tpl) fillFormForEdit(tpl);
         });
       });
+
+      // Runde 21 / Q11: Deep-Link "Vorlage öffnen" aus dem Reiter „Bestehende Pläne“.
+      const deepEditId = new URLSearchParams(location.search).get('edit');
+      if (deepEditId) {
+        const tpl = (templates || []).find((t) => t.id === deepEditId);
+        if (tpl) fillFormForEdit(tpl);
+      }
 
       content.querySelectorAll('[data-delete-template]').forEach((btn) => {
         btn.addEventListener('click', async () => {
@@ -3642,8 +3705,11 @@
               <button class="btn secondary small-btn" data-toggle-id="${p.id}" data-active="${p.is_active}" type="button">
                 ${p.is_active ? 'Deaktivieren' : 'Aktivieren'}
               </button>
+              <button class="btn small-btn" data-edit-plan-id="${p.id}" type="button">Plan bearbeiten</button>
               <button class="btn secondary small-btn" data-expand-id="${p.id}" type="button">+ Übung hinzufügen</button>
+              ${p.template_source_id ? `<a class="btn secondary small-btn" style="text-decoration:none;" href="training.html?tab=templates&edit=${p.template_source_id}">Vorlage öffnen</a>` : ''}
             </div>
+            <div class="expand-area plan-editor-area" id="edit-${p.id}" style="display:none; padding:0 0 14px 0;"></div>
             <div class="expand-area" id="expand-${p.id}" style="display:none; padding:0 0 14px 0;"></div>
           `).join('')}
         </div>
@@ -3661,6 +3727,188 @@
       content.querySelectorAll('[data-expand-id]').forEach((btn) => {
         btn.addEventListener('click', () => toggleAddExerciseArea(btn.dataset.expandId));
       });
+
+      content.querySelectorAll('[data-edit-plan-id]').forEach((btn) => {
+        btn.addEventListener('click', () => togglePlanEditor(content, btn.dataset.editPlanId));
+      });
+    }
+
+    // --- Runde 21 / Q11: Plan-Editor für zugewiesene Pläne -----------------------
+    // Der Trainer kann einen bereits zugewiesenen Plan vollständig anpassen:
+    // Titel/Notizen, Tage (umbenennen, umsortieren, hinzufügen, entfernen),
+    // Übungsvorgaben (Sätze, Wdh., Gewicht/Hinweis, Dauer, Distanz, Tempo, Watt,
+    // %HFmax, Notiz), Reihenfolge, Tageszuordnung und das Entfernen einzelner
+    // Übungen. Änderungen gelten sofort für den Kunden; bereits geloggte Sätze
+    // bleiben im Trainingstagebuch erhalten (siehe Migration 054).
+    async function togglePlanEditor(listContent, planId) {
+      const area = document.getElementById(`edit-${planId}`);
+      if (area.style.display !== 'none') { area.style.display = 'none'; area.innerHTML = ''; return; }
+      area.style.display = 'block';
+      area.innerHTML = '<p class="center-text">Lade …</p>';
+
+      const { data: plan, error } = await getPlanForAdmin(planId);
+      if (error || !plan) { area.innerHTML = `<div class="msg error">${escapeHtml(error ? error.message : 'Plan nicht gefunden.')}</div>`; return; }
+      const { data: logCounts } = await countLogsPerPlanExercise((plan.plan_exercises || []).map((pe) => pe.id));
+
+      let seq = 0;
+      const model = {
+        title: plan.title || '',
+        notes: plan.notes || '',
+        days: (plan.training_plan_days || []).slice().sort((a, b) => a.sort_order - b.sort_order).map((d) => ({ key: `d${++seq}`, id: d.id, label: d.label })),
+        exercises: [],
+        removedExerciseIds: [],
+        removedDayIds: [],
+      };
+      const keyByDayId = Object.fromEntries(model.days.map((d) => [d.id, d.key]));
+      const sortedEx = (plan.plan_exercises || []).slice().sort((a, b) => a.sort_order - b.sort_order);
+      // Reihenfolge: nach Tag-Reihenfolge, dann sort_order; Übungen ohne Tag zuletzt.
+      const dayOrder = (pe) => (pe.plan_day_id && keyByDayId[pe.plan_day_id] ? model.days.findIndex((d) => d.id === pe.plan_day_id) : 9999);
+      sortedEx.sort((a, b) => dayOrder(a) - dayOrder(b) || a.sort_order - b.sort_order);
+      model.exercises = sortedEx.map((pe) => ({
+        id: pe.id, name: pe.exercises ? pe.exercises.name : 'Übung', imageUrl: pe.exercises ? pe.exercises.image_url : null,
+        logs: (logCounts && logCounts[pe.id]) || 0,
+        dayKey: pe.plan_day_id ? (keyByDayId[pe.plan_day_id] || null) : null,
+        targetSets: pe.target_sets ?? '', targetReps: pe.target_reps ?? '', targetWeightHint: pe.target_weight_hint ?? '',
+        targetDurationSeconds: pe.target_duration_seconds ?? '', targetDistanceMeters: pe.target_distance_meters ?? '',
+        targetSpeedKmh: pe.target_speed_kmh ?? '', targetWatt: pe.target_watt ?? '', targetHeartRatePercent: pe.target_heart_rate_percent ?? '',
+        notes: pe.notes ?? '',
+      }));
+
+      const FIELDS = [
+        ['targetSets', 'Sätze', 'number', 1], ['targetReps', 'Wdh.', 'text'], ['targetWeightHint', 'Gewicht/Hinweis', 'text'],
+        ['targetDurationSeconds', 'Dauer (Sek.)', 'number', 0], ['targetDistanceMeters', 'Distanz (m)', 'number', 0],
+        ['targetSpeedKmh', 'km/h', 'number', 0], ['targetWatt', 'Watt', 'number', 0], ['targetHeartRatePercent', '% HFmax', 'number', 0],
+      ];
+
+      function syncFromDom() {
+        // Eingaben zurück ins Modell übernehmen, bevor neu gezeichnet wird.
+        model.title = area.querySelector('.pe-title').value;
+        model.notes = area.querySelector('.pe-notes').value;
+        area.querySelectorAll('.pe-day-label').forEach((inp) => { const d = model.days.find((x) => x.key === inp.dataset.dayKey); if (d) d.label = inp.value; });
+        area.querySelectorAll('.pe-ex').forEach((row) => {
+          const ex = model.exercises.find((x) => x.id === row.dataset.exId);
+          if (!ex) return;
+          FIELDS.forEach(([f]) => { const el = row.querySelector(`[data-f="${f}"]`); if (el) ex[f] = el.value; });
+          ex.notes = row.querySelector('[data-f="notes"]').value;
+          const sel = row.querySelector('.pe-ex-day');
+          ex.dayKey = sel.value || null;
+        });
+      }
+
+      function exRowHtml(ex, idx, group) {
+        const dayOpts = `<option value="">– kein fester Tag –</option>` + model.days.map((d) => `<option value="${d.key}" ${ex.dayKey === d.key ? 'selected' : ''}>${escapeHtml(d.label || 'Tag')}</option>`).join('');
+        const pos = group.indexOf(ex);
+        return `<div class="pe-ex" data-ex-id="${ex.id}" style="border:1px solid var(--color-border); border-radius:8px; padding:8px; margin:6px 0; background:var(--color-bg);">
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:6px;">
+            ${ex.imageUrl ? `<img src="${escapeHtml(ex.imageUrl)}" alt="" style="width:34px; height:34px; border-radius:6px; object-fit:cover;" />` : ''}
+            <strong style="flex:1; min-width:140px;">${escapeHtml(ex.name)}</strong>
+            <select class="pe-ex-day" style="max-width:190px;">${dayOpts}</select>
+            <button type="button" class="btn secondary small-btn pe-ex-up" ${pos === 0 ? 'disabled' : ''} title="Nach oben" aria-label="Nach oben">↑</button>
+            <button type="button" class="btn secondary small-btn pe-ex-down" ${pos === group.length - 1 ? 'disabled' : ''} title="Nach unten" aria-label="Nach unten">↓</button>
+            <button type="button" class="btn secondary small-btn pe-ex-del" title="Übung aus dem Plan entfernen" aria-label="Übung entfernen">✕</button>
+          </div>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(96px, 1fr)); gap:6px;">
+            ${FIELDS.map(([f, label, type, min]) => `<label style="font-size:0.7rem; color:var(--color-text-muted);">${label}<input data-f="${f}" type="${type}" ${type === 'number' ? `min="${min}" step="any"` : ''} value="${escapeHtml(String(ex[f] ?? ''))}" style="width:100%;" /></label>`).join('')}
+          </div>
+          <label style="display:block; font-size:0.7rem; color:var(--color-text-muted); margin-top:6px;">Notiz / Hinweis für den Kunden<input data-f="notes" type="text" value="${escapeHtml(ex.notes || '')}" style="width:100%;" /></label>
+          ${ex.logs > 0 ? `<div style="font-size:0.7rem; color:var(--color-text-muted); margin-top:4px;">${ex.logs} geloggte ${ex.logs === 1 ? 'Satz' : 'Sätze'} des Kunden zu dieser Übung</div>` : ''}
+        </div>`;
+      }
+
+      function paint() {
+        const groups = model.days.map((d) => ({ day: d, items: model.exercises.filter((e) => e.dayKey === d.key) }));
+        const loose = model.exercises.filter((e) => !e.dayKey || !model.days.some((d) => d.key === e.dayKey));
+        area.innerHTML = `
+          <div style="border:1px solid var(--color-gold); border-radius:10px; padding:12px; background:var(--color-surface);">
+            <h4 style="margin:0 0 8px;">Plan bearbeiten</h4>
+            <p style="font-size:0.78rem; color:var(--color-text-muted); margin:0 0 10px;">Änderungen gelten für den Kunden sofort nach dem Speichern. Bereits geloggte Sätze bleiben in seinem Trainingstagebuch erhalten.</p>
+            <div class="field"><label>Titel</label><input class="pe-title" type="text" value="${escapeHtml(model.title)}" /></div>
+            <div class="field"><label>Notizen zum Plan</label><textarea class="pe-notes" rows="2" style="width:100%;">${escapeHtml(model.notes)}</textarea></div>
+            ${groups.map(({ day, items }, di) => `
+              <div class="pe-day" data-day-key="${day.key}" style="margin-top:12px;">
+                <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                  <input class="pe-day-label" data-day-key="${day.key}" type="text" value="${escapeHtml(day.label)}" style="flex:1; min-width:140px; font-weight:700;" aria-label="Name des Trainingstags" />
+                  <button type="button" class="btn secondary small-btn pe-day-up" ${di === 0 ? 'disabled' : ''} aria-label="Tag nach oben">↑</button>
+                  <button type="button" class="btn secondary small-btn pe-day-down" ${di === groups.length - 1 ? 'disabled' : ''} aria-label="Tag nach unten">↓</button>
+                  <button type="button" class="btn secondary small-btn pe-day-del" title="Tag entfernen (Übungen bleiben im Plan, ohne festen Tag)">Tag entfernen</button>
+                </div>
+                ${items.length ? items.map((ex, i) => exRowHtml(ex, i, items)).join('') : '<p style="font-size:0.8rem; color:var(--color-text-muted); margin:6px 0;">Keine Übungen an diesem Tag.</p>'}
+              </div>`).join('')}
+            ${loose.length ? `<div class="pe-day" style="margin-top:12px;"><strong>${model.days.length ? 'Weitere Übungen (ohne festen Tag)' : 'Übungen'}</strong>${loose.map((ex, i) => exRowHtml(ex, i, loose)).join('')}</div>` : ''}
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px;">
+              <button type="button" class="btn secondary small-btn pe-day-add">+ Trainingstag hinzufügen</button>
+              <span style="flex:1;"></span>
+              <button type="button" class="btn secondary small-btn pe-cancel">Schließen</button>
+              <button type="button" class="btn small-btn pe-save">Änderungen speichern</button>
+            </div>
+            <div class="pe-msg" role="status" style="margin-top:8px;"></div>
+          </div>`;
+
+        const move = (arr, from, to) => { if (to < 0 || to >= arr.length) return; const [x] = arr.splice(from, 1); arr.splice(to, 0, x); };
+        area.querySelectorAll('.pe-day').forEach((dayEl) => {
+          const key = dayEl.dataset.dayKey;
+          const di = model.days.findIndex((d) => d.key === key);
+          const bind = (sel, fn) => { const b = dayEl.querySelector(sel); if (b) b.addEventListener('click', fn); };
+          bind('.pe-day-up', () => { syncFromDom(); move(model.days, di, di - 1); paint(); });
+          bind('.pe-day-down', () => { syncFromDom(); move(model.days, di, di + 1); paint(); });
+          bind('.pe-day-del', () => {
+            syncFromDom();
+            const day = model.days[di];
+            const n = model.exercises.filter((e) => e.dayKey === key).length;
+            if (!confirm(`Tag „${day.label}“ entfernen?${n ? ` Die ${n} Übung(en) bleiben im Plan, aber ohne festen Tag.` : ''}`)) return;
+            model.exercises.forEach((e) => { if (e.dayKey === key) e.dayKey = null; });
+            if (day.id) model.removedDayIds.push(day.id);
+            model.days.splice(di, 1);
+            paint();
+          });
+        });
+        area.querySelectorAll('.pe-ex').forEach((row) => {
+          const ex = model.exercises.find((x) => x.id === row.dataset.exId);
+          const bucket = () => model.exercises.filter((e) => (e.dayKey || null) === (ex.dayKey || null));
+          const swap = (dir) => {
+            syncFromDom();
+            const b = bucket();
+            const j = b.indexOf(ex) + dir;
+            if (j < 0 || j >= b.length) return;
+            const a1 = model.exercises.indexOf(ex); const a2 = model.exercises.indexOf(b[j]);
+            [model.exercises[a1], model.exercises[a2]] = [model.exercises[a2], model.exercises[a1]];
+            paint();
+          };
+          row.querySelector('.pe-ex-up').addEventListener('click', () => swap(-1));
+          row.querySelector('.pe-ex-down').addEventListener('click', () => swap(1));
+          row.querySelector('.pe-ex-day').addEventListener('change', () => { syncFromDom(); paint(); });
+          row.querySelector('.pe-ex-del').addEventListener('click', () => {
+            syncFromDom();
+            const warn = ex.logs > 0
+              ? `Zu „${ex.name}“ gibt es ${ex.logs} geloggte ${ex.logs === 1 ? 'Satz' : 'Sätze'}. Sie bleiben im Trainingstagebuch des Kunden erhalten, werden aber nicht mehr diesem Plan zugeordnet.\n\nÜbung trotzdem aus dem Plan entfernen?`
+              : `„${ex.name}“ aus dem Plan entfernen?`;
+            if (!confirm(warn)) return;
+            model.removedExerciseIds.push(ex.id);
+            model.exercises.splice(model.exercises.indexOf(ex), 1);
+            paint();
+          });
+        });
+        area.querySelector('.pe-day-add').addEventListener('click', () => {
+          syncFromDom();
+          model.days.push({ key: `d${++seq}`, id: null, label: `Tag ${model.days.length + 1}` });
+          paint();
+        });
+        area.querySelector('.pe-cancel').addEventListener('click', () => { area.style.display = 'none'; area.innerHTML = ''; });
+        area.querySelector('.pe-save').addEventListener('click', async () => {
+          syncFromDom();
+          const msg = area.querySelector('.pe-msg');
+          const btn = area.querySelector('.pe-save');
+          btn.disabled = true; btn.textContent = 'Speichert …';
+          const { error: saveError } = await savePlanEdits(planId, model);
+          if (saveError) {
+            msg.innerHTML = `<div class="msg error">${escapeHtml(saveError.message)}</div>`;
+            btn.disabled = false; btn.textContent = 'Änderungen speichern';
+            return;
+          }
+          renderExistingPlansTab(listContent);
+        });
+      }
+      paint();
     }
 
     async function toggleAddExerciseArea(planId) {
@@ -4094,5 +4342,6 @@
       });
     }
   </script>
+  <script type="module" src="js/legal-links.js"></script>
 </body>
 </html>

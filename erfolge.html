@@ -2,15 +2,18 @@
 <html lang="de" data-theme="light">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="base-uri 'self'; object-src 'none'; form-action 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Rekorde &amp; Erfolge – Dream And Do It</title>
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#053446" />
-  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="stylesheet" href="css/styles.css" />
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script type="module" src="js/icons.js"></script>
+  <script src="vendor/supabase-js-2.117.2.min.js"></script>
   <!-- dieselbe PDF-Bibliothek wie der Monatsbericht (training.html) -->
-  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="vendor/jspdf-2.5.1.umd.min.js"></script>
   <style>
     /* Q5: Rekorde & Erfolge – eigene Styles dieser Seite (css/styles.css bleibt
        unverändert); nutzt .card, .tabs/.tab-btn, .achievement-badge u. a. aus
@@ -198,9 +201,7 @@
 
     // ---- Helfer ----------------------------------------------------------
     function escapeHtml(str) {
-      const div = document.createElement('div');
-      div.textContent = str == null ? '' : String(str);
-      return div.innerHTML;
+      return String(str == null ? '' : str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
     const nf = (v, d = 0) => Number(v).toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: d });
     const fmtKg = (v) => `${nf(v, 1)} kg`;
@@ -766,5 +767,6 @@
       container.innerHTML = `<div class="msg error">Seite konnte nicht geladen werden. ${escapeHtml(err && err.message ? err.message : '')}</div>`;
     });
   </script>
+  <script type="module" src="js/legal-links.js"></script>
 </body>
 </html>

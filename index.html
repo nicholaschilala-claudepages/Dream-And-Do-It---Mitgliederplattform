@@ -2,14 +2,17 @@
 <html lang="de" data-theme="light">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="base-uri 'self'; object-src 'none'; form-action 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dream And Do It – Kundenplattform</title>
   <meta name="description" content="Login und Registrierung für die Dream And Do It Kundenplattform" />
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#053446" />
-  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="stylesheet" href="css/styles.css" />
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script type="module" src="js/icons.js"></script>
+  <script src="vendor/supabase-js-2.117.2.min.js"></script>
 </head>
 <body>
   <div class="page">
@@ -73,6 +76,9 @@
             <label for="register-password">Passwort (mind. 8 Zeichen)</label>
             <input type="password" id="register-password" required minlength="8" autocomplete="new-password" />
           </div>
+          <label class="consent-row"><input type="checkbox" id="register-terms" required /><span id="register-terms-text"></span></label>
+          <label class="consent-row"><input type="checkbox" id="register-health" required /><span id="register-health-text"></span></label>
+          <p class="consent-note">Nach der Registrierung prüfe ich deinen Zugang und schalte dir die passenden Bereiche frei.</p>
           <button type="submit" class="btn" id="register-submit">Konto erstellen</button>
         </form>
       </div>
@@ -85,8 +91,11 @@
 
   <script type="module">
     import { isConfigured } from './js/supabase-client.js';
+    import { CONSENT_TEXTS } from './js/legal-content.js';
     import { signIn, signUp, requestPasswordReset, getCurrentSession, initTheme, toggleTheme } from './js/auth.js';
 
+    document.getElementById('register-terms-text').innerHTML = CONSENT_TEXTS.terms;
+    document.getElementById('register-health-text').innerHTML = CONSENT_TEXTS.health;
     initTheme();
     document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
 
@@ -150,8 +159,11 @@
       const email = document.getElementById('register-email').value.trim();
       const password = document.getElementById('register-password').value;
       const submitBtn = document.getElementById('register-submit');
+      const terms = document.getElementById('register-terms').checked;
+      const health = document.getElementById('register-health').checked;
+      if (!terms || !health) { showMsg('Bitte bestätige beide Einwilligungen, um dein Konto zu erstellen.'); return; }
       submitBtn.disabled = true;
-      const { error } = await signUp(email, password, name);
+      const { error } = await signUp(email, password, name, { terms, health });
       submitBtn.disabled = false;
       if (error) {
         showMsg(uebersetzeFehler(error.message));
@@ -181,7 +193,12 @@
         'User already registered': 'Für diese E-Mail existiert bereits ein Konto.',
         'Email not confirmed': 'Bitte bestätige zuerst deine E-Mail-Adresse.',
       };
-      return bekannt[message] || message;
+      if (bekannt[message]) return bekannt[message];
+      if (/password should be at least|weak password/i.test(message)) return 'Das Passwort ist zu kurz oder zu einfach. Bitte wähle mindestens 8 Zeichen.';
+      if (/rate limit|too many/i.test(message)) return 'Zu viele Versuche in kurzer Zeit. Bitte warte einen Moment und versuche es dann erneut.';
+      if (/invalid email|unable to validate email/i.test(message)) return 'Bitte gib eine gültige E-Mail-Adresse ein.';
+      if (/failed to fetch|network|load failed/i.test(message)) return 'Keine Verbindung. Bitte prüfe dein Internet und versuche es erneut.';
+      return 'Das hat leider nicht geklappt (' + message + '). Bitte versuche es erneut oder schreib uns an info@dreamanddoit.de.';
     }
 
     // Service Worker registrieren (PWA / Offline-Grundgerüst)
@@ -191,5 +208,6 @@
       });
     }
   </script>
+  <script type="module" src="js/legal-links.js"></script>
 </body>
 </html>

@@ -2,13 +2,16 @@
 <html lang="de" data-theme="light">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="base-uri 'self'; object-src 'none'; form-action 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Coaching – Dream And Do It</title>
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#053446" />
-  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="stylesheet" href="css/styles.css" />
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script type="module" src="js/icons.js"></script>
+  <script src="vendor/supabase-js-2.117.2.min.js"></script>
   <style>
     .result-box {
       background: rgba(200,124,0,0.08); border: 1px solid rgba(200,124,0,0.25);
@@ -197,7 +200,8 @@
     import { getUnreadCount } from './js/messages.js';
     import { getNewSignupCount } from './js/betrieb.js';
     import { navTabsHtml, bindNavSubmenus } from './js/nav.js';
-    import { SECTION_INFO } from './js/section-info.js';
+    import { SECTION_INFO, hydrateSectionInfo } from './js/section-info.js';
+    import { renderInterestsCard } from './js/recommendations.js';
     import { loadClientSubtabLocks, shouldGateSubtab, lockedSubtabHtml } from './js/subtab-access.js';
 
     initTheme();
@@ -214,10 +218,13 @@
     // js/subtab-access.js / sql/046) – vor renderTab() geprüft.
     let subtabLocks = new Set();
 
+    function safeUrl(u) {
+      const v = String(u == null ? '' : u).trim();
+      return /^(https?:\/\/|\/|\.\/|[\w-]+\/)/i.test(v) && !/^\s*(javascript|data|vbscript):/i.test(v) ? v : '#';
+    }
+
     function escapeHtml(str) {
-      const div = document.createElement('div');
-      div.textContent = str == null ? '' : String(str);
-      return div.innerHTML;
+      return String(str == null ? '' : str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
 
     function fmtDate(d) {
@@ -312,8 +319,9 @@
             <span class="kicker">Wissenschaftlicher Hintergrund</span>
             <p>${info.scienceText}</p>
           </div>
+          <div class="fact-strip" data-section-facts="coaching" hidden></div>
           <p class="lead">${info.clientIntro}</p>
-          <div class="benefit-grid">
+          <div class="benefit-grid" data-section-benefits="coaching">
             ${info.benefits.map((b) => `<div class="benefit-card"><h4>${escapeHtml(b.h)}</h4><p>${escapeHtml(b.t)}</p></div>`).join('')}
           </div>
           <a class="btn mt-16" style="display:inline-block; width:auto; padding:12px 24px;" href="messages.html">
@@ -321,6 +329,7 @@
           </a>
         </div>
       `;
+      hydrateSectionInfo(container);
     }
 
     function renderShell() {
@@ -360,12 +369,14 @@
           <span class="kicker">${isAdmin ? 'Akademischer Hintergrund & wissenschaftliche Grundlage' : 'Wissenschaftlicher Hintergrund'}</span>
           <p>${info.scienceText}</p>
         </div>
-        <p class="lead">${isAdmin ? info.adminIntro : info.clientIntro}</p>
+        <div class="fact-strip" data-section-facts="coaching" hidden></div>
+          <p class="lead">${isAdmin ? info.adminIntro : info.clientIntro}</p>
         ${isAdmin ? '' : `
-        <div class="benefit-grid">
+        <div class="benefit-grid" data-section-benefits="coaching">
           ${info.benefits.map((b) => `<div class="benefit-card"><h4>${escapeHtml(b.h)}</h4><p>${escapeHtml(b.t)}</p></div>`).join('')}
         </div>`}
       `;
+      hydrateSectionInfo(content);
     }
 
     function renderTab(tab) {
@@ -627,7 +638,7 @@
                 ${r.description ? `<p style="margin:4px 0 0; font-size:0.85rem; color:var(--color-text-muted);">${escapeHtml(r.description)}</p>` : ''}
               </div>
               <div class="row-actions">
-                <a class="btn secondary" style="width:auto; padding:8px 14px; font-size:0.82rem; text-decoration:none;" href="${escapeHtml(r.pdf_url)}" target="_blank" rel="noopener">PDF öffnen</a>
+                <a class="btn secondary" style="width:auto; padding:8px 14px; font-size:0.82rem; text-decoration:none;" href="${escapeHtml(safeUrl(r.pdf_url))}" target="_blank" rel="noopener">PDF öffnen</a>
                 ${adminMode ? `<button class="btn secondary" style="width:auto; padding:8px 12px; font-size:0.82rem;" data-delete-content="${r.id}">Löschen</button>` : ''}
               </div>
             </div>
@@ -918,6 +929,8 @@
           ` : ''}
         </div>` : ''}
 
+        ${!isAdmin ? '<div class="card mt-24" id="reco-card" hidden><div id="reco-slot"></div></div>' : ''}
+
         <div class="card mt-24">
           <h2 style="font-size:1.05rem;">${isAdmin ? 'Ziele aller Kunden' : 'Übersicht'}</h2>
           ${!goals || goals.length === 0 ? '<p style="color:var(--color-text-muted);">Noch keine Ziele angelegt.</p>' : goals.map((g) => `
@@ -931,6 +944,16 @@
           `).join('')}
         </div>
       `;
+
+      // Runde 21 / Q13: Interessen-Auswahl + Empfehlungen, sobald ein aktives Ziel existiert.
+      if (!isAdmin) {
+        const hasActiveGoal = (goals || []).some((g) => g.status === 'active');
+        const recoCard = document.getElementById('reco-card');
+        if (recoCard && hasActiveGoal) {
+          recoCard.hidden = false;
+          renderInterestsCard(document.getElementById('reco-slot'), { profile: currentProfile, viewer: currentProfile, adminView: false, hasActiveGoal });
+        }
+      }
 
       if (!isAdmin) {
         document.getElementById('toggle-new-goal').addEventListener('click', () => {
@@ -1015,6 +1038,8 @@
           </form>
         </div>
 
+        ${isAdmin ? '<div class="card mt-24" id="reco-admin-card" hidden><div id="reco-slot"></div></div>' : ''}
+
         <div class="card mt-24">
           <h3 style="font-size:0.95rem;"><span class="grow-letter">O</span>Options – Möglichkeiten sammeln</h3>
           <p style="color:var(--color-text-muted); font-size:0.85rem;">
@@ -1082,6 +1107,16 @@
           </form>
         </div>
       `;
+
+      // Runde 21 / Q13: Trainer sieht Interessen + Empfehlungen des Kunden und kann sie anpassen.
+      if (isAdmin) {
+        const { data: clientProfile } = await supabaseClient.from('profiles').select('id, role, full_name, training_enabled, nutrition_enabled, coaching_enabled').eq('id', goal.client_id).maybeSingle();
+        const adminCard = document.getElementById('reco-admin-card');
+        if (clientProfile && adminCard) {
+          adminCard.hidden = false;
+          renderInterestsCard(document.getElementById('reco-slot'), { profile: clientProfile, viewer: currentProfile, adminView: true, hasActiveGoal: true });
+        }
+      }
 
       document.getElementById('goal-back').addEventListener('click', () => {
         selectedGoalId = null;
@@ -1171,5 +1206,6 @@
       });
     }
   </script>
+  <script type="module" src="js/legal-links.js"></script>
 </body>
 </html>

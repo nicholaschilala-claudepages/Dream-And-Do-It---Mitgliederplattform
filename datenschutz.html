@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="base-uri 'self'; object-src 'none'; form-action 'self'">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Datenschutzhinweise – Dream And Do It</title>
+  <meta name="robots" content="noindex" />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#053446" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <script type="module" src="js/icons.js"></script>
+</head>
+<body>
+  <div class="page">
+    <div class="topbar">
+      <a class="brand" href="index.html" style="text-decoration:none;">
+        <img src="icons/logo-mark.png" alt="Dream And Do It Logo" onerror="this.style.display='none'" />
+        <span class="brand-text"><span class="brand-name">DREAM AND DO IT</span></span>
+      </a>
+      <a class="icon-btn topbar-btn" id="legal-back" href="index.html" style="text-decoration:none;" aria-label="Zurück zur Plattform"><span class="btn-label">Zur Plattform</span></a>
+    </div>
+    <div class="container legal-page"><div id="legal-mount"></div></div>
+    <div class="footer-note"></div>
+  </div>
+  <script type="module">
+    import { renderLegal } from './js/legal.js';
+    try { if (localStorage.getItem('dadi-theme') === 'dark') document.documentElement.setAttribute('data-theme', 'dark'); } catch (e) { /* ignore */ }
+    renderLegal('datenschutz', document.getElementById('legal-mount'));
+    document.getElementById('legal-back').addEventListener('click', (e) => {
+      if (document.referrer && history.length > 1) { e.preventDefault(); history.back(); }
+    });
+  </script>
+  <script type="module" src="js/legal-links.js"></script>
+</body>
+</html>
