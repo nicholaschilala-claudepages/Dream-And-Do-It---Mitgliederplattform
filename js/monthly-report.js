@@ -456,7 +456,7 @@ export async function buildMonthlyReportPdf({
 
   let logo = null;
   try {
-    logo = await loadImageAsDataUrl('icons/logo-full-darkbg.png');
+    logo = await loadImageAsDataUrl('icons/logo-full.png');
   } catch (err) {
     logo = null; // Bericht funktioniert auch ohne Logo, falls das Asset offline nicht verfügbar ist
   }
@@ -468,6 +468,8 @@ export async function buildMonthlyReportPdf({
   if (logo) {
     const logoW = 46;
     const logoH = logoW * (logo.height / logo.width);
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(MARGIN - 3, 26 - 3, logoW + 6, logoH + 6, 3, 3, 'F');
     doc.addImage(logo.dataUrl, 'PNG', MARGIN, 26, logoW, logoH);
   }
 
@@ -839,14 +841,17 @@ export async function buildReviewPdf({
   const pageCounter = { n: 2 };
 
   let logo = null;
-  try { logo = await loadImageAsDataUrl('icons/logo-full-darkbg.png'); } catch (err) { logo = null; }
+  try { logo = await loadImageAsDataUrl('icons/logo-full.png'); } catch (err) { logo = null; }
 
   // --- Deckblatt (wie Monatsbericht) -------------------------------------
   doc.setFillColor(...NAVY);
   doc.rect(0, 0, PAGE_W, PAGE_H, 'F');
   if (logo) {
     const logoW = 46;
-    doc.addImage(logo.dataUrl, 'PNG', MARGIN, 26, logoW, logoW * (logo.height / logo.width));
+    const logoH2 = logoW * (logo.height / logo.width);
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(MARGIN - 3, 26 - 3, logoW + 6, logoH2 + 6, 3, 3, 'F');
+    doc.addImage(logo.dataUrl, 'PNG', MARGIN, 26, logoW, logoH2);
   }
   doc.setDrawColor(...GOLD);
   doc.setLineWidth(0.8);
