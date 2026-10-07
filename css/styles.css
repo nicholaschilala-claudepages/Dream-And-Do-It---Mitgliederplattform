@@ -4,7 +4,14 @@
    Headings: Cinzel (Web-Ersatz für Trajan Pro) · Body: Source Serif 4
    ========================================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap');
+/* Schriften lokal ausgeliefert (SIL Open Font License; kein Abruf bei Google –
+   keine IP-Übermittlung an Dritte). Quellen: Cinzel (Natanael Gama),
+   Source Serif 4 (Adobe), bezogen über Fontsource. */
+@font-face { font-family: 'Cinzel'; font-style: normal; font-weight: 500; font-display: swap; src: url('../fonts/cinzel-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Cinzel'; font-style: normal; font-weight: 600; font-display: swap; src: url('../fonts/cinzel-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Cinzel'; font-style: normal; font-weight: 700; font-display: swap; src: url('../fonts/cinzel-latin-700-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Source Serif 4'; font-style: normal; font-weight: 200 900; font-display: swap; src: url('../fonts/source-serif-4-latin-wght-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Source Serif 4'; font-style: italic; font-weight: 200 900; font-display: swap; src: url('../fonts/source-serif-4-latin-wght-italic.woff2') format('woff2'); }
 
 :root {
   --color-navy: #053446;
@@ -176,7 +183,7 @@ a { color: var(--color-gold); }
 }
 
 .login-hero img {
-  height: 96px;
+  height: 124px;
   width: auto;
 }
 
@@ -1187,3 +1194,200 @@ button.chip { cursor: pointer; }
 :root[data-theme="dark"] .chip.missing,
 :root[data-theme="dark"] .profile-hint.is-missing,
 :root[data-theme="dark"] .profile-edit-btn:hover { color: var(--color-gold-light); }
+
+/* Runde 21 / Q12: Kennzahlen-Leiste der Rubrik-Erklärungen --------------------- */
+.fact-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  margin: 0 0 16px;
+}
+.fact-strip[hidden] { display: none; }
+.fact-strip .fact {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-top: 3px solid var(--color-gold-light);
+  border-radius: var(--radius);
+  padding: 10px 8px;
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+.fact-strip .fact b {
+  display: block;
+  font-family: var(--font-heading);
+  font-size: 1.5rem;
+  line-height: 1.15;
+  color: var(--color-navy);
+}
+:root[data-theme="dark"] .fact-strip .fact b { color: var(--color-gold-light); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .fact-strip .fact b { color: var(--color-gold-light); } }
+.fact-strip .fact span {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 2px;
+}
+
+/* Runde 21 / Q13: Interessen & Empfehlungen ------------------------------------ */
+.reco-wrap { margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--color-border); }
+.reco-title { font-family: var(--font-heading); font-size: 1rem; margin: 0 0 6px; color: var(--color-navy); }
+:root[data-theme="dark"] .reco-title { color: var(--color-gold-light); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .reco-title { color: var(--color-gold-light); } }
+.reco-lead { margin: 0 0 12px; font-size: 0.88rem; color: var(--color-text-muted); }
+.reco-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.reco-chip { font: inherit; font-size: 0.82rem; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); cursor: pointer; transition: background .15s, border-color .15s; }
+.reco-chip:hover:not(:disabled) { border-color: var(--color-gold); }
+.reco-chip.on { background: var(--color-navy); border-color: var(--color-navy); color: #fff; }
+:root[data-theme="dark"] .reco-chip.on { background: var(--color-gold-light); border-color: var(--color-gold-light); color: var(--color-navy); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .reco-chip.on { background: var(--color-gold-light); border-color: var(--color-gold-light); color: var(--color-navy); } }
+.reco-chip:disabled { cursor: default; opacity: .85; }
+.reco-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.reco-card { display: flex; gap: 10px; background: var(--color-surface); border: 1px solid var(--color-border); border-left: 4px solid var(--color-navy-light); border-radius: var(--radius); padding: 12px; box-shadow: var(--shadow); }
+.reco-card.service { border-left-color: var(--color-gold); }
+.reco-card.manual { border-left-color: var(--color-gold-light); background: rgba(250,194,51,0.10); }
+.reco-card.locked { opacity: .92; }
+.reco-ico { font-size: 1.5rem; line-height: 1; flex-shrink: 0; }
+.reco-body { min-width: 0; }
+.reco-body h4 { margin: 2px 0 4px; font-size: 0.95rem; }
+.reco-body p { margin: 0 0 6px; font-size: 0.82rem; color: var(--color-text-muted); line-height: 1.45; }
+.reco-kicker { font-size: 0.66rem; letter-spacing: .06em; text-transform: uppercase; color: var(--color-gold); font-weight: 700; }
+.reco-meta { font-size: 0.75rem; font-weight: 700; margin-bottom: 4px; }
+.reco-note { font-size: 0.8rem; font-style: italic; margin-bottom: 4px; }
+.reco-why { display: block; font-size: 0.72rem; color: var(--color-text-muted); margin-bottom: 6px; }
+.reco-manual { color: var(--color-gold); font-weight: 700; }
+.reco-cta { display: inline-block; font-size: 0.82rem; font-weight: 700; color: var(--color-navy); text-decoration: none; border-bottom: 2px solid var(--color-gold-light); }
+:root[data-theme="dark"] .reco-cta { color: var(--color-gold-light); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .reco-cta { color: var(--color-gold-light); } }
+.reco-lock { font-size: 0.78rem; color: var(--color-text-muted); }
+.reco-empty { font-size: 0.85rem; color: var(--color-text-muted); }
+.reco-admin { margin-top: 6px; }
+.reco-hide, .reco-unhide { font: inherit; font-size: 0.74rem; background: none; border: none; color: var(--color-text-muted); text-decoration: underline; cursor: pointer; padding: 0; }
+.reco-admin-panel { margin-top: 14px; padding: 12px; border: 1px solid var(--color-border); border-radius: var(--radius); background: var(--color-bg); }
+.reco-admin-panel h5 { margin: 0 0 8px; font-size: 0.85rem; }
+.reco-add-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.reco-add-row select { flex: 1 1 220px; min-width: 0; }
+.reco-add-row input { flex: 2 1 220px; min-width: 0; }
+.reco-hidden { font-size: 0.78rem; color: var(--color-text-muted); margin: 10px 0 0; }
+
+/* Runde 21 / Q12: „Dein Zugang auf einen Blick“ (Startseite) */
+.access-card h3 { font-size: 1rem; margin: 0 0 10px; }
+.access-line { margin: 0 0 8px; font-size: 0.88rem; }
+.access-line b { color: var(--color-navy); }
+:root[data-theme="dark"] .access-line b { color: var(--color-gold-light); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .access-line b { color: var(--color-gold-light); } }
+.access-more { background: rgba(250,194,51,0.14); border: 1px solid var(--color-gold-light); border-radius: var(--radius); padding: 10px 12px; font-size: 0.86rem; margin-top: 10px; }
+.access-more a { font-weight: 700; }
+.tile .t-facts { display: block; margin-top: 6px; font-size: 0.72rem; font-weight: 700; color: var(--color-gold); letter-spacing: 0.02em; }
+.tile .t-facts:empty { display: none; }
+.tile.is-open .t-facts { display: none; }
+
+
+/* ==========================================================================
+   Runde 22: Einheitliches Icon-System (js/icons.js)
+   ========================================================================== */
+.ic { width: 1.12em; height: 1.12em; vertical-align: -0.2em; flex: none; }
+.ic-wrap { display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
+.ic-gold { color: var(--color-gold); }
+.ic-silver { color: #8a98a0; }
+.ic-bronze { color: #a8663a; }
+.ic-diamond { color: var(--color-info); }
+.lock-screen .icon { color: var(--color-gold); }
+.lock-screen .icon .ic { width: 1em; height: 1em; stroke-width: 1.5; }
+
+/* ==========================================================================
+   Runde 22: aufgeräumte Kopfzeile und Navigation (Handy)
+   ========================================================================== */
+.icon-btn, .btn, button, input, select, textarea { font-family: var(--font-body); }
+.topbar-btn { display: inline-flex; align-items: center; gap: 7px; }
+.topbar-btn .ic { width: 1.05em; height: 1.05em; }
+
+.nav-tab-icon { display: inline-flex; color: var(--color-gold); }
+.nav-tab.active .nav-tab-icon { color: var(--color-gold-light); }
+.nav-tab-caret { display: inline-flex; }
+.nav-tab-caret .ic { width: 0.9em; height: 0.9em; }
+.nav-tab-lock { display: inline-flex; opacity: 0.8; }
+
+@media (max-width: 640px) {
+  /* Kopfzeile: Marke links, Aktionen als reine Icons rechts – immer eine Zeile. */
+  .topbar { flex-wrap: nowrap; padding: 10px 14px; }
+  .topbar > *:last-child { flex: 0 0 auto; }
+  .topbar .brand-name { font-size: 0.85rem; }
+  .topbar-btn { padding: 8px; min-width: 40px; min-height: 40px; justify-content: center; }
+  .topbar-btn .btn-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .topbar-btn .ic { width: 1.25em; height: 1.25em; }
+
+  /* Reiterleiste: eine Zeile, seitlich wischbar, ohne Umbruch und Scrollbalken. */
+  .nav-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 8px;
+    padding: 10px 14px 12px;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .nav-tabs::-webkit-scrollbar { display: none; }
+  .nav-tab { flex: 0 0 auto; scroll-snap-align: center; padding: 9px 13px; min-height: 40px; white-space: nowrap; }
+  .nav-tab:hover { transform: none; }
+  .nav-submenu-panel { position: fixed; left: 14px; right: 14px; top: auto; min-width: 0; }
+  .nav-submenu-panel a { padding: 12px 14px; }
+}
+
+/* Runde 22: Rechtsseiten und Fußzeilen-Links */
+.legal-links { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px 10px; justify-content: center; font-size: 0.8rem; }
+.legal-links a { color: var(--color-text-muted); text-decoration: underline; text-underline-offset: 2px; }
+.legal-links a:hover { color: var(--color-gold); }
+.legal-links span { color: var(--color-text-muted); opacity: 0.6; }
+.legal-page { max-width: 720px; padding-top: 24px; padding-bottom: 24px; }
+.legal-page h1 { font-size: 1.5rem; margin: 0 0 14px; }
+.legal-page h2 { font-size: 1.05rem; margin: 22px 0 8px; }
+.legal-page p, .legal-page li { font-size: 0.95rem; line-height: 1.6; }
+.legal-page ul { padding-left: 20px; }
+.legal-intro { color: var(--color-text-muted); }
+.legal-draft { background: #fff7e0; border: 1px solid var(--color-gold-light); color: #5a4300; border-radius: var(--radius); padding: 10px 14px; font-size: 0.88rem; margin: 0 0 16px; }
+:root[data-theme="dark"] .legal-draft { background: #3a2c07; color: #ffe9a8; }
+mark.legal-todo { background: #ffe9a8; color: #3a2c00; padding: 1px 4px; border-radius: 4px; }
+
+/* Runde 22: Einwilligungen */
+.consent-row { display: flex; gap: 10px; align-items: flex-start; margin: 12px 0; font-size: 0.86rem; line-height: 1.5; cursor: pointer; }
+.consent-row input { margin-top: 4px; width: 18px; height: 18px; flex: none; accent-color: var(--color-navy); }
+.consent-row a { color: var(--color-gold); }
+.consent-note { font-size: 0.82rem; color: var(--color-text-muted); margin: 6px 0 12px; }
+.consent-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(5, 52, 70, 0.78); display: flex; align-items: center; justify-content: center; padding: 16px; overflow-y: auto; }
+.consent-card { background: var(--color-surface); color: var(--color-text); border-radius: var(--radius); padding: 22px 20px; max-width: 520px; width: 100%; box-shadow: 0 20px 50px rgba(0,0,0,0.35); }
+.consent-card h2 { margin-top: 0; font-size: 1.2rem; }
+
+/* Runde 22: Nächster Schritt und Willkommens-Ablauf */
+.next-step { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; align-items: start; background: var(--color-surface); border: 1px solid var(--color-border); border-left: 4px solid var(--color-gold); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px 18px; margin-bottom: 20px; }
+.next-step-icon { width: 42px; height: 42px; border-radius: 50%; background: var(--color-navy); color: var(--color-gold-light); display: flex; align-items: center; justify-content: center; font-size: 1.25rem; grid-row: 1 / span 1; }
+.next-step-kicker { font-family: var(--font-heading); font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-gold); }
+.next-step-body h3 { margin: 2px 0 4px; font-size: 1.05rem; }
+.next-step-body p { margin: 0; font-size: 0.9rem; color: var(--color-text-muted); line-height: 1.5; }
+.next-step-cta { grid-column: 1 / -1; display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; width: 100%; margin-top: 8px; }
+@media (min-width: 641px) { .next-step { grid-template-columns: auto 1fr auto; align-items: center; } .next-step-cta { grid-column: auto; width: auto; margin-top: 0; padding-left: 20px; padding-right: 20px; } }
+
+.onb-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(5, 52, 70, 0.82); display: flex; align-items: center; justify-content: center; padding: 16px; overflow-y: auto; }
+.onb-card { background: var(--color-surface); color: var(--color-text); border-radius: 16px; padding: 20px 22px 22px; max-width: 460px; width: 100%; box-shadow: 0 24px 60px rgba(0,0,0,0.4); }
+.onb-top { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: var(--color-text-muted); }
+.onb-skip { background: none; border: 0; color: var(--color-text-muted); text-decoration: underline; cursor: pointer; font-size: 0.8rem; padding: 6px; }
+.onb-icon { width: 56px; height: 56px; border-radius: 50%; background: var(--color-navy); color: var(--color-gold-light); display: flex; align-items: center; justify-content: center; font-size: 1.7rem; margin: 10px auto 12px; }
+.onb-card h2 { text-align: center; margin: 0 0 8px; font-size: 1.25rem; }
+.onb-text { font-size: 0.92rem; line-height: 1.55; color: var(--color-text-muted); margin: 0 0 14px; text-align: center; }
+.onb-items { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 10px; }
+.onb-items li { display: flex; gap: 12px; align-items: flex-start; font-size: 0.88rem; line-height: 1.4; padding: 10px 12px; border: 1px solid var(--color-border); border-radius: 10px; }
+.onb-item-icon { color: var(--color-gold); font-size: 1.2rem; margin-top: 1px; }
+.onb-dots { display: flex; justify-content: center; gap: 6px; margin: 4px 0 14px; }
+.onb-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--color-border); }
+.onb-dots i.on { background: var(--color-gold); width: 18px; border-radius: 4px; }
+.onb-actions { display: flex; gap: 10px; }
+.onb-actions .btn { flex: 1; }
+.onb-back { background: transparent !important; color: var(--color-text) !important; border: 1px solid var(--color-border) !important; }
+
+.btn:focus-visible, .nav-tab:focus-visible, .icon-btn:focus-visible, a:focus-visible, button:focus-visible { outline: 2px solid var(--color-gold-light); outline-offset: 2px; }
+
+/* Runde 22: breite Tabellen (z. B. Trainer-Dashboard) scrollen auf dem Handy seitlich statt die Seite zu verbreitern */
+@media (max-width: 640px) {
+  table.simple-table { display: block; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+}
