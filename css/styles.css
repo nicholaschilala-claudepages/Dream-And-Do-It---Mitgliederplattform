@@ -1436,3 +1436,20 @@ mark.legal-todo { background: #ffe9a8; color: #3a2c00; padding: 1px 4px; border-
   }
   .container:not(.wide):not(.legal-page) { max-width: 520px; }
 }
+
+/* Runde 22 (Nachtrag 2): Untermenü-Dropdown stabilisiert.
+   Fehlerbild: Beim Bewegen der Maus im geöffneten Menü flackerte die Ansicht,
+   der Mauszeiger wechselte zwischen Hand, Pfeil und Textmarker, und Einträge
+   verschwanden hinter Textfeldern/Kacheln. Ursachen: (1) Der Reiter hob sich
+   per :hover um 1 px an (transform) – das Panel ist ein Kind des Reiters und
+   wanderte mit, sodass der Eintrag unter der Maus ständig wechselte.
+   (2) Der Reiter erzeugte keinen eigenen Stapelkontext über dem Seiteninhalt;
+   Kacheln (stretched link) und Formularfelder lagen darüber. (3) Das Panel
+   erbte cursor:pointer und war markierbar. */
+.nav-tabs { position: relative; z-index: 60; }
+.nav-tab { user-select: none; -webkit-user-select: none; }
+.nav-tab.has-submenu:hover,
+.nav-tab.has-submenu[aria-expanded="true"] { transform: none; }
+.nav-tab.has-submenu { transition: border-color 0.12s ease, box-shadow 0.12s ease; }
+.nav-submenu-panel { z-index: 70; cursor: default; user-select: none; -webkit-user-select: none; }
+.nav-submenu-panel a { cursor: pointer; }
