@@ -40,7 +40,9 @@ jobs:
           BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
           RCLONE_GDRIVE_TOKEN: ${{ secrets.RCLONE_GDRIVE_TOKEN }}
           GDRIVE_FOLDER: ${{ vars.GDRIVE_FOLDER }}
-          KEEP_DAYS: ${{ vars.KEEP_DAYS }}
+          # Aufbewahrung: Sicherungen älter als 365 Tage werden gelöscht (so steht es in den
+          # Datenschutzhinweisen). Ändern: in GitHub die Variable KEEP_DAYS anlegen.
+          KEEP_DAYS: ${{ vars.KEEP_DAYS || '365' }}
         run: bash tools/backup/backup.sh
 
       - name: Zeitplan aktiv halten
