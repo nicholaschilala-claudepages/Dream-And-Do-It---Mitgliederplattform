@@ -1,0 +1,53 @@
+name: Datensicherung (Supabase -> Google Drive)
+
+# Läuft täglich um ca. 03:17 UTC (04:17/05:17 Uhr deutscher Zeit) und auf Knopfdruck
+# (Reiter "Actions" -> "Datensicherung" -> "Run workflow").
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write   # nur, damit der Zeitplan nicht von GitHub stillgelegt wird (siehe letzter Schritt)
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Code holen
+        uses: actions/checkout@v4
+
+      - name: Werkzeuge installieren (PostgreSQL-Client, rclone)
+        env:
+          PG_CLIENT_VERSION: ${{ vars.PG_CLIENT_VERSION || '17' }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-common curl gnupg
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y -qq "postgresql-client-${PG_CLIENT_VERSION}" rclone
+          pg_dump --version
+          rclone version | head -1
+
+      - name: Sicherung erstellen, verschlüsseln und zu Google Drive hochladen
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+          RCLONE_GDRIVE_TOKEN: ${{ secrets.RCLONE_GDRIVE_TOKEN }}
+          GDRIVE_FOLDER: ${{ vars.GDRIVE_FOLDER }}
+          KEEP_DAYS: ${{ vars.KEEP_DAYS }}
+        run: bash tools/backup/backup.sh
+
+      - name: Zeitplan aktiv halten
+        # GitHub legt geplante Workflows in öffentlichen Repositories still, wenn 60 Tage lang
+        # nichts im Repository passiert. Dieser Aufruf setzt den Zähler zurück.
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --method PUT "repos/${{ github.repository }}/actions/workflows/backup-supabase.yml/enable" || echo "Hinweis: Zeitplan konnte nicht erneuert werden."
