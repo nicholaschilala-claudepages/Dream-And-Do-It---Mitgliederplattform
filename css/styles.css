@@ -66,10 +66,11 @@ html, body {
   background: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-body);
-  font-size: 16px;
   line-height: 1.55;
   min-height: 100%;
 }
+html { font-size: 16px; }
+body { font-size: 1rem; }
 
 h1, h2, h3, h4 {
   font-family: var(--font-heading);
@@ -128,6 +129,16 @@ a { color: var(--color-gold); }
   flex-shrink: 0;
 }
 
+/* Logo-Zeichen in Originalfarben (Gold + Dunkelblau) auf hellem Badge, damit
+   der dunkelblaue Teil auf der dunkelblauen Kopfzeile sichtbar bleibt. */
+.topbar .brand img.brand-mark {
+  height: 46px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 4px 6px;
+  box-shadow: 0 0 0 1px rgba(224, 168, 46, 0.55);
+}
+
 .topbar .brand-text {
   display: flex;
   flex-direction: column;
@@ -160,6 +171,7 @@ a { color: var(--color-gold); }
 @media (max-width: 460px) {
   .topbar .brand { font-size: 0.88rem; gap: 7px; }
   .topbar .brand img { height: 30px; }
+  .topbar .brand img.brand-mark { height: 38px; border-radius: 10px; padding: 3px 5px; }
   .topbar .brand-name { font-size: 0.88rem; }
   .topbar .brand-tagline { display: none; }
   .topbar > *:last-child { flex: 1 1 100%; justify-content: flex-end; }
@@ -167,6 +179,7 @@ a { color: var(--color-gold); }
 
 @media (max-width: 360px) {
   .topbar .brand img { height: 26px; }
+  .topbar .brand img.brand-mark { height: 34px; }
   .topbar .brand-name { font-size: 0.78rem; }
 }
 
@@ -175,9 +188,10 @@ a { color: var(--color-gold); }
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  background: var(--color-navy);
+  background: #fff;
+  border: 1px solid rgba(224, 168, 46, 0.45);
   border-radius: var(--radius);
-  padding: 28px 20px 22px;
+  padding: 22px 20px 18px;
   margin-bottom: 18px;
   box-shadow: var(--shadow);
 }
@@ -1390,4 +1404,35 @@ mark.legal-todo { background: #ffe9a8; color: #3a2c00; padding: 1px 4px; border-
 /* Runde 22: breite Tabellen (z. B. Trainer-Dashboard) scrollen auf dem Handy seitlich statt die Seite zu verbreitern */
 @media (max-width: 640px) {
   table.simple-table { display: block; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+}
+
+
+/* ============================================================================
+   Runde 22 (Nachtrag): Desktop-Darstellung. Auf großen Bildschirmen war der
+   Inhalt auf 860 px begrenzt und die Schrift klein, links und rechts blieb
+   viel leere Fläche. Jetzt wachsen Inhaltsbreite und Grundschrift mit der
+   Bildschirmbreite; Kopfzeile und Reiterleiste fluchten mit dem Inhalt.
+   Auf Handy und Tablet (< 1024 px) ändert sich nichts.
+   ========================================================================== */
+:root { --content-max: 860px; }
+@media (min-width: 1024px) {
+  :root { --content-max: 1180px; }
+  html { font-size: 17px; }
+}
+@media (min-width: 1440px) {
+  :root { --content-max: 1360px; }
+  html { font-size: 18px; }
+}
+@media (min-width: 1800px) {
+  :root { --content-max: 1560px; }
+  html { font-size: 19px; }
+}
+@media (min-width: 1024px) {
+  .container.wide { max-width: var(--content-max); padding-left: 24px; padding-right: 24px; }
+  .topbar,
+  .nav-tabs {
+    padding-left: max(24px, calc((100vw - var(--content-max)) / 2 + 24px));
+    padding-right: max(24px, calc((100vw - var(--content-max)) / 2 + 24px));
+  }
+  .container:not(.wide):not(.legal-page) { max-width: 520px; }
 }
