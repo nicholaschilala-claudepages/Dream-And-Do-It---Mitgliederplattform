@@ -144,10 +144,7 @@ export function setSubnavValue(root, key, selectId) {
 }
 
 function escapeHtmlLocal(str) {
-  const div = typeof document !== 'undefined' ? document.createElement('div') : null;
-  if (!div) return str;
-  div.textContent = str;
-  return div.innerHTML;
+  return String(str == null ? '' : str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
 function escapeAttr(str) {

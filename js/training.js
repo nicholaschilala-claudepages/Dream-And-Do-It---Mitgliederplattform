@@ -343,6 +343,105 @@ export async function removePlanExercise(planExerciseId) {
   return supabaseClient.from('plan_exercises').delete().eq('id', planExerciseId);
 }
 
+// ---------------------------------------------------------------------------
+// Runde 21 / Q11: Trainer bearbeitet einen zugewiesenen Plan vollständig
+// ---------------------------------------------------------------------------
+
+// Anzahl geloggter Sätze je Plan-Übung (für die Warnung vor dem Entfernen).
+// Liefert { [planExerciseId]: anzahl }.
+export async function countLogsPerPlanExercise(planExerciseIds) {
+  const ids = (planExerciseIds || []).filter(Boolean);
+  const counts = {};
+  if (ids.length === 0) return { data: counts, error: null };
+  for (let i = 0; i < ids.length; i += 100) {
+    const chunk = ids.slice(i, i + 100);
+    const { data, error } = await supabaseClient
+      .from('training_logs')
+      .select('plan_exercise_id')
+      .in('plan_exercise_id', chunk)
+      .limit(5000);
+    if (error) return { data: counts, error };
+    for (const row of data || []) counts[row.plan_exercise_id] = (counts[row.plan_exercise_id] || 0) + 1;
+  }
+  return { data: counts, error: null };
+}
+
+const numOrNull = (v) => {
+  if (v === '' || v == null) return null;
+  const n = Number(String(v).replace(',', '.'));
+  return Number.isFinite(n) ? n : null;
+};
+
+// Speichert alle Änderungen aus dem Plan-Editor. Ablauf bewusst schrittweise
+// (Tage zuerst, dann Übungen, zuletzt Löschungen), damit nie eine Übung ohne
+// gültigen Tag zurückbleibt:
+//   1. Plan-Kopfdaten (Titel, Notizen)
+//   2. neue Tage anlegen, bestehende Tage umbenennen/umsortieren
+//   3. Übungen aktualisieren (Tag, Reihenfolge, Vorgaben)
+//   4. entfernte Übungen löschen (zugehörige Logs bleiben erhalten – ab Migration
+//      054 wird deren Verknüpfung auf den Plan lediglich gelöst)
+//   5. entfernte Tage löschen (ihre Übungen wurden vorher in "ohne Tag" verschoben)
+// model = { title, notes, days:[{key, id|null, label}], exercises:[{id, dayKey|null, targetSets,
+//   targetReps, targetWeightHint, targetDurationSeconds, targetDistanceMeters, targetSpeedKmh,
+//   targetWatt, targetHeartRatePercent, notes}], removedExerciseIds:[], removedDayIds:[] }
+// Die Reihenfolge von days/exercises im Array bestimmt sort_order.
+export async function savePlanEdits(planId, model) {
+  const title = (model.title || '').trim();
+  if (!title) return { error: { message: 'Der Plan braucht einen Titel.' } };
+  {
+    const { error } = await supabaseClient.from('training_plans').update({ title, notes: (model.notes || '').trim() || null }).eq('id', planId);
+    if (error) return { error };
+  }
+
+  const dayIdByKey = {};
+  for (let i = 0; i < model.days.length; i += 1) {
+    const d = model.days[i];
+    const label = (d.label || '').trim() || `Tag ${i + 1}`;
+    if (d.id) {
+      const { error } = await supabaseClient.from('training_plan_days').update({ label, sort_order: i }).eq('id', d.id);
+      if (error) return { error };
+      dayIdByKey[d.key] = d.id;
+    } else {
+      const { data, error } = await supabaseClient.from('training_plan_days').insert({ plan_id: planId, label, sort_order: i }).select('id').single();
+      if (error) return { error };
+      if (!data || !data.id) return { error: { message: 'Der neue Trainingstag konnte nicht angelegt werden.' } };
+      dayIdByKey[d.key] = data.id;
+    }
+  }
+
+  const perDayCounter = {};
+  for (const ex of model.exercises) {
+    const dayId = ex.dayKey ? (dayIdByKey[ex.dayKey] || null) : null;
+    const bucket = dayId || 'none';
+    const order = perDayCounter[bucket] || 0;
+    perDayCounter[bucket] = order + 1;
+    const { error } = await supabaseClient.from('plan_exercises').update({
+      plan_day_id: dayId,
+      sort_order: order,
+      target_sets: numOrNull(ex.targetSets),
+      target_reps: (ex.targetReps || '').toString().trim() || null,
+      target_weight_hint: (ex.targetWeightHint || '').toString().trim() || null,
+      target_duration_seconds: numOrNull(ex.targetDurationSeconds),
+      target_distance_meters: numOrNull(ex.targetDistanceMeters),
+      target_speed_kmh: numOrNull(ex.targetSpeedKmh),
+      target_watt: numOrNull(ex.targetWatt),
+      target_heart_rate_percent: numOrNull(ex.targetHeartRatePercent),
+      notes: (ex.notes || '').toString().trim() || null,
+    }).eq('id', ex.id);
+    if (error) return { error };
+  }
+
+  for (const id of model.removedExerciseIds || []) {
+    const { error } = await supabaseClient.from('plan_exercises').delete().eq('id', id);
+    if (error) return { error };
+  }
+  for (const id of model.removedDayIds || []) {
+    const { error } = await supabaseClient.from('training_plan_days').delete().eq('id', id);
+    if (error) return { error };
+  }
+  return { error: null };
+}
+
 export async function setPlanActive(planId, isActive) {
   return supabaseClient.from('training_plans').update({ is_active: isActive }).eq('id', planId);
 }

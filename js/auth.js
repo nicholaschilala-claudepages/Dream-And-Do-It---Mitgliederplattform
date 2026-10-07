@@ -3,18 +3,27 @@
 // ============================================================================
 
 import { supabaseClient } from './supabase-client.js';
+import { needsConsent, askConsent } from './consent.js';
+import { LEGAL_VERSION } from './legal-content.js';
 
 /**
  * Registriert einen neuen Kunden-Account.
  * Der zugehörige Eintrag in "profiles" wird automatisch per Datenbank-Trigger
  * angelegt (siehe sql/001_fundament.sql).
  */
-export async function signUp(email, password, fullName) {
+export async function signUp(email, password, fullName, consent) {
   const { data, error } = await supabaseClient.auth.signUp({
     email,
     password,
     options: {
-      data: { full_name: fullName },
+      // Einwilligungen (Runde 22): der Datenbank-Trigger handle_new_user()
+      // übernimmt sie mit dem Server-Zeitstempel (sql/055).
+      data: {
+        full_name: fullName,
+        consent_terms: consent && consent.terms ? 'true' : 'false',
+        consent_health: consent && consent.health ? 'true' : 'false',
+        consent_version: LEGAL_VERSION,
+      },
       emailRedirectTo: window.location.origin + '/index.html',
     },
   });
@@ -57,11 +66,17 @@ export async function getMyProfile() {
   const session = await getCurrentSession();
   if (!session) return null;
 
-  const { data, error } = await supabaseClient
+  const BASE_COLS = 'id, full_name, role, access_locked, created_at, training_enabled, nutrition_enabled, coaching_enabled';
+  // Runde 22: Einwilligungs-/Onboarding-Spalten (sql/055). Fehlen sie noch,
+  // läuft die Plattform wie bisher weiter (Fallback ohne diese Spalten).
+  let { data, error } = await supabaseClient
     .from('profiles')
-    .select('id, full_name, role, access_locked, created_at, training_enabled, nutrition_enabled, coaching_enabled')
+    .select(BASE_COLS + ', consent_terms_at, consent_health_at, consent_version, onboarding_seen_at')
     .eq('id', session.user.id)
     .single();
+  if (error && /consent_|onboarding_seen_at/.test(error.message || '')) {
+    ({ data, error } = await supabaseClient.from('profiles').select(BASE_COLS).eq('id', session.user.id).single());
+  }
 
   if (error) {
     console.error('Profil konnte nicht geladen werden:', error);
@@ -135,6 +150,12 @@ export async function requireAuth() {
     return null;
   }
   const profile = await getMyProfile();
+  if (profile && needsConsent(profile)) {
+    const accepted = await askConsent(profile);
+    if (!accepted) return null;
+    const fresh = await getMyProfile();
+    if (fresh) Object.assign(profile, fresh);
+  }
   if (profile && profile.role === 'client') {
     const deviceResult = await ensureDeviceRegistered();
     if (!deviceResult.ok && deviceResult.error === 'device_limit_reached') {

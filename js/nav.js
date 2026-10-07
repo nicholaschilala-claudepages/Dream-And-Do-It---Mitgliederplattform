@@ -27,6 +27,10 @@
 // training.html). Die Untermenüs sind daher jetzt pro Rolle definiert; bei
 // Ernährung/Coaching ergänzt die Admin-Variante zusätzlich die
 // Verwaltungs-Unterpunkte, die es nur für Trainer/Admins gibt.
+import { icon } from './icons.js';
+
+const TAB_ICONS = { dashboard: 'house', training: 'dumbbell', nutrition: 'salad', coaching: 'brain', erfolge: 'trophy', messages: 'message-circle', betrieb: 'layout-dashboard' };
+
 const SECTION_SUBTABS = {
   training: {
     client: [
@@ -133,13 +137,14 @@ function tabHtml(t, currentPage, isAdmin) {
   const classes = ['nav-tab'];
   if (t.key === currentPage) classes.push('active');
   if (t.locked) classes.push('locked');
-  const lockIcon = t.locked ? ' <span class="nav-tab-lock" title="Für dich aktuell noch nicht freigeschaltet">🔒</span>' : '';
+  const lockIcon = t.locked ? ` <span class="nav-tab-lock" title="Für dich aktuell noch nicht freigeschaltet">${icon('lock')}</span>` : '';
+  const tabIcon = TAB_ICONS[t.key] ? `<span class="nav-tab-icon">${icon(TAB_ICONS[t.key])}</span>` : '';
   const badge = t.badge > 0 ? `<span class="nav-tab-badge">${t.badge > 9 ? '9+' : t.badge}</span>` : '';
   const sectionSubtabs = !t.locked ? SECTION_SUBTABS[t.key] : null;
   const subtabs = sectionSubtabs ? (isAdmin ? sectionSubtabs.admin : sectionSubtabs.client) : null;
 
   if (!subtabs) {
-    return `<a class="${classes.join(' ')}" href="${t.href}">${escapeHtmlLocal(t.label)}${lockIcon}${badge}</a>`;
+    return `<a class="${classes.join(' ')}" href="${t.href}">${tabIcon}<span class="nav-tab-label">${escapeHtmlLocal(t.label)}</span>${lockIcon}${badge}</a>`;
   }
 
   // Kein <a> als äußeres Element: die Unterseiten-Links im Panel sind selbst
@@ -151,8 +156,8 @@ function tabHtml(t, currentPage, isAdmin) {
   classes.push('has-submenu');
   return `
     <div class="${classes.join(' ')}" data-nav-submenu-toggle tabindex="0" role="button" aria-haspopup="true" aria-expanded="false">
-      ${escapeHtmlLocal(t.label)}${lockIcon}${badge}
-      <span class="nav-tab-caret" aria-hidden="true">▾</span>
+      ${tabIcon}<span class="nav-tab-label">${escapeHtmlLocal(t.label)}</span>${lockIcon}${badge}
+      <span class="nav-tab-caret" aria-hidden="true">${icon('chevron-down')}</span>
       <div class="nav-submenu-panel" hidden>
         <a href="${t.href}">Übersicht</a>
         ${subtabs.map((s) => `<a href="${t.href}?tab=${encodeURIComponent(s.key)}">${escapeHtmlLocal(s.label)}</a>`).join('')}
@@ -169,6 +174,7 @@ function tabHtml(t, currentPage, isAdmin) {
  */
 export function bindNavSubmenus(root) {
   const scope = root || document;
+  revealActiveTab(scope);
   const toggles = scope.querySelectorAll('[data-nav-submenu-toggle]');
   if (!toggles.length) return;
 
@@ -187,6 +193,7 @@ export function bindNavSubmenus(root) {
       if (!isOpen) {
         panel.hidden = false;
         tab.setAttribute('aria-expanded', 'true');
+        positionPanel(tab, panel);
       }
     };
 
@@ -215,9 +222,26 @@ export function bindNavSubmenus(root) {
   });
 }
 
+// Auf dem Handy liegt die Reiterleiste in einer waagerecht scrollbaren Zeile –
+// ein absolut positioniertes Untermenü würde dort abgeschnitten. Deshalb wird
+// das Panel dort fixiert unter die Leiste gesetzt (fast volle Breite).
+function positionPanel(tab, panel) {
+  panel.style.top = '';
+  if (window.matchMedia && window.matchMedia('(max-width: 640px)').matches) {
+    const r = tab.closest('.nav-tabs').getBoundingClientRect();
+    panel.style.top = `${Math.round(r.bottom + 4)}px`;
+  }
+}
+
+/** Den aktiven Reiter auf dem Handy in die sichtbare Mitte der Leiste scrollen. */
+export function revealActiveTab(root) {
+  const scope = root || document;
+  const bar = scope.querySelector('.nav-tabs');
+  const active = bar && bar.querySelector('.nav-tab.active');
+  if (!bar || !active) return;
+  bar.scrollLeft = Math.max(0, active.offsetLeft - (bar.clientWidth - active.offsetWidth) / 2);
+}
+
 function escapeHtmlLocal(str) {
-  const div = typeof document !== 'undefined' ? document.createElement('div') : null;
-  if (!div) return str;
-  div.textContent = str;
-  return div.innerHTML;
+  return String(str == null ? '' : str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
