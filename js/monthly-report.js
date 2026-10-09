@@ -22,6 +22,8 @@
 // selbst ist keine zusätzliche Erfassung nötig.
 // ============================================================================
 
+import { MONTH_SHORT_DE } from './report-data.js';
+
 const NAVY = [5, 52, 70];
 const GOLD = [200, 124, 0];
 const GOLD_LIGHT = [250, 194, 51];
@@ -447,6 +449,7 @@ export async function buildMonthlyReportPdf({
   streak, // aus computeTrainingStreak()
   monthPrEvents, // prEvents (aus computePersonalRecords) gefiltert auf den Berichtsmonat
   moduleAccess = { training: true, nutrition: true },
+  extra = null, // Runde 22 (Nachtrag 5): erweiterte Daten (Tests, Körpermaße, Training im Detail, Erfolge) aus js/report-data.js
 }) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
@@ -511,7 +514,7 @@ export async function buildMonthlyReportPdf({
   doc.setFontSize(9.5);
   doc.setTextColor(200, 210, 214);
   const introLines = doc.splitTextToSize(
-    'Dieser Bericht fasst deine Entwicklung im Training, in der Ernährung und in deinem Präventions-Score zusammen – automatisch aus deinen bereits geloggten Daten erstellt. Ideal zum Ausdrucken oder Archivieren.',
+    'Dieser Bericht fasst deinen Monat zusammen: Training, Ernährung, Körpermaße, alle Tests mit Einstufung und Veränderung, deinen Präventions-Score und deine Erfolge – automatisch aus deinen bereits geloggten Daten erstellt. Ideal zum Ausdrucken oder Archivieren.',
     PAGE_W - MARGIN * 2 - 4
   );
   doc.text(introLines, MARGIN, PAGE_H - 40);
@@ -541,7 +544,24 @@ export async function buildMonthlyReportPdf({
   kpiTiles.push({ value: hasPreventionScore ? Math.round(preventionScore.total) : '–', label: 'Präventions-\nScore' });
 
   y = drawKpiRow(doc, y, kpiTiles.map((t) => ({ ...t, label: t.label.replace('\n', ' ') })));
-  y += 12;
+  y += 8;
+
+  if (extra) {
+    const t2 = [];
+    if (moduleAccess.training) {
+      t2.push({ value: fmt0(trainingSummary.distinctDaysCount), label: 'Trainingstage' });
+      t2.push({ value: `${fmt0(extra.trainingExtras.cardioMinutes)} Min.`, label: 'Ausdauer & Kurse' });
+    }
+    t2.push({ value: `${extra.testSummary.tested}`, label: 'Tests im Monat' });
+    if (extra.body && extra.body.hasData) {
+      const w = extra.body.rows.find((r) => r.key === 'weight_kg');
+      t2.push({ value: w ? w.endText : '–', label: 'Körpergewicht' });
+    }
+    y = drawKpiRow(doc, y, t2);
+    y += 12;
+  } else {
+    y += 4;
+  }
 
   if (moduleAccess.training) {
     doc.setFont('helvetica', 'bold');
@@ -591,7 +611,31 @@ export async function buildMonthlyReportPdf({
     y += 6;
   }
 
-  drawFooter(doc, `Seite 2`);
+
+  if (extra) {
+    y = needSpace(doc, y + 4, 44, monthLabel);
+    y = subHeading(doc, 'Der Monat auf einen Blick', y);
+    const lines = [];
+    const ts = extra.testSummary;
+    lines.push(`Tests: ${ts.tested} im Monat durchgeführt, ${ts.improved} verbessert, ${ts.worse} verschlechtert, ${ts.alerts} aktuell auffällig.`);
+    if (extra.scoreInfo && extra.scoreInfo.end) {
+      lines.push(`Präventions-Score: ${Math.round(extra.scoreInfo.end.total)} Punkte${extra.scoreInfo.delta != null ? ` (${extra.scoreInfo.delta > 0 ? '+' : ''}${Math.round(extra.scoreInfo.delta)} seit dem Stand davor)` : ''}.`);
+    }
+    if (extra.body && extra.body.hasData) {
+      extra.body.rows.filter((r) => r.deltaText && ['weight_kg', 'body_fat_percent', 'waist_cm'].includes(r.key)).forEach((r) => lines.push(`${r.label}: ${r.endText} (${r.deltaText} zum Stand davor).`));
+    }
+    if (extra.achievements.length) lines.push(`${extra.achievements.length} neue${extra.achievements.length === 1 ? 'r Erfolg' : ' Erfolge'} freigeschaltet.`);
+    lines.forEach((t) => {
+      doc.setFillColor(...GOLD);
+      doc.circle(MARGIN + 1, y - 1.2, 1, 'F');
+      doc.setFont('times', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(...TEXT_DARK);
+      const wrapped = doc.splitTextToSize(t, CONTENT_W - 6);
+      doc.text(wrapped, MARGIN + 4.5, y);
+      y += wrapped.length * 4.3 + 1.2;
+    });
+  }
 
   // --- Seite 3: Training ----------------------------------------------------
   if (moduleAccess.training) {
@@ -648,7 +692,7 @@ export async function buildMonthlyReportPdf({
       doc.text('Keine Trainingseinheiten in diesem Monat erfasst.', MARGIN, y);
     }
 
-    drawFooter(doc, 'Seite 3');
+    if (extra) drawTrainingExtrasPage(doc, extra.trainingExtras, monthLabel, { trainingSummary, periodWord: 'im Monat' });
   }
 
   // --- Seite 4: Ernährung ----------------------------------------------------
@@ -720,7 +764,11 @@ export async function buildMonthlyReportPdf({
       doc.text('Kein Ernährungsprotokoll in diesem Monat erfasst.', MARGIN, y);
     }
 
-    drawFooter(doc, 'Seite 4');
+  }
+
+  if (extra) {
+    drawBodySection(doc, extra.body, monthLabel, { startLabel: 'Stand davor' });
+    drawTestsSection(doc, extra.testRows, extra.testSummary, monthLabel, { periodWord: 'im Monat', compareHint: 'Veränderung gegenüber dem letzten Test vor Monatsbeginn (bzw. dem ersten Test im Monat).' });
   }
 
   // --- Seite 5: Präventions-Score ---------------------------------------------
@@ -756,7 +804,7 @@ export async function buildMonthlyReportPdf({
     doc.setFontSize(8.6);
     doc.setTextColor(...TEXT_MUTED);
     doc.text(
-      doc.splitTextToSize('Der Präventions-Score fasst Kraftausdauer, Beweglichkeit, Körperzusammensetzung, Trainings-Balance, Lebensstil-Faktoren sowie – falls erfasst – Blutdruck und Ruhepuls zu einer Gesamteinschätzung zusammen. Details siehe Tab "Präventionscheck" in der Plattform.', CONTENT_W),
+      doc.splitTextToSize('Der Präventions-Score fasst Kraftausdauer, Beweglichkeit, Körperzusammensetzung, Trainings-Balance, Lebensstil-Faktoren sowie – falls erfasst – Blutdruck und Ruhepuls zu einer Gesamteinschätzung zusammen. Details siehe „Meine Entwicklung" in der Plattform.', CONTENT_W),
       MARGIN, y
     );
     y += 16;
@@ -764,22 +812,23 @@ export async function buildMonthlyReportPdf({
     doc.setFont('times', 'italic');
     doc.setFontSize(9.5);
     doc.setTextColor(...TEXT_MUTED);
-    doc.text('Noch kein Präventions-Score verfügbar – dafür im Bereich "Präventionscheck" Geburtsdatum, Körpermaße und/oder Tests erfassen.', MARGIN, y);
+    doc.text('Noch kein Präventions-Score verfügbar – dafür Geburtsdatum, Körpermaße und/oder Tests im Reiter "Tests" erfassen.', MARGIN, y);
   }
 
-  let pageNo = moduleAccess.training && moduleAccess.nutrition ? 5 : moduleAccess.training || moduleAccess.nutrition ? 4 : 3;
   if (vitals) {
     if (y + vitalsBlockHeight(vitals) > PAGE_H - 22) {
-      drawFooter(doc, `Seite ${pageNo}`);
       doc.addPage();
-      pageNo += 1;
       drawHeaderBar(doc, monthLabel);
       y = drawVitalsBlock(doc, 32, vitals);
     } else {
       y = drawVitalsBlock(doc, y + 2, vitals);
     }
   }
-  drawFooter(doc, `Seite ${pageNo}`);
+
+  if (extra) {
+    drawAchievementsPage(doc, monthLabel, { achievements: extra.achievements, goals: extra.goals, periodWord: 'im Monat', scoreInfo: extra.scoreInfo });
+  }
+  drawFootersFromPage(doc, 2);
 
   const fileClientLabel = clientName.replace(/[^a-z0-9]+/gi, '_');
   const fileMonthLabel = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}`;
@@ -946,13 +995,13 @@ export async function buildReviewPdf({
     doc.setFont('times', 'normal');
     doc.setFontSize(9.5);
     doc.setTextColor(...TEXT_DARK);
-    doc.text(doc.splitTextToSize(`Bisher liegt ein Score vor: ${Math.round(scoreHistory[0].total)} Punkte (${fmtDateDe(parseLocalDay(scoreHistory[0].date))}). Mit einem Retest im Präventionscheck wird die Entwicklung sichtbar.`, CONTENT_W), MARGIN, y);
+    doc.text(doc.splitTextToSize(`Bisher liegt ein Score vor: ${Math.round(scoreHistory[0].total)} Punkte (${fmtDateDe(parseLocalDay(scoreHistory[0].date))}). Mit einem Retest im Reiter Tests wird die Entwicklung sichtbar.`, CONTENT_W), MARGIN, y);
     y += 14;
   } else {
     doc.setFont('times', 'italic');
     doc.setFontSize(9.5);
     doc.setTextColor(...TEXT_MUTED);
-    doc.text('Noch kein Präventions-Score vorhanden – Tests im Präventionscheck eintragen.', MARGIN, y);
+    doc.text('Noch kein Präventions-Score vorhanden – Tests im Reiter Tests eintragen.', MARGIN, y);
     y += 12;
   }
   if (scoreBreakdown && scoreBreakdown.length > 0) {
@@ -1049,4 +1098,664 @@ function parseLocalDay(key) {
 function shortDay(key) {
   const [y, m, d] = String(key).slice(0, 10).split('-');
   return `${d}.${m}.${String(y).slice(2)}`;
+}
+
+// ============================================================================
+// Runde 22 (Nachtrag 5): erweiterte Berichtsseiten (gemeinsam für Monats- und
+// Jahresbericht) – Tests mit Einstufung/Veränderung, Körpermaße, Training im
+// Detail, Erfolge/Ziele, Hinweise. Daten kommen aus js/report-data.js.
+// Hinweis: jsPDF-Kernschriften (WinAnsi) können weder Emoji noch Pfeile oder
+// ≥/≤ darstellen – daher nur Text und per Vektor gezeichnete Punkte.
+// ============================================================================
+
+function sevColor(sev) {
+  return sev === 'ok' ? SUCCESS : sev === 'warn' ? GOLD : sev === 'alert' ? DANGER : TEXT_MUTED;
+}
+
+function trendColor(trend) {
+  return trend === 'better' ? SUCCESS : trend === 'worse' ? DANGER : TEXT_MUTED;
+}
+
+const TREND_WORD = { better: 'verbessert', worse: 'verschlechtert', same: 'unverändert' };
+
+function startPage(doc, subtitle) {
+  doc.addPage();
+  drawHeaderBar(doc, subtitle);
+  return 30;
+}
+
+function needSpace(doc, y, h, subtitle) {
+  return y + h <= PAGE_H - 20 ? y : startPage(doc, subtitle);
+}
+
+function subHeading(doc, text, y) {
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10.5);
+  doc.setTextColor(...NAVY);
+  doc.text(text, MARGIN, y);
+  return y + 7;
+}
+
+function noteText(doc, text, y, { italic = true, size = 8.6, color = TEXT_MUTED, width = CONTENT_W, lineH = 3.9 } = {}) {
+  doc.setFont('times', italic ? 'italic' : 'normal');
+  doc.setFontSize(size);
+  doc.setTextColor(...color);
+  const lines = doc.splitTextToSize(text, width);
+  doc.text(lines, MARGIN, y);
+  return y + lines.length * lineH + 1.5;
+}
+
+function tableHeader(doc, y, cols) {
+  doc.setFillColor(...NAVY);
+  doc.rect(MARGIN, y - 4.5, CONTENT_W, 7, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.2);
+  doc.setTextColor(255, 255, 255);
+  cols.forEach((c) => doc.text(c.text, MARGIN + c.x, y, c.align ? { align: c.align } : undefined));
+  return y + 6;
+}
+
+// Einfaches Liniendiagramm (Verlauf), ohne externe Bibliothek.
+function drawLineChart(doc, { x, y, width, height, series, color = GOLD, digits = 1, unit = '' }) {
+  const pts = (series || []).filter((p) => p && Number.isFinite(Number(p.value)));
+  doc.setDrawColor(...TEXT_MUTED);
+  doc.setLineWidth(0.25);
+  doc.line(x, y + height, x + width, y + height);
+  if (!pts.length) {
+    doc.setFont('times', 'italic');
+    doc.setFontSize(8.6);
+    doc.setTextColor(...TEXT_MUTED);
+    doc.text('Keine Messwerte im Zeitraum.', x, y + height / 2);
+    return;
+  }
+  const vals = pts.map((p) => Number(p.value));
+  let min = Math.min(...vals); let max = Math.max(...vals);
+  if (min === max) { min -= 1; max += 1; }
+  const pad = (max - min) * 0.2; min -= pad; max += pad;
+  const t0 = new Date(pts[0].date).getTime(); const t1 = new Date(pts[pts.length - 1].date).getTime();
+  const xAt = (p, i) => (pts.length === 1 ? x + width / 2 : x + 4 + ((t1 === t0 ? i / (pts.length - 1) : (new Date(p.date).getTime() - t0) / (t1 - t0)) * (width - 8)));
+  const yAt = (v) => y + height - ((v - min) / (max - min)) * height;
+  doc.setDrawColor(...color);
+  doc.setLineWidth(0.7);
+  for (let i = 1; i < pts.length; i += 1) doc.line(xAt(pts[i - 1], i - 1), yAt(Number(pts[i - 1].value)), xAt(pts[i], i), yAt(Number(pts[i].value)));
+  pts.forEach((p, i) => {
+    doc.setFillColor(...color);
+    doc.circle(xAt(p, i), yAt(Number(p.value)), 1.1, 'F');
+  });
+  const fmtV = (v) => `${(Math.round(Number(v) * 10 ** digits) / 10 ** digits).toLocaleString('de-DE')}${unit ? ' ' + unit : ''}`;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.4);
+  doc.setTextColor(...NAVY);
+  doc.text(fmtV(pts[0].value), xAt(pts[0], 0), yAt(Number(pts[0].value)) - 2.2, { align: pts.length === 1 ? 'center' : 'left' });
+  if (pts.length > 1) doc.text(fmtV(pts[pts.length - 1].value), xAt(pts[pts.length - 1], pts.length - 1), yAt(Number(pts[pts.length - 1].value)) - 2.2, { align: 'right' });
+  doc.setFont('times', 'normal');
+  doc.setFontSize(7.2);
+  doc.setTextColor(...TEXT_MUTED);
+  doc.text(shortDay(pts[0].date), x, y + height + 4.5);
+  if (pts.length > 1) doc.text(shortDay(pts[pts.length - 1].date), x + width, y + height + 4.5, { align: 'right' });
+}
+
+// Anteile (z. B. Bewegungsmuster) als goldene Balken mit Prozentangabe.
+function drawShareBars(doc, { x, y, width, data }) {
+  const total = data.reduce((s, d) => s + d.value, 0);
+  const labelW = 58; const valueW = 22; const barAreaW = width - labelW - valueW; const barH = 5;
+  let cy = y;
+  data.forEach((d) => {
+    const share = total > 0 ? d.value / total : 0;
+    doc.setFont('times', 'normal');
+    doc.setFontSize(8.4);
+    doc.setTextColor(...TEXT_DARK);
+    doc.text(doc.splitTextToSize(d.label, labelW - 2)[0], x, cy + 3.8);
+    doc.setFillColor(...CREAM);
+    doc.roundedRect(x + labelW, cy, barAreaW, barH, 1.1, 1.1, 'F');
+    if (share > 0) { doc.setFillColor(...GOLD); doc.roundedRect(x + labelW, cy, Math.max(2, share * barAreaW), barH, 1.1, 1.1, 'F'); }
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(...NAVY);
+    doc.text(`${Math.round(share * 100)} %`, x + width, cy + 3.8, { align: 'right' });
+    cy += barH + 3.2;
+  });
+  return cy;
+}
+
+// Test-Tabelle: gruppiert, mit Ampelpunkt, Einstufung und Veränderung.
+function drawTestTable(doc, rows, y, subtitle) {
+  const cols = [
+    { text: 'Test', x: 5 },
+    { text: 'Letzter Wert', x: 64 },
+    { text: 'Einstufung', x: 96 },
+    { text: 'Veränderung', x: CONTENT_W - 2, align: 'right' },
+  ];
+  y = needSpace(doc, y, 30, subtitle);
+  y = tableHeader(doc, y, cols);
+  let group = null; let idx = 0;
+  rows.forEach((r) => {
+    const labelText = r.side ? `${r.label} (${r.side})` : r.label;
+    doc.setFont('times', 'normal');
+    doc.setFontSize(8.4);
+    const labelLines = doc.splitTextToSize(labelText, 57);
+    const valLines = doc.splitTextToSize(r.valueText || '', 31);
+    const rateLines = doc.splitTextToSize(r.ratingText || '', 44).slice(0, 4);
+    const changeLines = r.change ? doc.splitTextToSize(r.change.text, 34).slice(0, 2) : [];
+    const n = Math.max(labelLines.length, valLines.length + 1, rateLines.length, changeLines.length + (r.change && TREND_WORD[r.change.trend] ? 1 : 0));
+    const rowH = Math.max(8.2, n * 3.8 + 3.6);
+    const groupH = r.group !== group ? 8 : 0;
+    if (y + groupH + rowH > PAGE_H - 20) {
+      y = startPage(doc, subtitle);
+      y = tableHeader(doc, y, cols);
+      group = null;
+    }
+    if (r.group !== group) {
+      group = r.group; idx = 0;
+      doc.setFillColor(...CREAM);
+      doc.rect(MARGIN, y - 4, CONTENT_W, 6.4, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.6);
+      doc.setTextColor(...GOLD);
+      doc.text(r.group.toUpperCase(), MARGIN + 2, y);
+      y += 5.4;
+    }
+    if (idx % 2 === 1) { doc.setFillColor(250, 248, 243); doc.rect(MARGIN, y - 3.8, CONTENT_W, rowH, 'F'); }
+    idx += 1;
+    const top = y;
+    doc.setFillColor(...sevColor(r.sev));
+    doc.circle(MARGIN + 2, top - 0.9, 1.3, 'F');
+    doc.setFont('times', 'normal');
+    doc.setFontSize(8.4);
+    doc.setTextColor(...TEXT_DARK);
+    doc.text(labelLines, MARGIN + 5, top);
+    doc.setFont('times', 'bold');
+    doc.text(valLines, MARGIN + 64, top);
+    // Datum: gold = im Berichtszeitraum getestet, grau = älterer Wert
+    doc.setFont('times', r.testedInPeriod ? 'bold' : 'italic');
+    doc.setFontSize(7.2);
+    doc.setTextColor(...(r.testedInPeriod ? GOLD : TEXT_MUTED));
+    doc.text(fmtDateDe(parseLocalDay(r.date)), MARGIN + 64, top + valLines.length * 3.8);
+    doc.setFont('times', 'normal');
+    doc.setFontSize(8.2);
+    doc.setTextColor(...TEXT_DARK);
+    doc.text(rateLines, MARGIN + 96, top);
+    if (r.change) {
+      doc.setFont('times', 'bold');
+      doc.setFontSize(8.4);
+      doc.setTextColor(...trendColor(r.change.trend));
+      doc.text(changeLines, MARGIN + CONTENT_W - 2, top, { align: 'right' });
+      if (TREND_WORD[r.change.trend]) {
+        doc.setFont('times', 'italic');
+        doc.setFontSize(7.2);
+        doc.text(TREND_WORD[r.change.trend], MARGIN + CONTENT_W - 2, top + changeLines.length * 3.8, { align: 'right' });
+      }
+    } else {
+      doc.setFont('times', 'italic');
+      doc.setFontSize(7.6);
+      doc.setTextColor(...TEXT_MUTED);
+      doc.text('kein Vergleich', MARGIN + CONTENT_W - 2, top, { align: 'right' });
+    }
+    y += rowH;
+  });
+  return y;
+}
+
+function drawTestsSection(doc, testRows, testSummary, subtitle, { periodWord, compareHint }) {
+  let y = startPage(doc, subtitle);
+  y = sectionTitle(doc, 'Tests & Auswertungen', y);
+  if (!testRows || testRows.length === 0) {
+    noteText(doc, 'Es liegen noch keine Testergebnisse vor. Unter „Training – Tests" kannst du Kraftausdauer-, Herz-Kreislauf-, Beweglichkeits- und Lebensstil-Tests eintragen – sie erscheinen dann hier mit Einstufung und Verlauf.', y, { size: 9.5 });
+    return;
+  }
+  const s = testSummary;
+  y = drawKpiRow(doc, y, [
+    { value: `${s.tested} / ${s.total}`, label: `Tests ${periodWord}` },
+    { value: s.improved, label: 'verbessert' },
+    { value: s.worse, label: 'verschlechtert' },
+    { value: s.alerts, label: 'auffällig' },
+  ]);
+  y += 7;
+  y = noteText(doc, `${compareHint} Punkte: grün = unauffällig, gold = Hinweis bzw. normal, rot = auffällig, grau = keine Einstufung möglich. Goldenes Datum = im Berichtszeitraum getestet.`, y, { size: 8.2 });
+  y += 2;
+  y = drawTestTable(doc, testRows, y, subtitle);
+  y += 3;
+  y = needSpace(doc, y, 16, subtitle);
+  noteText(doc, 'Einstufungen nach den Normwerten der Plattform (Quellenangaben je Test im Testprotokoll). Sie dienen der Orientierung und ersetzen keine ärztliche oder therapeutische Diagnose.', y, { size: 7.8 });
+}
+
+function drawBodySection(doc, body, subtitle, { startLabel }) {
+  let y = startPage(doc, subtitle);
+  y = sectionTitle(doc, 'Körpermaße & Zusammensetzung', y);
+  if (!body || !body.hasData) {
+    noteText(doc, 'Noch keine Körpermaße erfasst. Unter „Ernährung – Körperfett-Verlauf" kannst du Gewicht und Umfänge eintragen – der Bericht zeigt dann Stand und Veränderung.', y, { size: 9.5 });
+    return;
+  }
+  const cols = [
+    { text: 'Messwert', x: 3 },
+    { text: 'Aktuell', x: 82 },
+    { text: startLabel, x: 118 },
+    { text: 'Veränderung', x: CONTENT_W - 2, align: 'right' },
+  ];
+  y = tableHeader(doc, y, cols);
+  body.rows.forEach((r, i) => {
+    if (i % 2 === 1) { doc.setFillColor(...CREAM); doc.rect(MARGIN, y - 4.2, CONTENT_W, 6.6, 'F'); }
+    doc.setFont('times', 'normal');
+    doc.setFontSize(8.8);
+    doc.setTextColor(...TEXT_DARK);
+    doc.text(r.label, MARGIN + 3, y);
+    doc.setFont('times', 'bold');
+    doc.text(r.endText, MARGIN + 82, y);
+    doc.setFont('times', 'normal');
+    doc.setTextColor(...TEXT_MUTED);
+    doc.text(r.startText || '–', MARGIN + 118, y);
+    doc.setFont('times', 'bold');
+    doc.setTextColor(...trendColor(r.trend));
+    doc.text(r.deltaText || '–', MARGIN + CONTENT_W - 2, y, { align: 'right' });
+    y += 6.6;
+  });
+  y += 4;
+  y = noteText(doc, 'Körperfett nach der Navy-Methode (Umfangsmessungen) – eine Schätzung, kein Ersatz für eine Messung per DEXA o. Ä. Grün/rot werden nur dort gesetzt, wo die Richtung eindeutig ist (z. B. Körperfett und Taille: weniger ist günstiger).', y, { size: 8 });
+  y += 4;
+  if (body.weightSeries.length > 0) {
+    y = needSpace(doc, y, 62, subtitle);
+    y = subHeading(doc, 'Körpergewicht im Verlauf', y);
+    drawLineChart(doc, { x: MARGIN, y, width: CONTENT_W, height: 38, series: body.weightSeries, unit: 'kg' });
+    y += 50;
+  }
+  if (body.fatSeries.length > 0) {
+    y = needSpace(doc, y, 62, subtitle);
+    y = subHeading(doc, 'Körperfettanteil im Verlauf', y);
+    drawLineChart(doc, { x: MARGIN, y, width: CONTENT_W, height: 38, series: body.fatSeries, unit: '%', color: NAVY });
+    y += 50;
+  }
+}
+
+function drawTrainingExtrasPage(doc, extras, subtitle, { trainingSummary, periodWord }) {
+  let y = startPage(doc, subtitle);
+  y = sectionTitle(doc, 'Training – Belastung & Ausdauer', y);
+  const tiles = [
+    { value: fmt0(trainingSummary.distinctDaysCount), label: 'Trainingstage' },
+    { value: fmt0(trainingSummary.totalSets), label: 'Sätze/Einträge gesamt' },
+    { value: `${fmt0(extras.cardioMinutes)} Min.`, label: 'Ausdauer & Kurse' },
+    { value: extras.avgSessionMinutes ? `${fmt0(extras.avgSessionMinutes)} Min.` : '–', label: 'Ø Dauer je Einheit' },
+  ];
+  y = drawKpiRow(doc, y, tiles);
+  y += 10;
+  const second = [];
+  if (extras.cardioKm > 0) second.push(`Strecke bei Ausdauer-Einheiten: ${fmt1(extras.cardioKm)} km`);
+  if (trainingSummary.caloriesBurned > 0) second.push(`Verbrauchte Kalorien laut Einheiten-Angaben: ${fmt0(trainingSummary.caloriesBurned)} kcal`);
+  if (extras.totalSessionMinutes > 0) second.push(`Gesamte Trainingszeit (Einheiten mit Start/Ende): ${fmt1(extras.totalSessionMinutes / 60)} Std.`);
+  if (second.length) y = noteText(doc, second.join(' · '), y, { italic: false, size: 9, color: TEXT_DARK });
+  y += 6;
+
+  y = subHeading(doc, 'Belastungsverteilung nach Bewegungsmuster', y);
+  if (extras.patternTotal > 0) {
+    y = noteText(doc, `Anteil am bewegten Gewicht ${periodWord} (Gewicht × Wiederholungen). Eine ausgewogene Verteilung zwischen Drücken/Ziehen, Beinen vorne/hinten und Rumpf vorne/hinten senkt das Risiko von Überlastungen – Groborientierung, keine individuelle Diagnose.`, y, { size: 8.2 });
+    y += 2;
+    y = drawShareBars(doc, { x: MARGIN, y, width: CONTENT_W, data: extras.patterns });
+  } else {
+    y = noteText(doc, 'Keine Krafttrainings-Logs mit Gewicht und Wiederholungen im Zeitraum.', y, { size: 9 });
+  }
+  y += 6;
+
+  y = subHeading(doc, 'Trainingsarten (Anzahl Einträge je Kategorie)', y);
+  const cats = Object.entries(extras.categoryCounts || {}).sort((a, b) => b[1] - a[1]);
+  if (cats.length) {
+    y = drawShareBars(doc, { x: MARGIN, y, width: CONTENT_W, data: cats.map(([label, value]) => ({ label, value })) });
+  } else {
+    y = noteText(doc, 'Keine Trainingseinträge im Zeitraum.', y, { size: 9 });
+  }
+}
+
+function drawAchievementsPage(doc, subtitle, { achievements, goals, periodWord, scoreInfo }) {
+  let y = startPage(doc, subtitle);
+  y = sectionTitle(doc, 'Erfolge, Ziele & Hinweise', y);
+  y = subHeading(doc, `Neue Erfolge ${periodWord}${achievements.length ? ` (${achievements.length})` : ''}`, y);
+  if (achievements.length) {
+    achievements.slice(0, 18).forEach((a) => {
+      doc.setFillColor(...GOLD);
+      doc.circle(MARGIN + 1, y - 1.2, 1, 'F');
+      doc.setFont('times', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(...TEXT_DARK);
+      doc.text(`${a.title} (${fmtDateDe(parseLocalDay(a.day))})`, MARGIN + 4.5, y);
+      y += 5.3;
+    });
+    if (achievements.length > 18) y = noteText(doc, `… und ${achievements.length - 18} weitere.`, y, { size: 8.6 });
+  } else {
+    y = noteText(doc, 'Keine neuen Erfolge im Zeitraum – bleib dran, der nächste ist nah.', y, { size: 9 });
+  }
+  y += 5;
+  y = subHeading(doc, 'Coaching-Ziele', y);
+  y = noteText(doc, goals.total > 0
+    ? `Neu angelegt ${periodWord}: ${goals.created} · erreicht ${periodWord}: ${goals.achieved} · aktuell aktiv: ${goals.active}`
+    : 'Noch keine Coaching-Ziele angelegt.', y, { italic: false, size: 9, color: TEXT_DARK });
+  y += 5;
+  if (scoreInfo && scoreInfo.end) {
+    y = subHeading(doc, 'Präventions-Score', y);
+    y = noteText(doc, `Stand am Ende des Zeitraums: ${Math.round(scoreInfo.end.total)} von 100 Punkten (${fmtDateDe(parseLocalDay(scoreInfo.end.date))})${scoreInfo.start ? ` · davor: ${Math.round(scoreInfo.start.total)} Punkte (${fmtDateDe(parseLocalDay(scoreInfo.start.date))}) · Veränderung ${scoreInfo.delta > 0 ? '+' : ''}${Math.round(scoreInfo.delta)}` : ''}.`, y, { italic: false, size: 9, color: TEXT_DARK });
+    y += 5;
+  }
+  y = needSpace(doc, y, 40, subtitle);
+  y = subHeading(doc, 'Hinweise zu diesem Bericht', y);
+  [
+    'Alle Werte stammen aus deinen eigenen Eingaben und Logs in der Plattform. Fehlende Einträge führen zu leeren Feldern oder „–".',
+    'Einstufungen und Normwerte folgen den Quellen, die im jeweiligen Testprotokoll genannt sind. Sie sind eine Orientierung und keine medizinische Diagnose.',
+    'Bei Schmerzen, Schwindel, Brustschmerz oder auffälligen Blutdruck-/Pulswerten bitte ärztlich abklären lassen.',
+  ].forEach((t) => { y = noteText(doc, t, y, { italic: false, size: 8.6 }); });
+}
+
+function drawFootersFromPage(doc, firstPage = 2) {
+  const total = doc.getNumberOfPages();
+  for (let i = firstPage; i <= total; i += 1) {
+    doc.setPage(i);
+    drawFooter(doc, `Seite ${i} von ${total}`);
+  }
+}
+
+// ============================================================================
+// Runde 22 (Nachtrag 5): JAHRESBERICHT (Kalenderjahr wählbar) – Jahresverlauf
+// und Monatsvergleich plus dieselben Auswertungsseiten wie der Monatsbericht
+// (Tests mit Einstufung/Veränderung, Körpermaße, Training im Detail, Erfolge).
+// ============================================================================
+
+function drawTopExercisesTable(doc, exercises, y, subtitle) {
+  y = subHeading(doc, 'Meistgenutzte Übungen', y);
+  if (!exercises.length) {
+    return noteText(doc, 'Keine Trainingseinheiten im Zeitraum erfasst.', y, { size: 9.5 });
+  }
+  y = needSpace(doc, y, 20, subtitle);
+  y = tableHeader(doc, y, [
+    { text: 'Übung', x: 2 },
+    { text: 'Sätze', x: CONTENT_W - 44 },
+    { text: 'Volumen (kg)', x: CONTENT_W - 2, align: 'right' },
+  ]);
+  exercises.forEach((ex, i) => {
+    if (i % 2 === 1) { doc.setFillColor(...CREAM); doc.rect(MARGIN, y - 4.2, CONTENT_W, 6, 'F'); }
+    doc.setFont('times', 'normal');
+    doc.setFontSize(8.6);
+    doc.setTextColor(...TEXT_DARK);
+    doc.text(doc.splitTextToSize(ex.name, CONTENT_W - 60)[0], MARGIN + 2, y);
+    doc.text(String(ex.sets), MARGIN + CONTENT_W - 44, y);
+    doc.text(fmt0(ex.volume), MARGIN + CONTENT_W - 2, y, { align: 'right' });
+    y += 6;
+  });
+  return y;
+}
+
+export async function buildYearlyReportPdf({
+  profile,
+  year,
+  periodLabel, // z. B. "Kalenderjahr 2026" oder "1. Januar bis 04. Oktober 2026"
+  months, // [{ idx, sessions, volumeKg, cardioMinutes, nutritionDays, avgKcal, avgProtein, weight, bodyFat, score }]
+  trainingLogs,
+  trainingSessions,
+  preventionScore,
+  vitals = null,
+  streak,
+  yearPrEvents,
+  moduleAccess = { training: true, nutrition: true },
+  extra,
+}) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const subtitle = `Jahresbericht ${year}`;
+  const clientName = profile.full_name || profile.email || 'Kunde';
+
+  let logo = null;
+  try { logo = await loadImageAsDataUrl('icons/logo-full.png'); } catch (err) { logo = null; }
+
+  // --- Deckblatt ----------------------------------------------------------
+  doc.setFillColor(...NAVY);
+  doc.rect(0, 0, PAGE_W, PAGE_H, 'F');
+  if (logo) {
+    const logoW = 46;
+    const logoH = logoW * (logo.height / logo.width);
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(MARGIN - 3, 26 - 3, logoW + 6, logoH + 6, 3, 3, 'F');
+    doc.addImage(logo.dataUrl, 'PNG', MARGIN, 26, logoW, logoH);
+  }
+  doc.setDrawColor(...GOLD);
+  doc.setLineWidth(0.8);
+  doc.line(MARGIN, 78, PAGE_W - MARGIN, 78);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10.5);
+  doc.setCharSpace(1.4);
+  doc.setTextColor(...GOLD_LIGHT);
+  doc.text('PERSÖNLICHER JAHRESRÜCKBLICK', MARGIN, 92);
+  doc.setCharSpace(0);
+  doc.setFont('times', 'bold');
+  doc.setFontSize(30);
+  doc.setTextColor(255, 255, 255);
+  doc.text('Jahresbericht', MARGIN, 108);
+  doc.setFont('times', 'normal');
+  doc.setFontSize(14);
+  doc.setTextColor(...GOLD_LIGHT);
+  doc.text(String(year), MARGIN, 118);
+  doc.setDrawColor(...GOLD);
+  doc.setLineWidth(0.4);
+  doc.line(MARGIN, 128, MARGIN + 60, 128);
+  doc.setFont('times', 'normal');
+  doc.setFontSize(11);
+  doc.setTextColor(240, 240, 236);
+  doc.text(clientName, MARGIN, 138);
+  doc.setFontSize(9);
+  doc.setTextColor(...GOLD_LIGHT);
+  doc.text(`Zeitraum: ${periodLabel}`, MARGIN, 145);
+  doc.text(`Erstellt am ${fmtDateDe(new Date())}`, MARGIN, 151);
+  doc.setFont('times', 'italic');
+  doc.setFontSize(9.5);
+  doc.setTextColor(200, 210, 214);
+  doc.text(doc.splitTextToSize('Dieser Bericht zeigt dein Jahr im Überblick: Training, Ernährung, Körpermaße, alle Tests mit Einstufung und Veränderung, deinen Präventions-Score und deine Erfolge – mit Monatsvergleich und Jahresverlauf. Automatisch aus deinen geloggten Daten erstellt. Ideal zum Ausdrucken oder Archivieren.', PAGE_W - MARGIN * 2 - 4), MARGIN, PAGE_H - 40);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(...GOLD_LIGHT);
+  doc.text('DREAM AND DO IT · dreamanddoit.de', MARGIN, PAGE_H - 16);
+
+  const trainingSummary = summarizeTraining(trainingLogs, trainingSessions);
+  const nutDays = months.reduce((s, m) => s + (m.nutritionDays || 0), 0);
+  const wAvg = (k) => (nutDays > 0 ? months.reduce((s, m) => s + (m[k] || 0) * (m.nutritionDays || 0), 0) / nutDays : 0);
+  const periodWord = 'im Jahr';
+
+  // --- Überblick ----------------------------------------------------------
+  let y = startPage(doc, subtitle);
+  y = sectionTitle(doc, `Dein Jahr ${year} im Überblick`, y);
+  const tiles = [];
+  if (moduleAccess.training) {
+    tiles.push({ value: trainingSummary.sessionCount, label: 'Trainingseinheiten' });
+    tiles.push({ value: fmtTonnes(trainingSummary.totalVolumeKg), label: 'Bewegte Kilos' });
+  }
+  if (moduleAccess.nutrition) tiles.push({ value: nutDays > 0 ? fmt0(wAvg('avgKcal')) : '–', label: 'Ø kcal pro Tag' });
+  const hasScore = preventionScore && preventionScore.total != null;
+  tiles.push({ value: hasScore ? Math.round(preventionScore.total) : '–', label: 'Präventions-Score' });
+  y = drawKpiRow(doc, y, tiles);
+  y += 8;
+  const t2 = [];
+  if (moduleAccess.training) {
+    t2.push({ value: fmt0(trainingSummary.distinctDaysCount), label: 'Trainingstage' });
+    t2.push({ value: `${fmt0(extra.trainingExtras.cardioMinutes)} Min.`, label: 'Ausdauer & Kurse' });
+    const active = months.filter((m) => m.sessions > 0).length;
+    t2.push({ value: `${active} / ${months.length}`, label: 'Aktive Monate' });
+  }
+  t2.push({ value: `${extra.testSummary.tested}`, label: 'Tests im Jahr' });
+  y = drawKpiRow(doc, y, t2);
+  y += 12;
+
+  if (moduleAccess.training) {
+    y = subHeading(doc, 'Deine Trainings-Serie', y);
+    const streakText = streak
+      ? `${streak.currentStreak} Woche${streak.currentStreak === 1 ? '' : 'n'} am Stück trainiert (beste Serie bisher: ${streak.longestStreak} Woche${streak.longestStreak === 1 ? '' : 'n'}). Regel: mind. 1 Trainingseinheit pro Kalenderwoche.`
+      : 'Noch keine Trainings-Serie ermittelbar.';
+    y = noteText(doc, streakText, y, { italic: false, size: 9.5, color: TEXT_DARK, lineH: 4.3 });
+    y += 6;
+  }
+
+  y = subHeading(doc, `Neue persönliche Rekorde im Jahr${yearPrEvents && yearPrEvents.length ? ` (${yearPrEvents.length})` : ''}`, y);
+  if (yearPrEvents && yearPrEvents.length > 0) {
+    // Die zuletzt erzielten Rekorde (höchstens 12) – die Gesamtzahl steht oben.
+    yearPrEvents.slice(-12).reverse().forEach((e) => {
+      y = needSpace(doc, y, 8, subtitle);
+      doc.setFillColor(...GOLD);
+      doc.circle(MARGIN + 1, y - 1.4, 1, 'F');
+      doc.setFont('times', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(...TEXT_DARK);
+      const desc = e.type === 'weight'
+        ? `Neues Bestgewicht: ${e.weightKg} kg bei ${e.reps} Wdh. – ${e.exerciseName}`
+        : e.type === 'e1rm'
+          ? `Neue geschätzte Maximalkraft (1RM): ${e.value.toFixed(1)} kg – ${e.exerciseName}`
+          : `Neue Bestleistung: ${e.reps} Wdh. – ${e.exerciseName}`;
+      doc.text(`${desc} (${fmtDateDe(e.performedAt)})`, MARGIN + 4.5, y);
+      y += 5.5;
+    });
+  } else {
+    y = noteText(doc, 'Keine neuen Rekorde im Zeitraum.', y, { size: 9 });
+  }
+  y += 4;
+
+  y = needSpace(doc, y + 2, 44, subtitle);
+  y = subHeading(doc, 'Das Jahr auf einen Blick', y);
+  const glance = [];
+  const ts = extra.testSummary;
+  glance.push(`Tests: ${ts.tested} im Jahr durchgeführt, ${ts.improved} verbessert, ${ts.worse} verschlechtert, ${ts.alerts} aktuell auffällig.`);
+  if (extra.scoreInfo && extra.scoreInfo.end) {
+    glance.push(`Präventions-Score: ${Math.round(extra.scoreInfo.end.total)} Punkte${extra.scoreInfo.delta != null ? ` (${extra.scoreInfo.delta > 0 ? '+' : ''}${Math.round(extra.scoreInfo.delta)} seit Jahresbeginn)` : ''}.`);
+  }
+  if (extra.body && extra.body.hasData) {
+    extra.body.rows.filter((r) => r.deltaText && ['weight_kg', 'body_fat_percent', 'waist_cm'].includes(r.key)).forEach((r) => glance.push(`${r.label}: ${r.endText} (${r.deltaText} seit Jahresbeginn).`));
+  }
+  if (extra.achievements.length) glance.push(`${extra.achievements.length} neue${extra.achievements.length === 1 ? 'r Erfolg' : ' Erfolge'} im Jahr freigeschaltet.`);
+  glance.forEach((t) => {
+    doc.setFillColor(...GOLD);
+    doc.circle(MARGIN + 1, y - 1.2, 1, 'F');
+    doc.setFont('times', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...TEXT_DARK);
+    const wrapped = doc.splitTextToSize(t, CONTENT_W - 6);
+    doc.text(wrapped, MARGIN + 4.5, y);
+    y += wrapped.length * 4.3 + 1.2;
+  });
+
+  // --- Jahresverlauf (Diagramme je Monat) ----------------------------------
+  y = startPage(doc, subtitle);
+  y = sectionTitle(doc, 'Jahresverlauf', y);
+  const label = (m) => MONTH_SHORT_DE[m.idx];
+  const charts = [];
+  if (moduleAccess.training) {
+    charts.push({ title: 'Trainingseinheiten je Monat', data: months.map((m) => ({ label: label(m), value: m.sessions })), fmt: (v) => fmt0(v) });
+    charts.push({ title: 'Bewegtes Gewicht je Monat (Tonnen)', data: months.map((m) => ({ label: label(m), value: m.volumeKg / 1000 })), fmt: (v) => fmt1(v) });
+    charts.push({ title: 'Ausdauer & Kurse je Monat (Minuten)', data: months.map((m) => ({ label: label(m), value: m.cardioMinutes })), fmt: (v) => fmt0(v) });
+  }
+  if (moduleAccess.nutrition) charts.push({ title: 'Ø Kalorien pro Tag je Monat (nur Monate mit Protokoll)', data: months.map((m) => ({ label: label(m), value: m.avgKcal || 0 })), fmt: (v) => (v > 0 ? fmt0(v) : '') });
+  charts.forEach((c) => {
+    y = needSpace(doc, y, 58, subtitle);
+    doc.setFont('times', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...TEXT_MUTED);
+    doc.text(c.title, MARGIN, y);
+    y += 4;
+    if (!c.data.some((d) => d.value > 0)) {
+      doc.setFont('times', 'italic');
+      doc.setFontSize(9);
+      doc.text('Keine Daten im Zeitraum.', MARGIN, y + 6);
+      y += 16;
+      return;
+    }
+    drawBarChart(doc, { x: MARGIN, y: y + 6, width: CONTENT_W, height: 32, data: c.data, color: GOLD, valueLabel: c.fmt });
+    y += 54;
+  });
+
+  // --- Monatsvergleich -----------------------------------------------------
+  y = startPage(doc, subtitle);
+  y = sectionTitle(doc, 'Monatsvergleich', y);
+  const cols = [{ text: 'Monat', x: 2 }];
+  const ends = { sessions: 40, volume: 64, cardio: 86, kcal: 106, protein: 124, weight: 143, fat: 156, score: 172 };
+  const colDefs = [];
+  if (moduleAccess.training) {
+    colDefs.push({ k: 'sessions', head: 'Einh.', end: ends.sessions }, { k: 'volume', head: 'Volumen kg', end: ends.volume }, { k: 'cardio', head: 'Ausd. Min.', end: ends.cardio });
+  }
+  if (moduleAccess.nutrition) colDefs.push({ k: 'kcal', head: 'Ø kcal', end: ends.kcal }, { k: 'protein', head: 'Ø Prot. g', end: ends.protein });
+  colDefs.push({ k: 'weight', head: 'Gewicht', end: ends.weight }, { k: 'fat', head: 'KFA %', end: ends.fat }, { k: 'score', head: 'Score', end: ends.score });
+  colDefs.forEach((c) => cols.push({ text: c.head, x: c.end, align: 'right' }));
+  y = tableHeader(doc, y, cols);
+  const best = { sessions: Math.max(...months.map((m) => m.sessions)), volume: Math.max(...months.map((m) => m.volumeKg)) };
+  months.forEach((m, i) => {
+    if (i % 2 === 1) { doc.setFillColor(...CREAM); doc.rect(MARGIN, y - 4.2, CONTENT_W, 6.4, 'F'); }
+    doc.setFont('times', 'normal');
+    doc.setFontSize(8.8);
+    doc.setTextColor(...TEXT_DARK);
+    doc.text(MONTH_NAMES[m.idx], MARGIN + 2, y);
+    const val = {
+      sessions: fmt0(m.sessions), volume: fmt0(m.volumeKg), cardio: fmt0(m.cardioMinutes),
+      kcal: m.nutritionDays ? fmt0(m.avgKcal) : '–', protein: m.nutritionDays ? fmt0(m.avgProtein) : '–',
+      weight: m.weight != null ? fmt1(m.weight) : '–', fat: m.bodyFat != null ? fmt1(m.bodyFat) : '–', score: m.score != null ? fmt0(m.score) : '–',
+    };
+    colDefs.forEach((c) => {
+      const isBest = (c.k === 'sessions' && best.sessions > 0 && m.sessions === best.sessions) || (c.k === 'volume' && best.volume > 0 && m.volumeKg === best.volume);
+      doc.setFont('times', isBest ? 'bold' : 'normal');
+      doc.setTextColor(...(isBest ? GOLD : TEXT_DARK));
+      doc.text(val[c.k], MARGIN + c.end, y, { align: 'right' });
+    });
+    y += 6.4;
+  });
+  // Summenzeile
+  doc.setDrawColor(...GOLD);
+  doc.setLineWidth(0.4);
+  doc.line(MARGIN, y - 3.6, MARGIN + CONTENT_W, y - 3.6);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.6);
+  doc.setTextColor(...NAVY);
+  doc.text('Jahr', MARGIN + 2, y + 0.6);
+  const totals = {
+    sessions: fmt0(months.reduce((s, m) => s + m.sessions, 0)), volume: fmt0(months.reduce((s, m) => s + m.volumeKg, 0)), cardio: fmt0(months.reduce((s, m) => s + m.cardioMinutes, 0)),
+    kcal: nutDays ? fmt0(wAvg('avgKcal')) : '–', protein: nutDays ? fmt0(wAvg('avgProtein')) : '–', weight: '', fat: '', score: extra.scoreInfo && extra.scoreInfo.end ? fmt0(extra.scoreInfo.end.total) : '–',
+  };
+  colDefs.forEach((c) => doc.text(totals[c.k], MARGIN + c.end, y + 0.6, { align: 'right' }));
+  y += 10;
+  y = noteText(doc, 'Summen bzw. Durchschnitte über das Jahr (kcal/Protein: Mittel der geloggten Tage). Gold = stärkster Monat. Gewicht und Körperfett: letzte Messung im Monat; Score: Stand am Monatsende. „–" = keine Daten in diesem Monat.', y, { size: 8 });
+
+  // --- Training im Detail ---------------------------------------------------
+  if (moduleAccess.training) {
+    y = startPage(doc, subtitle);
+    y = sectionTitle(doc, 'Training im Detail', y);
+    drawTopExercisesTable(doc, trainingSummary.topExercises, y, subtitle);
+    drawTrainingExtrasPage(doc, extra.trainingExtras, subtitle, { trainingSummary, periodWord });
+  }
+
+  // --- Körper, Tests ----------------------------------------------------------
+  drawBodySection(doc, extra.body, subtitle, { startLabel: 'Jahresbeginn' });
+  drawTestsSection(doc, extra.testRows, extra.testSummary, subtitle, { periodWord, compareHint: 'Veränderung gegenüber dem letzten Test vor Jahresbeginn (bzw. dem ersten Test im Jahr).' });
+
+  // --- Präventions-Score ------------------------------------------------------
+  y = startPage(doc, subtitle);
+  y = sectionTitle(doc, 'Dein Präventions-Score', y);
+  if (hasScore) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(34);
+    doc.setTextColor(...NAVY);
+    doc.text(String(Math.round(preventionScore.total)), MARGIN, y + 14);
+    doc.setFont('times', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(...TEXT_MUTED);
+    doc.text('von 100 Punkten – aktueller Stand', MARGIN + 30, y + 14);
+    y += 26;
+    if (extra.scoreSeries && extra.scoreSeries.length > 0) {
+      y = subHeading(doc, `Score-Verlauf ${year}`, y);
+      drawLineChart(doc, { x: MARGIN, y: y + 4, width: CONTENT_W, height: 34, series: extra.scoreSeries, digits: 0, unit: 'Pkt.' });
+      y += 50;
+    }
+    if (preventionScore.breakdown && preventionScore.breakdown.length > 0) {
+      y = subHeading(doc, 'Zusammensetzung nach Kategorie', y + 2);
+      y = drawHorizontalBarChart(doc, { x: MARGIN, y, width: CONTENT_W, data: preventionScore.breakdown.map((b) => ({ label: b.label, value: b.score })) });
+      y += 6;
+    }
+  } else {
+    y = noteText(doc, 'Noch kein Präventions-Score verfügbar – dafür Geburtsdatum, Körpermaße und/oder Tests erfassen.', y, { size: 9.5 });
+  }
+  if (vitals) {
+    if (y + vitalsBlockHeight(vitals) > PAGE_H - 22) { y = startPage(doc, subtitle); y = drawVitalsBlock(doc, 32, vitals); }
+    else y = drawVitalsBlock(doc, y + 2, vitals);
+  }
+
+  drawAchievementsPage(doc, subtitle, { achievements: extra.achievements, goals: extra.goals, periodWord, scoreInfo: extra.scoreInfo });
+  drawFootersFromPage(doc, 2);
+
+  const fileClientLabel = clientName.replace(/[^a-z0-9]+/gi, '_');
+  doc.save(`Jahresbericht_${fileClientLabel}_${year}.pdf`);
 }

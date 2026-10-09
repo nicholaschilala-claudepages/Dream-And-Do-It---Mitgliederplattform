@@ -10,8 +10,9 @@
 //
 // Barrierefreiheit: Bei "Bewegung reduzieren" (prefers-reduced-motion) gibt es
 // keine Animation – das Overlay blendet nur ruhig ein. Das Overlay ist
-// antippbar/schließbar (Klick, Escape) und schließt nach ein paar Sekunden von
-// selbst. Es gibt bewusst weder Ton noch Vibration.
+// bleibt stehen, bis der Kunde es bewusst über „Weiter“ (oder Escape)
+// schließt – kein automatisches Verschwinden, kein Schließen durch
+// versehentliches Antippen. Es gibt bewusst weder Ton noch Vibration.
 // ============================================================================
 
 const STYLE_ID = 'dadi-celebrate-style';
@@ -134,10 +135,9 @@ function launchConfetti(canvas, { durationMs = 2600 } = {}) {
  * @param {object} opts
  * @param {object} opts.stats       { durationMin, sets, volumeKg, exercises }
  * @param {Array}  opts.highlights  [{ icon, text }]
- * @param {number} [opts.autoCloseMs=4800]
  * @returns {Promise<void>} resolved, sobald das Overlay geschlossen ist
  */
-export function celebrateSessionComplete({ stats = {}, highlights = [], autoCloseMs = 4800 } = {}) {
+export function celebrateSessionComplete({ stats = {}, highlights = [] } = {}) {
   return new Promise((resolve) => {
     try {
       ensureStyle();
@@ -163,25 +163,23 @@ export function celebrateSessionComplete({ stats = {}, highlights = [], autoClos
           ${statItems.length ? `<div class="cel-stats">${statItems.map((s) => `<div class="cel-stat"><b>${escapeHtml(s.v)}</b><span>${escapeHtml(s.l)}</span></div>`).join('')}</div>` : ''}
           ${highlights.length ? `<ul class="cel-hl">${highlights.map((h) => `<li><i aria-hidden="true">${escapeHtml(h.icon || '⭐')}</i><span>${escapeHtml(h.text)}</span></li>`).join('')}</ul>` : ''}
           <button type="button" class="btn cel-close">Weiter</button>
-          <p class="cel-hint">Tippe irgendwo, um zu schließen.</p>
+          <p class="cel-hint">Die Meldung bleibt, bis du auf „Weiter“ tippst.</p>
         </div>`;
       document.body.appendChild(overlay);
 
       let stopConfetti = () => {};
       let closed = false;
-      let timer = null;
       const close = () => {
         if (closed) return;
         closed = true;
-        clearTimeout(timer);
         stopConfetti();
         document.removeEventListener('keydown', onKey);
         overlay.classList.remove('show');
         setTimeout(() => { overlay.remove(); resolve(); }, reduce ? 0 : 250);
       };
-      const onKey = (e) => { if (e.key === 'Escape' || e.key === 'Enter') close(); };
+      const onKey = (e) => { if (e.key === 'Escape') close(); };
       document.addEventListener('keydown', onKey);
-      overlay.addEventListener('click', close);
+      overlay.querySelector('.cel-close').addEventListener('click', close);
 
       requestAnimationFrame(() => {
         overlay.classList.add('show');
@@ -190,7 +188,6 @@ export function celebrateSessionComplete({ stats = {}, highlights = [], autoClos
         const btn = overlay.querySelector('.cel-close');
         if (btn) btn.focus({ preventScroll: true });
       });
-      timer = setTimeout(close, autoCloseMs + (highlights.length * 700));
     } catch (e) {
       // Der Effekt darf den Ablauf nie blockieren.
       console.warn('celebrate failed', e);

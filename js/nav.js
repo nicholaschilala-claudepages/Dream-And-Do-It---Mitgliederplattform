@@ -36,7 +36,6 @@ const SECTION_SUBTABS = {
     client: [
       { key: 'plan', label: 'Mein Plan' },
       { key: 'progress', label: 'Meine Entwicklung' },
-      { key: 'praevention', label: 'Präventionscheck' },
       { key: 'tests', label: 'Tests' },
       { key: 'monatsbericht', label: 'Monatsbericht' },
     ],

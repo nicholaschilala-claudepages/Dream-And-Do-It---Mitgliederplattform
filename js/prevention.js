@@ -196,6 +196,9 @@ const SQUAT_TABLE = {
 
 // Einbeiniges Fersenheben – Hébert-Losier, Wessman, Alricsson & Svantesson
 // (2017), Physiotherapy 103 (n = 566, 20–81 Jahre; 10°-Neigung, Metronom).
+// Hinweis: In der Plattform wird der Test auf ebenem Boden mit Sekundenzeiger/
+// Stoppuhr (1 s hoch, 1 s runter) durchgeführt; die Normwerte sind daher als
+// Orientierung zu verstehen.
 // Median und untere Referenzgrenze (P2,5) je Dekade, Mittel aus linkem und
 // rechtem Bein; dazwischen wird linear interpoliert. Das untere Quartil (P25)
 // ist in der Studie nicht veröffentlicht und wird NÄHERUNGSWEISE als
@@ -365,11 +368,11 @@ export const STRENGTH_TESTS = [
     hasSide: true,
     unit: 'Wiederholungen',
     valueLabel: 'Wiederholungen bis Abbruch (diese Seite)',
-    ausfuehrung: 'Barfuß auf einem Bein stehen, Knie gestreckt, Oberkörper aufrecht. Am besten auf einer leicht geneigten Fläche (ca. 10°, z. B. Brett auf einem Buch), wie in den Normwertstudien. Mit den Fingerspitzen in Schulterhöhe leicht an einer Wand abstützen (nur Balancehilfe, kein Hochziehen). Metronom auf 60 Schläge pro Minute: Schlag 1 Ferse so hoch wie möglich anheben, Schlag 2 kontrolliert absenken. Gezählt werden nur vollständige Wiederholungen. Beide Seiten nacheinander, mit mindestens 2 Minuten Pause.',
+    ausfuehrung: 'Barfuß auf einem Bein auf dem ebenen, flachen Boden stehen, Knie gestreckt, Oberkörper aufrecht. Mit den Fingerspitzen in Schulterhöhe leicht an einer Wand abstützen (nur Balancehilfe, kein Hochziehen). Statt eines Metronoms dient eine Uhr mit Sekundenzeiger oder eine Stoppuhr als Taktgeber: 1 Sekunde Ferse so hoch wie möglich anheben, 1 Sekunde kontrolliert absenken – im ständigen Wechsel, passend zur Sekundenanzeige. Gezählt werden nur vollständige Wiederholungen. Beide Seiten nacheinander, mit mindestens 2 Minuten Pause.',
     typischeFehler: 'Knie beugen; Ferse nicht hoch genug heben; Tempo nicht halten; an der Wand hochziehen; Schwung aus dem Oberkörper.',
     abbruchkriterium: 'Test beenden, wenn die Ferse nicht mehr vollständig angehoben werden kann, das Tempo nicht mehr gehalten wird, das Knie beugt, der Oberkörper nicht aufrecht bleibt oder die Balance nur mit mehr als Fingerspitzenkontakt zu halten ist. Sofortiger Abbruch bei Schmerz in Wade, Achillessehne oder Fußgelenk.',
     kontraindikation: 'Nicht bei akuten Achillessehnen-, Waden- oder Sprunggelenksbeschwerden, frischer Verletzung oder direkt nach intensivem Lauf-/Wadentraining testen.',
-    selbsttest: 'Metronom auf 60 starten, auf einem Bein im Takt Fersen heben und senken, Fingerspitzen an der Wand. Zählen, bis eines der Abbruchkriterien eintritt. Danach die andere Seite.',
+    selbsttest: 'Uhr mit Sekundenzeiger oder Stoppuhr gut sichtbar aufstellen, auf einem Bein im Sekundentakt Fersen heben (1 s) und senken (1 s), Fingerspitzen an der Wand. Zählen, bis eines der Abbruchkriterien eintritt. Danach die andere Seite.',
     source: 'Primärquelle der Normwerte: Hébert-Losier, K., Wessman, C., Alricsson, M., & Svantesson, U. (2017). Updated reliability and normative values for the standing heel-rise test in healthy adults. Physiotherapy, 103(4), 446–452. https://doi.org/10.1016/j.physio.2017.03.002 (n = 566, 20–81 Jahre, einbeiniges Fersenheben auf 10°-Neigung bis zur Ermüdung)',
     feeds: 'Speist die Marker Fußgelenk li./re. und Wade li./re. (je Seite).',
     ausfuehrungImage: 'content/tests/fersenheben-ausfuehrung.jpg',

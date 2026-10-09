@@ -519,6 +519,9 @@ export async function loadAchievementData(clientId, access = {}) {
 
 function isCardio(log) {
   const cat = log && log.exercises && log.exercises.category;
+  // Runde 22 (Nachtrag 5): Kursformate ("Kurs: Yoga" …) sind Dauer-Einheiten und zählen zur Ausdauer-/Zeit-Auswertung.
+  const name = log && log.exercises && log.exercises.name;
+  if (typeof name === 'string' && /^Kurs:\s/.test(name)) return true;
   return typeof cat === 'string' && cat.trim().toLowerCase() === 'cardio';
 }
 

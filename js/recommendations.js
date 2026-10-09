@@ -50,7 +50,7 @@ export const RECOMMENDATION_ITEMS = [
   {
     key: 'p_prevention', kind: 'platform', rubric: 'training', icon: '📋', title: 'Präventionscheck',
     text: 'Messen statt Raten: Kraft, Beweglichkeit, Ausdauer, Blutdruck und Ruhepuls mit Normwerten und Score.',
-    href: 'training.html?tab=praevention', cta: 'Check starten',
+    href: 'training.html?tab=progress', cta: 'Check starten',
     weights: { gesundheit_praevention: 3, fitness_ausdauer: 2, muskelaufbau: 1, abnehmen: 1 },
     meta: (c) => (c.tests ? `${c.tests} Tests & Messungen` : null),
   },

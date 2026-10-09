@@ -51,6 +51,14 @@ const TEMPLATE_SELECT =
   'plan_template_exercises(id, exercise_id, target_sets, target_reps, target_weight_hint, target_duration_seconds, ' +
   'target_distance_meters, target_speed_kmh, target_watt, target_heart_rate_percent, sort_order, notes, exercises(id, name, muscle_group, category, image_url)))';
 
+// Runde 22 (Nachtrag 5): Kursformate (Yoga, Pilates, Spinning, Zumba, HIIT …) sind
+// Einheiten der Übungsbibliothek in den bestehenden Kategorien; erkennbar am
+// Namenspräfix "Kurs: " (siehe sql/059). Sie werden als Dauer-Einheit (Minuten)
+// geplant und geloggt – ohne Wiederholungen/Gewicht/Distanz.
+export function isCourseExercise(ex) {
+  return !!ex && typeof ex.name === 'string' && /^Kurs:\s/.test(ex.name);
+}
+
 export async function listTemplates() {
   return supabaseClient.from('plan_templates').select(TEMPLATE_SELECT).order('created_at', { ascending: false });
 }
