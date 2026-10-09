@@ -281,7 +281,7 @@
       addExerciseToPlan, removePlanExercise, setPlanActive, savePlanEdits, countLogsPerPlanExercise,
       insertTrainingLog, insertTrainingLogs, listMyTrainingLogs, listMyRecentSessions, listLogsForPlanExercises,
       getActiveSession, startSession, endSession, listLogsForAnalytics, listSessions,
-      listAllTrainingLogsForRecords, computePersonalRecords, prLogIdSet, computeTrainingStreak,
+      listAllTrainingLogsForRecords, computePersonalRecords, prLogIdSet, computeTrainingStreak, isCourseExercise,
     } from './js/training.js';
     import { queueTrainingLog, syncQueuedLogs } from './js/offline-queue.js';
     import { getUnreadCount } from './js/messages.js';
@@ -290,8 +290,12 @@
     import { celebrateSessionComplete, computeSessionStats, buildHighlights, miniSetDone, miniRowDone, miniPr } from './js/celebrate.js';
     import { SECTION_INFO, hydrateSectionInfo } from './js/section-info.js';
     import { listMyBodyMeasurements, listNutritionLogs, getLatestEnergyTarget } from './js/nutrition.js';
-    import { buildMonthlyReportPdf } from './js/monthly-report.js';
-    import { awardAchievement, loadAchievementRaw, analyzeAchievements, syncEarnedAchievements } from './js/achievements.js';
+    import { buildMonthlyReportPdf, buildYearlyReportPdf } from './js/monthly-report.js';
+    import {
+      MONTH_NAMES_DE, dayKeyOf, buildTestRows, summarizeTestRows, summarizeBody, summarizeTrainingExtras,
+      scoreAround, achievementsInPeriod, goalsInPeriod, summarizeNutritionDays,
+    } from './js/report-data.js';
+    import { awardAchievement, loadAchievementRaw, analyzeAchievements, syncEarnedAchievements, computeScoreHistory } from './js/achievements.js';
     import {
       calcAge, updateBirthDate, STRENGTH_TESTS, MOBILITY_TESTS, CARDIO_TESTS, mobilityRatingLabel,
       isInputTest, isRequiredTest, mobilityRatingValue, loadProfileBasics, updateSex, isKnownSex, SEX_HINT_TEXT,
@@ -551,7 +555,6 @@
       { key: 'start', label: 'Start', hidden: true },
       { key: 'plan', label: 'Mein Plan' },
       { key: 'progress', label: 'Meine Entwicklung' },
-      { key: 'praevention', label: 'Präventionscheck' },
       { key: 'tests', label: 'Tests' },
       { key: 'monatsbericht', label: 'Monatsbericht' },
     ];
@@ -559,7 +562,9 @@
     async function renderClientRoot(profile) {
       // Deep-Link aus der Kopfzeilen-Navigation (Reiter "Training" → Untermenü,
       // siehe js/nav.js): ?tab=praevention o.ä. öffnet direkt den passenden Tab.
-      const requestedTab = new URLSearchParams(location.search).get('tab');
+      let requestedTab = new URLSearchParams(location.search).get('tab');
+      // Runde 22 (Nachtrag 5): der Reiter „Präventionscheck" ist in „Meine Entwicklung" aufgegangen – alte Links funktionieren weiter.
+      if (requestedTab === 'praevention') requestedTab = 'progress';
       const initialTab = CLIENT_TRAINING_TABS.some((t) => t.key === requestedTab) ? requestedTab : 'start';
       // Nutzer-Feedback Runde 9: die Unterseiten-Auswahl gab es doppelt (einmal
       // im Kopfzeilen-Dropdown aus js/nav.js, einmal hier als eigenes
@@ -580,7 +585,7 @@
       }
       if (tabName === 'progress') renderAnalyticsView(content, profile.id, { isAdminView: false });
       else if (tabName === 'start') renderStartTab(content, false);
-      else if (tabName === 'praevention') renderPreventionTab(content, profile, { isAdminView: false });
+      else if (tabName === 'praevention') renderAnalyticsView(content, profile.id, { isAdminView: false });
       else if (tabName === 'tests') renderTestsTab(content, profile, { isAdminView: false });
       else if (tabName === 'monatsbericht') renderMonatsberichtTab(content, profile);
       else renderClientView(content, profile);
@@ -672,8 +677,9 @@
     // ein Klick loggt die ganze Übung mit den Plan-Werten als Ist-Werten.
     function buildQuickLogEntries(pe, clientId, activeSession) {
       const ex = pe.exercises;
-      const isDurationBased = !!pe.target_duration_seconds;
-      const isDistanceBased = !!pe.target_distance_meters || (ex && ex.category === 'Cardio');
+      const isCourse = isCourseExercise(ex);
+      const isDurationBased = !!pe.target_duration_seconds || isCourse;
+      const isDistanceBased = !isCourse && (!!pe.target_distance_meters || (ex && ex.category === 'Cardio'));
       const now = new Date().toISOString();
       const sessionId = activeSession ? activeSession.id : null;
       const distance = pe.target_distance_meters != null ? extractLeadingNumber(pe.target_distance_meters) : null;
@@ -1034,9 +1040,10 @@
           const endedAt = new Date();
           const { error } = await endSession(activeSession.id, { caloriesBurned });
           if (error) { alert('Fehler: ' + error.message); endBtn.disabled = false; return; }
-          // Runde 21 / Q10: kurzer Belohnungs-Effekt. Der Effekt darf den
-          // Ablauf nie blockieren oder verhindern: jede Berechnung ist in
-          // try/catch gekapselt und auf wenige Sekunden begrenzt.
+          // Runde 21 / Q10: Belohnungs-Effekt. Die Berechnung darf den Ablauf nie
+          // blockieren (try/catch, Zeitlimit für das Laden der Kennzahlen).
+          // Runde 22 (Nachtrag 5): Die Meldung selbst verschwindet nicht mehr von
+          // allein – sie bleibt, bis der Kunde sie über „Weiter" (oder Esc) schließt.
           try {
             const celebration = await Promise.race([
               buildSessionCelebration(profile, activeSession, endedAt),
@@ -1244,8 +1251,9 @@
 
     function renderExerciseRow(pe, logsForThis, activeSession, history) {
       const ex = pe.exercises;
-      const isDur = !!pe.target_duration_seconds;
-      const isDist = !!pe.target_distance_meters || ex.category === 'Cardio';
+      const isCourse = isCourseExercise(ex);
+      const isDur = !!pe.target_duration_seconds || isCourse;
+      const isDist = !isCourse && (!!pe.target_distance_meters || ex.category === 'Cardio');
       const kinds = isDur ? (isDist ? ['sec', 'm'] : ['sec']) : (isDist ? ['reps', 'kg', 'm'] : ['reps', 'kg']);
       const N = Math.max(1, pe.target_sets || 1);
       const hist = history ? history.get(ex.id) : null;
@@ -1372,6 +1380,7 @@
     function defaultDurUnit(pe, ex) {
       const pref = durUnitPref(ex.id);
       if (pref) return pref;
+      if (isCourseExercise(ex)) return 'min'; // Kurse: Dauer in Minuten
       const t = Number(pe.target_duration_seconds) || 0;
       return t >= 120 && t % 60 === 0 ? 'min' : 's';
     }
@@ -1658,124 +1667,175 @@
     // gegenüber Runde 10-17 erhalten geblieben, nur als Overlay auf dem
     // Foto statt auf der gezeichneten Silhouette.
 
-    const LEFT_RAIL_X = 26;
-    const RIGHT_RAIL_X = 174;
+    // Runde 22 (Nachtrag 5, Nutzer-Feedback): Die Beschriftungen waren in der
+    // SVG-Darstellung (viewBox 300 Einheiten, Anzeige ~190 px) nur ca. 5 px
+    // groß und kaum lesbar. Jetzt: Körperfoto + Marker in einem px-genauen
+    // Overlay, Beschriftungen als normaler HTML-Text in Textgröße links/rechts
+    // vom Bild. layoutBodyViews() setzt die Beschriftungen auf die Höhe ihres
+    // Markers, vermeidet Überlappungen (Beschriftungen werden bei Bedarf
+    // nach unten geschoben) und zeichnet die Verbindungslinien neu, sobald
+    // sich die Breite ändert (ResizeObserver).
+    // Marker-Koordinaten (cx, cy) bleiben die in Runde 18 vermessenen Werte
+    // im alten Bildraster (Bild bei x 24..176, y 0..400).
+    const BODY_IMG_X = 24, BODY_IMG_W = 152, BODY_IMG_H = 398, BODY_IMG_Y = 1;
 
-    // Einheitliche Bild-Platzierung für alle vier Foto-Hintergründe: exakt
-    // gleiche x/y/Breite/Höhe, damit die fest einprogrammierten Marker-
-    // Koordinaten unten für alle vier Ansichten zueinander passen.
-    const BODY_IMG_X = 24, BODY_IMG_Y = 0, BODY_IMG_W = 152, BODY_IMG_H = 400;
-    function bodyImage(src) {
-      return `<image href="${src}" x="${BODY_IMG_X}" y="${BODY_IMG_Y}" width="${BODY_IMG_W}" height="${BODY_IMG_H}" preserveAspectRatio="xMidYMid meet" />`;
+    function bvItem(m, label, cx, cy, side) {
+      return { m, label, side, nx: (cx - BODY_IMG_X) / BODY_IMG_W, ny: (cy - BODY_IMG_Y) / BODY_IMG_H };
     }
 
-    // Einheitlicher Marker: Punkt + gestrichelte Verbindungslinie + Beschriftung
-    // auf der linken/rechten Schiene. `side` ist 'left' oder 'right' – mittige
-    // Marker (z.B. Brust, Bauch, oberer/unterer Rücken) nutzen 'right', damit
-    // auch sie der einheitlichen Regel "immer außerhalb, immer per Linie
-    // verbunden" folgen statt einer Sonderbehandlung.
-    function markerDot(cx, cy, sev, title, label, side) {
-      const rail = side === 'left' ? LEFT_RAIL_X : RIGHT_RAIL_X;
-      const anchor = side === 'left' ? 'end' : 'start';
-      const lineStartX = side === 'left' ? cx - 7 : cx + 7;
+    function bodyViewHtml(title, imgSrc, items) {
+      const labelHtml = (it) => `
+        <span class="bv-label" data-nx="${it.nx.toFixed(4)}" data-ny="${it.ny.toFixed(4)}" data-color="${severityColor(it.m.sev)}" data-title="${escapeHtml(it.m.title)}" title="${escapeHtml(it.m.title)}">
+          <i class="bv-sev" style="background:${severityColor(it.m.sev)};"></i><span>${escapeHtml(it.label)}</span>
+        </span>`;
+      const col = (side) => items.filter((it) => it.side === side).map(labelHtml).join('');
       return `
-        <g>
-          <line x1="${lineStartX}" y1="${cy}" x2="${rail}" y2="${cy}" stroke="var(--color-text-muted)" stroke-width="1" stroke-dasharray="1.5 2" opacity="0.6" />
-          <circle cx="${cx}" cy="${cy}" r="7.5" fill="${severityColor(sev)}" stroke="var(--color-bg)" stroke-width="1.5"><title>${escapeHtml(title)}</title></circle>
-          <text x="${rail}" y="${cy + 3}" font-size="7.5" fill="var(--color-text-muted)" text-anchor="${anchor}">${escapeHtml(label)}</text>
-        </g>`;
-    }
-
-    function viewTitle(text) {
-      // Runde 18/Nachtrag 4 (Nutzer-Feedback): Ansichts-Beschriftung (z.B.
-      // "GELENKE – VORDERANSICHT") saß bisher bei y="393" quasi AUF dem Foto
-      // (Bildhöhe endet bei 400) und war mit font-size 12 in der stark
-      // herunterskalierten Anzeige (190px Darstellungsbreite bei 300
-      // viewBox-Einheiten) kaum lesbar. Jetzt: eigener Bereich unterhalb des
-      // Fotos (viewBox um 36 Einheiten höher, Bild bleibt unverändert bei
-      // 0-400), deutlich größere Schrift, klarer Abstand zur Visualisierung.
-      return `<text x="100" y="422" font-size="16" font-weight="700" letter-spacing="0.4" fill="var(--color-text)" text-anchor="middle">${escapeHtml(text)}</text>`;
+        <div class="bv-view">
+          <h4 class="bv-title">${escapeHtml(title)}</h4>
+          <div class="bv-stage" data-bv>
+            <div class="bv-col bv-left">${col('left')}</div>
+            <div class="bv-imgwrap"><img class="bv-img" src="${imgSrc}" alt="${escapeHtml(title)}" width="338" height="885" /></div>
+            <div class="bv-col bv-right">${col('right')}</div>
+            <svg class="bv-overlay" aria-hidden="true"></svg>
+          </div>
+        </div>`;
     }
 
     function frontJointsSvg(markers) {
-      return `
-        <svg viewBox="-50 0 300 436" style="width:190px; height:auto; flex-shrink:0;">
-          ${bodyImage('content/koerper-balance/koerper-gelenke-vorne.png')}
-          ${markerDot(100, 47, markers.cervicalSpine.sev, markers.cervicalSpine.title, 'Halswirbelsäule', 'right')}
-          ${markerDot(67, 77, markers.shoulderLeft.sev, markers.shoulderLeft.title, 'Schulter li.', 'left')}
-          ${markerDot(136, 76, markers.shoulderRight.sev, markers.shoulderRight.title, 'Schulter re.', 'right')}
-          ${markerDot(54, 146, markers.elbowLeft.sev, markers.elbowLeft.title, 'Ellbogen li.', 'left')}
-          ${markerDot(147, 145, markers.elbowRight.sev, markers.elbowRight.title, 'Ellbogen re.', 'right')}
-          ${markerDot(42, 192, markers.wristLeft.sev, markers.wristLeft.title, 'Handgelenk li.', 'left')}
-          ${markerDot(158, 192, markers.wristRight.sev, markers.wristRight.title, 'Handgelenk re.', 'right')}
-          ${markerDot(78, 270, markers.kneeLeft.sev, markers.kneeLeft.title, 'Knie li.', 'left')}
-          ${markerDot(122, 270, markers.kneeRight.sev, markers.kneeRight.title, 'Knie re.', 'right')}
-          ${markerDot(75, 353, markers.ankleLeft.sev, markers.ankleLeft.title, 'Fußgelenk li.', 'left')}
-          ${markerDot(124, 353, markers.ankleRight.sev, markers.ankleRight.title, 'Fußgelenk re.', 'right')}
-          ${viewTitle('GELENKE – VORDERANSICHT')}
-        </svg>`;
+      return bodyViewHtml('Gelenke – Vorderansicht', 'content/koerper-balance/koerper-gelenke-vorne.png', [
+        bvItem(markers.cervicalSpine, 'Halswirbel\u00ADsäule', 100, 47, 'right'),
+        bvItem(markers.shoulderLeft, 'Schulter li.', 67, 77, 'left'),
+        bvItem(markers.shoulderRight, 'Schulter re.', 136, 76, 'right'),
+        bvItem(markers.elbowLeft, 'Ellbogen li.', 54, 146, 'left'),
+        bvItem(markers.elbowRight, 'Ellbogen re.', 147, 145, 'right'),
+        bvItem(markers.wristLeft, 'Hand\u00ADgelenk li.', 42, 192, 'left'),
+        bvItem(markers.wristRight, 'Hand\u00ADgelenk re.', 158, 192, 'right'),
+        bvItem(markers.kneeLeft, 'Knie li.', 78, 270, 'left'),
+        bvItem(markers.kneeRight, 'Knie re.', 122, 270, 'right'),
+        bvItem(markers.ankleLeft, 'Fuß\u00ADgelenk li.', 75, 353, 'left'),
+        bvItem(markers.ankleRight, 'Fuß\u00ADgelenk re.', 124, 353, 'right'),
+      ]);
     }
 
     function backJointsSvg(markers) {
-      return `
-        <svg viewBox="-50 0 300 436" style="width:190px; height:auto; flex-shrink:0;">
-          ${bodyImage('content/koerper-balance/koerper-gelenke-hinten.png')}
-          ${markerDot(100, 57, markers.neck.sev, markers.neck.title, 'Nacken', 'right')}
-          ${markerDot(56, 77, markers.shoulderLeft.sev, markers.shoulderLeft.title, 'Schulter li.', 'left')}
-          ${markerDot(132, 77, markers.shoulderRight.sev, markers.shoulderRight.title, 'Schulter re.', 'right')}
-          ${markerDot(100, 162, markers.lowerBack.sev, markers.lowerBack.title, 'Unterer Rücken', 'right')}
-          ${markerDot(69, 191, markers.hipLeft.sev, markers.hipLeft.title, 'Hüfte li.', 'left')}
-          ${markerDot(118, 191, markers.hipRight.sev, markers.hipRight.title, 'Hüfte re.', 'right')}
-          ${viewTitle('GELENKE – RÜCKANSICHT')}
-        </svg>`;
+      return bodyViewHtml('Gelenke – Rückansicht', 'content/koerper-balance/koerper-gelenke-hinten.png', [
+        bvItem(markers.neck, 'Nacken', 100, 57, 'right'),
+        bvItem(markers.shoulderLeft, 'Schulter li.', 56, 77, 'left'),
+        bvItem(markers.shoulderRight, 'Schulter re.', 132, 77, 'right'),
+        bvItem(markers.lowerBack, 'Unterer Rücken', 100, 162, 'right'),
+        bvItem(markers.hipLeft, 'Hüfte li.', 69, 191, 'left'),
+        bvItem(markers.hipRight, 'Hüfte re.', 118, 191, 'right'),
+      ]);
     }
 
     function frontMusclesSvg(markers) {
-      return `
-        <svg viewBox="-50 0 300 436" style="width:190px; height:auto; flex-shrink:0;">
-          ${bodyImage('content/koerper-balance/koerper-muskeln-vorne.png')}
-          ${markerDot(100, 96, markers.chest.sev, markers.chest.title, 'Brustmuskulatur', 'right')}
-          ${markerDot(100, 161, markers.abs.sev, markers.abs.title, 'Bauchmuskeln', 'right')}
-          ${markerDot(61, 108, markers.armLeft.sev, markers.armLeft.title, 'Muskeln Arm li.', 'left')}
-          ${markerDot(141, 107, markers.armRight.sev, markers.armRight.title, 'Muskeln Arm re.', 'right')}
-          ${markerDot(78, 227, markers.thighLeft.sev, markers.thighLeft.title, 'Oberschenkel li.', 'left')}
-          ${markerDot(123, 227, markers.thighRight.sev, markers.thighRight.title, 'Oberschenkel re.', 'right')}
-          ${viewTitle('MUSKELN – VORDERANSICHT')}
-        </svg>`;
+      return bodyViewHtml('Muskeln – Vorderansicht', 'content/koerper-balance/koerper-muskeln-vorne.png', [
+        bvItem(markers.chest, 'Brust\u00ADmuskulatur', 100, 96, 'right'),
+        bvItem(markers.abs, 'Bauch\u00ADmuskeln', 100, 161, 'right'),
+        bvItem(markers.armLeft, 'Arm li.', 61, 108, 'left'),
+        bvItem(markers.armRight, 'Arm re.', 141, 107, 'right'),
+        bvItem(markers.thighLeft, 'Ober\u00ADschenkel li.', 78, 227, 'left'),
+        bvItem(markers.thighRight, 'Ober\u00ADschenkel re.', 123, 227, 'right'),
+      ]);
     }
 
     function backMusclesSvg(markers) {
+      return bodyViewHtml('Muskeln – Rückansicht', 'content/koerper-balance/koerper-muskeln-hinten.png', [
+        bvItem(markers.upperBack, 'Oberer Rücken', 100, 102, 'right'),
+        bvItem(markers.lowerBack, 'Unterer Rücken', 100, 162, 'right'),
+        bvItem(markers.hamstringLeft, 'Bein\u00ADrückseite li.', 70, 237, 'left'),
+        bvItem(markers.hamstringRight, 'Bein\u00ADrückseite re.', 116, 237, 'right'),
+        bvItem(markers.calfLeft, 'Wade li.', 70, 315, 'left'),
+        bvItem(markers.calfRight, 'Wade re.', 115, 315, 'right'),
+      ]);
+    }
+
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+    const bvObservers = new WeakMap();
+
+    function layoutBodyViews(root) {
+      (root || document).querySelectorAll('[data-bv]').forEach((stage) => {
+        const doLayout = () => layoutOneBodyView(stage);
+        doLayout();
+        const img = stage.querySelector('.bv-img');
+        if (img && !img.complete) img.addEventListener('load', doLayout, { once: true });
+        if (typeof ResizeObserver !== 'undefined' && !bvObservers.has(stage)) {
+          const ro = new ResizeObserver(() => doLayout());
+          ro.observe(stage);
+          bvObservers.set(stage, ro);
+        }
+      });
+    }
+
+    function layoutOneBodyView(stage) {
+      const img = stage.querySelector('.bv-img');
+      const svg = stage.querySelector('.bv-overlay');
+      if (!img || !svg || !stage.isConnected) return;
+      const sr = stage.getBoundingClientRect();
+      const ir = img.getBoundingClientRect();
+      if (!ir.width || !sr.width) return;
+      svg.setAttribute('width', sr.width);
+      svg.setAttribute('height', sr.height);
+      svg.setAttribute('viewBox', `0 0 ${sr.width} ${sr.height}`);
+      while (svg.firstChild) svg.removeChild(svg.firstChild);
+      const mk = (name, attrs) => {
+        const n = document.createElementNS(SVG_NS, name);
+        Object.entries(attrs).forEach(([k, v]) => n.setAttribute(k, v));
+        return n;
+      };
+      const r = Math.max(7, Math.min(11, ir.width * 0.05));
+      const dots = [];
+      ['left', 'right'].forEach((side) => {
+        const col = stage.querySelector('.bv-' + side);
+        const cr = col.getBoundingClientRect();
+        const rows = Array.from(col.querySelectorAll('.bv-label')).map((el) => ({
+          el,
+          dx: ir.left - sr.left + parseFloat(el.dataset.nx) * ir.width,
+          dy: ir.top - sr.top + parseFloat(el.dataset.ny) * ir.height,
+          h: el.offsetHeight,
+        })).sort((a, b) => a.dy - b.dy);
+        // Beschriftungen auf Markerhöhe, bei Überlappung nach unten schieben
+        let prevBottom = -Infinity;
+        rows.forEach((row) => { row.top = Math.max(row.dy - row.h / 2, prevBottom + 3); prevBottom = row.top + row.h; });
+        const overflow = prevBottom - sr.height;
+        if (overflow > 0) {
+          let nextTop = Infinity;
+          for (let i = rows.length - 1; i >= 0; i -= 1) {
+            const maxTop = Math.min(rows[i].top, nextTop - rows[i].h - 3);
+            rows[i].top = Math.max(0, Math.min(rows[i].top, maxTop));
+            nextTop = rows[i].top;
+          }
+        }
+        const edgeX = side === 'left' ? cr.right - sr.left : cr.left - sr.left;
+        rows.forEach((row) => {
+          row.el.style.top = `${row.top - (cr.top - sr.top)}px`;
+          const ly = row.top + row.h / 2;
+          svg.appendChild(mk('line', { x1: row.dx, y1: row.dy, x2: edgeX, y2: ly, stroke: 'currentColor', 'stroke-width': 1, 'stroke-dasharray': '2 3', opacity: 0.55 }));
+          dots.push({ x: row.dx, y: row.dy, color: row.el.dataset.color, title: row.el.dataset.title });
+        });
+      });
+      dots.forEach((d) => {
+        const c = mk('circle', { cx: d.x, cy: d.y, r, fill: d.color, stroke: 'var(--color-surface)', 'stroke-width': 2 });
+        const t = document.createElementNS(SVG_NS, 'title'); t.textContent = d.title; c.appendChild(t);
+        c.style.pointerEvents = 'auto';
+        svg.appendChild(c);
+      });
+    }
+
+    function bodyViewsHtml(markers) {
+      // Vier Ansichten: Gelenke und Muskeln, jeweils Vorder- und Rückansicht.
       return `
-        <svg viewBox="-50 0 300 436" style="width:190px; height:auto; flex-shrink:0;">
-          ${bodyImage('content/koerper-balance/koerper-muskeln-hinten.png')}
-          ${markerDot(100, 102, markers.upperBack.sev, markers.upperBack.title, 'Oberer Rücken', 'right')}
-          ${markerDot(100, 162, markers.lowerBack.sev, markers.lowerBack.title, 'Unterer Rücken', 'right')}
-          ${markerDot(70, 237, markers.hamstringLeft.sev, markers.hamstringLeft.title, 'Beinrückseite li.', 'left')}
-          ${markerDot(116, 237, markers.hamstringRight.sev, markers.hamstringRight.title, 'Beinrückseite re.', 'right')}
-          ${markerDot(70, 315, markers.calfLeft.sev, markers.calfLeft.title, 'Wade li.', 'left')}
-          ${markerDot(115, 315, markers.calfRight.sev, markers.calfRight.title, 'Wade re.', 'right')}
-          ${viewTitle('MUSKELN – RÜCKANSICHT')}
-        </svg>`;
+        <div class="bv-grid">
+          ${frontJointsSvg(markers)}
+          ${backJointsSvg(markers)}
+          ${frontMusclesSvg(markers)}
+          ${backMusclesSvg(markers)}
+        </div>`;
     }
 
     function bodyVisualHtml(markers, notices, { sexHint = false } = {}) {
-      // Vier Ansichten (Runde 9): Gelenke vorne/hinten, Muskeln vorne/hinten –
-      // jeweils nicht gespiegelt, Bildseiten entsprechen den Körperseiten.
       return `
-        <div>
-          <h3 style="font-size:1.08rem; margin:0 0 18px; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.04em; font-weight:700;">Gelenke</h3>
-          <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start;">
-            ${frontJointsSvg(markers)}
-            ${backJointsSvg(markers)}
-          </div>
-        </div>
-        <div class="mt-24">
-          <h3 style="font-size:1.08rem; margin:0 0 18px; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.04em; font-weight:700;">Muskeln</h3>
-          <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:flex-start;">
-            ${frontMusclesSvg(markers)}
-            ${backMusclesSvg(markers)}
-          </div>
-        </div>
+        ${bodyViewsHtml(markers)}
         <div class="mt-24">
           <div class="dysbalance-legend" style="margin-bottom:10px;">
             <span><i style="background:var(--color-success);"></i> unauffällig</span>
@@ -1788,13 +1848,6 @@
             : `<ul style="margin:0; padding-left:18px; font-size:0.85rem;">${notices.map((n) => `<li class="dysbalance-verdict ${n.sev === 'unknown' ? '' : n.sev}" style="margin-bottom:4px;">${escapeHtml(n.text)}</li>`).join('')}</ul>`}
           ${sexHint ? `<p style="font-size:0.8rem; color:var(--color-gold); margin-top:10px;">${escapeHtml(SEX_HINT_TEXT)} <a href="dashboard.html">Zur Startseite</a></p>` : ''}
           <p style="font-size:0.72rem; color:var(--color-text-muted); margin-top:12px;">
-            Vorder- und Rückansicht, jeweils nicht gespiegelt – Bildseiten entsprechen den Körperseiten. Zuordnung der
-            Tests: Schulter = Schultertest (Apley); Ellbogen = Stuhl-Hebetest; Handgelenk = Phalen-Test; Hüfte = Thomas-Test;
-            Knie und Oberschenkel = Kniebeuge; Fußgelenk und Wade = einbeiniges Fersenheben (je Seite); Unterer Rücken und
-            Bauch = Plank; Brust und Arme = Liegestütz; Beinrückseite = Sit-and-Reach (ein Wert für beide Seiten);
-            Oberer Rücken = Seated Wall Angel (schlechterer der beiden Werte); Nacken = Schlafseite. Die Tests trägst du im
-            Reiter „Tests" ein; fehlt ein Test, erscheint der Marker als „keine Daten". Für Marker mit geschlechts-
-            spezifischen Vergleichswerten wird ohne Geschlechtsangabe keine Einstufung angezeigt.
             Vereinfachte Darstellung, ersetzt keine individuelle physiotherapeutische oder ärztliche Untersuchung.
           </p>
         </div>
@@ -2020,12 +2073,6 @@
       `;
     }
 
-    // Nutzer-Feedback Runde 14: `hideLifestyleForms` blendet die Selbstauskunft-
-    // Formulare zu Sitzverhalten/Schlafseite/Ernährung/Rauchen/Alkohol aus –
-    // diese Fragen sollen NUR noch im Präventionscheck-Tab erscheinen, nicht
-    // mehr zusätzlich im Bereich "Meine Entwicklung" (renderAnalyticsView).
-    // Die zugrundeliegenden Werte fließen unabhängig davon weiterhin in Score
-    // und Körper-Visualisierung ein, nur die Eingabe-Karten werden versteckt.
     // Runde 22 (Nachtrag): Der Trainer ist kein Kunde. In der Trainer-Ansicht
     // dienen alle Test-/Messformulare ausschließlich dazu, eine Messung einem
     // ausgewählten Kundenprofil zuzuweisen – "Ich selbst" gibt es dort nicht.
@@ -2039,7 +2086,169 @@
       });
     }
 
-    async function renderPreventionSection(el, clientId, { isAdminView, hideLifestyleForms } = {}) {
+    // Runde 22 (Nachtrag 5): Testkarten sind beim Öffnen der Seite immer
+    // eingeklappt – sichtbar bleiben nur Testname (inkl. Status) und das
+    // Testprotokoll. Ergebnis, Verlauf und Eingabe liegen im einklappbaren
+    // Bereich. Der Auf-/Zu-Zustand bleibt beim Neurendern nach dem Speichern
+    // innerhalb derselben Sitzung erhalten (nicht beim Neuladen der Seite).
+    const openTestCards = new Set();
+    let openTestCardsOwner = null;
+    function initTestCardCollapse(root, ownerId) {
+      if (openTestCardsOwner !== ownerId) { openTestCards.clear(); openTestCardsOwner = ownerId; }
+      root.querySelectorAll('.pv-test-card').forEach((card) => {
+        if (card.dataset.collapsible === '1') return;
+        const key = card.dataset.testKey;
+        const kids = Array.from(card.children);
+        const header = kids[0];
+        const protocol = kids.find((k, i) => i > 0 && k.matches('details.qn-details'));
+        if (!header) return;
+        const bodyKids = kids.filter((k) => k !== header && k !== protocol);
+        if (bodyKids.length === 0) return;
+        const body = document.createElement('div');
+        body.className = 'pv-card-body';
+        bodyKids.forEach((k) => body.appendChild(k));
+        card.appendChild(body);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'pv-collapse-btn';
+        btn.setAttribute('aria-expanded', 'false');
+        btn.innerHTML = '<span class="pv-collapse-label">Ergebnisse &amp; Eingabe</span><span class="pv-collapse-chev" aria-hidden="true">▾</span>';
+        // Button direkt unter das Testprotokoll setzen
+        if (protocol) protocol.after(btn); else header.after(btn);
+        const set = (open) => {
+          card.classList.toggle('pv-open', open);
+          btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+          body.hidden = !open;
+          if (open) openTestCards.add(key); else openTestCards.delete(key);
+        };
+        btn.addEventListener('click', () => set(body.hidden));
+        set(openTestCards.has(key));
+        card.dataset.collapsible = '1';
+      });
+    }
+
+    // Runde 22 (Nachtrag 5): Selbstauskunft-Tests (Sitzverhalten, Schlafseite,
+    // Ernährung, Rauchen, Alkohol) gehören in den Reiter "Tests" – der
+    // Präventionscheck erscheint nur noch in "Meine Entwicklung". Alle Karten
+    // verwenden dieselbe Struktur wie die übrigen Testkarten (.pv-test-card),
+    // damit sie ebenfalls einklappbar sind.
+    function lifestyleTestsHtml(latest, sex) {
+      const sittingRow = latest.sitting_hours;
+      const sleepRow = latest.sleep_side;
+      const nutritionRow = latest.nutrition_quality;
+      const nutritionEval = nutritionRow ? evaluateNutritionQuality(nutritionRow.value) : null;
+      const smokingRow = latest.smoking_status;
+      const smokingEval = smokingRow ? evaluateSmokingStatus(smokingRow.value) : null;
+      const alcoholRow = latest.alcohol_weekly_drinks;
+      const alcoholEval = alcoholRow ? evaluateAlcoholRisk(alcoholRow.value, sex) : null;
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const whoField = `<div class="field"><label>Wer hat eingetragen?</label><select class="pv-measured-by"><option value="client">Ich selbst</option><option value="trainer">Trainer/Coach</option></select></div>`;
+      const dateField = `<div class="field"><label>Datum</label><input type="date" class="pv-date" value="${todayStr}" required /></div>`;
+      const staleTag = (row) => (isStale(row.measured_at) ? ' · <span style="color:var(--color-gold);">älter als 12 Wochen</span>' : '');
+      const none = '<p style="color:var(--color-text-muted); font-size:0.85rem; margin:0;">Noch keine Angabe.</p>';
+      const head = (title, row) => `<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;"><h3 style="margin:0; font-size:1rem;">${title}</h3>${row ? `<span class="status-pill ${isStale(row.measured_at) ? 'under' : 'active'}">${isStale(row.measured_at) ? 'älter als 12 Wochen' : 'aktuell'}</span>` : ''}</div>`;
+      const proto = (inner) => `<details class="qn-details mt-16"><summary>Testprotokoll ansehen (Durchführung, Einordnung)</summary><div style="padding:10px 0 0; font-size:0.85rem;">${inner}</div></details>`;
+      return `
+        <div class="card mt-24 pv-test-card" data-test-key="sitting_hours">
+          ${head('Sitzverhalten', sittingRow)}
+          ${proto('<p><strong>Durchführung:</strong> Selbstauskunft – schätze ehrlich, wie viele Stunden du an einem normalen Tag im Durchschnitt sitzt (Arbeit, Pendeln, Freizeit zusammen). Ein grober Durchschnittswert reicht.</p><p style="color:var(--color-text-muted); font-size:0.78rem;">Hohe Sitzzeiten sind mit Rückenbeschwerden und kardiometabolischen Risiken assoziiert. Der Wert fließt in den Präventions-Score ein.</p>')}
+          <div class="result-box mt-16">
+            ${sittingRow ? `<div class="big" style="font-size:1.3rem;">${sittingRow.value} Std./Tag</div><div style="font-size:0.72rem; color:var(--color-text-muted); margin-top:4px;">${formatDateOnly(sittingRow.measured_at)}${staleTag(sittingRow)}</div>` : none}
+          </div>
+          <form class="pv-entry-form mt-16" data-test-key="sitting_hours">
+            <div class="grid-2">
+              <div class="field"><label>Stunden/Tag</label><input type="number" step="0.5" min="0" max="24" class="pv-value" required /></div>
+              ${dateField}
+              ${whoField}
+            </div>
+            <button class="btn secondary small-btn" type="submit">Testergebnis speichern</button>
+          </form>
+        </div>
+
+        <div class="card mt-24 pv-test-card" data-test-key="sleep_side">
+          ${head('Überwiegende Schlafseite', sleepRow)}
+          ${proto('<p><strong>Durchführung:</strong> Selbstauskunft – auf welcher Seite schläfst du überwiegend: Rücken/wechselnd, links oder rechts?</p><p style="color:var(--color-text-muted); font-size:0.78rem;">Eine dauerhaft einseitige Schlafposition kann zu einseitigen Verspannungen im Nackenbereich beitragen. Der Wert wird in der Körper-Visualisierung (Nacken) berücksichtigt.</p>')}
+          <div class="result-box mt-16">
+            ${sleepRow ? `<div class="big" style="font-size:1.1rem;">${Number(sleepRow.value) === 0 ? 'Rücken/wechselnd' : Number(sleepRow.value) > 0 ? 'Rechts' : 'Links'}</div><div style="font-size:0.72rem; color:var(--color-text-muted); margin-top:4px;">${formatDateOnly(sleepRow.measured_at)}${staleTag(sleepRow)}</div>` : none}
+          </div>
+          <form class="pv-entry-form mt-16" data-test-key="sleep_side">
+            <div class="grid-2">
+              <div class="field"><label>Seite</label>
+                <select class="pv-value">
+                  <option value="0">Rücken/wechselnd</option>
+                  <option value="-1">Links</option>
+                  <option value="1">Rechts</option>
+                </select>
+              </div>
+              ${dateField}
+              ${whoField}
+            </div>
+            <button class="btn secondary small-btn" type="submit">Testergebnis speichern</button>
+          </form>
+        </div>
+
+        <div class="card mt-24 pv-test-card" data-test-key="nutrition_quality">
+          ${head('Ernährungsqualität (Kurzcheck)', nutritionRow)}
+          ${proto('<p><strong>Durchführung:</strong> Kurzer Fragebogen zu typischen Ernährungsgewohnheiten – möglichst ehrlich beantworten. Er ersetzt kein ausführliches Ernährungsprotokoll, sondern liefert einen Orientierungswert (0–100) für den Präventions-Score.</p>')}
+          <div class="result-box mt-16">
+            ${nutritionRow ? `<div class="big" style="font-size:1.3rem;">${nutritionRow.value} / 100</div><div style="font-size:0.8rem; margin-top:4px;">${escapeHtml(nutritionEval ? nutritionEval.label : '')}</div><div style="font-size:0.72rem; color:var(--color-text-muted); margin-top:4px;">${formatDateOnly(nutritionRow.measured_at)} · ${nutritionRow.measured_by === 'trainer' ? 'Trainer/Coach' : 'Kunde selbst'}${staleTag(nutritionRow)}</div>` : none}
+          </div>
+          <details class="qn-details mt-16"><summary>Kurzcheck ausfüllen</summary>
+            <div style="padding:10px 0 0;">${nutritionQuizFormHtml()}</div>
+          </details>
+        </div>
+
+        <div class="card mt-24 pv-test-card" data-test-key="smoking_status">
+          ${head('Rauchen', smokingRow)}
+          ${proto(`<p><strong>Durchführung:</strong> Selbstauskunft zum aktuellen Rauchstatus.</p><p style="color:var(--color-text-muted); font-size:0.78rem;">Quelle: ${escapeHtml(SMOKING_SOURCE)}</p>`)}
+          <div class="result-box mt-16">
+            ${smokingRow ? `<div class="big" style="font-size:1.1rem;">${escapeHtml(smokingEval ? smokingEval.label : '')}</div><div style="font-size:0.72rem; color:var(--color-text-muted); margin-top:4px;">${formatDateOnly(smokingRow.measured_at)}${staleTag(smokingRow)}</div>` : none}
+          </div>
+          <form class="pv-entry-form mt-16" data-test-key="smoking_status">
+            <div class="grid-2">
+              <div class="field"><label>Status</label>
+                <select class="pv-value">
+                  ${SMOKING_OPTIONS.map((o) => `<option value="${o.value}">${escapeHtml(o.label)}</option>`).join('')}
+                </select>
+              </div>
+              ${dateField}
+              ${whoField}
+            </div>
+            <button class="btn secondary small-btn" type="submit">Testergebnis speichern</button>
+          </form>
+        </div>
+
+        <div class="card mt-24 pv-test-card" data-test-key="alcohol_weekly_drinks">
+          ${head('Alkohol (Standarddrinks pro Woche)', alcoholRow)}
+          ${proto(`<p><strong>Durchführung:</strong> Selbstauskunft – wie viele Standarddrinks trinkst du in einer üblichen Woche? Ein Standarddrink entspricht etwa 0,33 l Bier, 0,125 l Wein oder 4 cl Spirituosen.</p><p style="color:var(--color-text-muted); font-size:0.78rem;">Quelle: ${escapeHtml(ALCOHOL_SOURCE)}</p>`)}
+          <div class="result-box mt-16">
+            ${alcoholRow ? `<div class="big" style="font-size:1.3rem;">${alcoholRow.value} / Woche</div><div style="font-size:0.8rem; margin-top:4px;">${escapeHtml(alcoholEval ? alcoholEval.label : '')}</div><div style="font-size:0.72rem; color:var(--color-text-muted); margin-top:4px;">${formatDateOnly(alcoholRow.measured_at)}${staleTag(alcoholRow)}</div>` : none}
+          </div>
+          <form class="pv-entry-form mt-16" data-test-key="alcohol_weekly_drinks">
+            <div class="grid-2">
+              <div class="field"><label>Standarddrinks pro Woche</label><input type="number" step="1" min="0" max="100" class="pv-value" required /></div>
+              ${dateField}
+              ${whoField}
+            </div>
+            <button class="btn secondary small-btn" type="submit">Testergebnis speichern</button>
+          </form>
+        </div>
+      `;
+    }
+
+    function bindNutritionQuiz(el) {
+      el.querySelectorAll('.nq-answer').forEach((sel) => {
+        sel.addEventListener('change', () => {
+          const form = sel.closest('form');
+          const answers = Array.from(form.querySelectorAll('.nq-answer')).sort((a, b) => a.dataset.idx - b.dataset.idx).map((s) => s.value);
+          const score = computeNutritionQuizScore(answers);
+          form.querySelector('.pv-value').value = score;
+          form.querySelector('#nq-score-preview').textContent = score;
+        });
+      });
+    }
+
+    async function renderPreventionSection(el, clientId, { isAdminView } = {}) {
       el.innerHTML = '<p class="center-text">Lade Präventionscheck …</p>';
 
       const twelveWeeksAgo = new Date(Date.now() - 84 * 86400000).toISOString();
@@ -2255,106 +2464,13 @@
 
         <div class="card mt-24">
           <h2 style="font-size:1.05rem;">Körperliche Balance &amp; Risikofaktoren</h2>
-          <p style="color:var(--color-text-muted); font-size:0.82rem;">Zusammenfassung aus Umfangsmessungen (Körperfett-Verlauf), Beweglichkeits- und Kraftausdauertests sowie Sitz-/Schlafgewohnheiten, getrennt nach Gelenken und Muskeln dargestellt. ${isAdminView ? 'Die Tests selbst trägst du weiter unten für diesen Kunden ein.' : 'Die Tests selbst trägst du im Reiter „Tests" ein.'}</p>
+          <p style="color:var(--color-text-muted); font-size:0.82rem;">Zusammenfassung aus Umfangsmessungen (Körperfett-Verlauf), Beweglichkeits- und Kraftausdauertests sowie Sitz-/Schlafgewohnheiten, getrennt nach Gelenken und Muskeln dargestellt.</p>
           ${bodyVisualHtml(markers, notices, { sexHint: sexHintNeeded })}
         </div>
 
-        ${hideLifestyleForms ? `
-        <p style="color:var(--color-text-muted); font-size:0.82rem; margin:16px 0 0;">Fragen zu Sitzverhalten, Ernährung, Rauchen und Alkohol trägst du im Reiter „Präventionscheck" ein – sie fließen von dort auch weiterhin in den Score und die Visualisierung oben ein.</p>
-        ` : `
-        <div class="card mt-24">
-          <h2 style="font-size:1.05rem;">Sitzverhalten &amp; Schlafseite</h2>
-          <p style="color:var(--color-text-muted); font-size:0.82rem;">Selbstauskunft – möglichst ehrlich einschätzen, ein grober Durchschnittswert reicht.</p>
-          <div class="grid-2 mt-16">
-            <div class="result-box">
-              <div style="font-size:0.82rem; color:var(--color-text-muted); margin-bottom:6px;">Sitzstunden pro Tag (Durchschnitt)</div>
-              ${sittingRow ? `<div class="big" style="font-size:1.4rem;">${sittingRow.value} Std.</div><div style="font-size:0.72rem; color:var(--color-text-muted); margin-top:4px;">${formatDateOnly(sittingRow.measured_at)}${isStale(sittingRow.measured_at) ? ' · <span style="color:var(--color-gold);">älter als 12 Wochen</span>' : ''}</div>` : '<p style="color:var(--color-text-muted); font-size:0.82rem; margin:0;">Noch keine Angabe.</p>'}
-              <form class="pv-entry-form mt-16" data-test-key="sitting_hours">
-                <div class="field"><label>Stunden/Tag</label><input type="number" step="0.5" min="0" max="24" class="pv-value" required /></div>
-                <div class="field"><label>Datum</label><input type="date" class="pv-date" value="${new Date().toISOString().slice(0, 10)}" required /></div>
-                <div class="field"><label>Wer hat eingetragen?</label>
-                  <select class="pv-measured-by"><option value="client">Ich selbst</option><option value="trainer">Trainer/Coach</option></select>
-                </div>
-                <button class="btn secondary small-btn" type="submit">Speichern</button>
-              </form>
-            </div>
-            <div class="result-box">
-              <div style="font-size:0.82rem; color:var(--color-text-muted); margin-bottom:6px;">Überwiegende Schlafseite</div>
-              ${sleepRow ? `<div class="big" style="font-size:1.1rem;">${Number(sleepRow.value) === 0 ? 'Rücken/wechselnd' : Number(sleepRow.value) > 0 ? 'Rechts' : 'Links'}</div><div style="font-size:0.72rem; color:var(--color-text-muted); margin-top:4px;">${formatDateOnly(sleepRow.measured_at)}</div>` : '<p style="color:var(--color-text-muted); font-size:0.82rem; margin:0;">Noch keine Angabe.</p>'}
-              <form class="pv-entry-form mt-16" data-test-key="sleep_side">
-                <div class="field"><label>Seite</label>
-                  <select class="pv-value">
-                    <option value="0">Rücken/wechselnd</option>
-                    <option value="-1">Links</option>
-                    <option value="1">Rechts</option>
-                  </select>
-                </div>
-                <div class="field"><label>Datum</label><input type="date" class="pv-date" value="${new Date().toISOString().slice(0, 10)}" required /></div>
-                <div class="field"><label>Wer hat eingetragen?</label>
-                  <select class="pv-measured-by"><option value="client">Ich selbst</option><option value="trainer">Trainer/Coach</option></select>
-                </div>
-                <button class="btn secondary small-btn" type="submit">Speichern</button>
-              </form>
-            </div>
-          </div>
-        </div>
-
-        <div class="card mt-24">
-          <h2 style="font-size:1.05rem;">Ernährung, Rauchen &amp; Alkohol</h2>
-          <p style="color:var(--color-text-muted); font-size:0.82rem;">Kurze Selbstauskunft für den Präventions-Score – möglichst ehrlich einschätzen, ersetzt kein ausführliches Ernährungsprotokoll.</p>
-          <div class="grid-2 mt-16">
-            <div class="result-box">
-              <div style="font-size:0.82rem; color:var(--color-text-muted); margin-bottom:6px;">Ernährungsqualität</div>
-              ${nutritionRow ? `<div class="big" style="font-size:1.4rem;">${nutritionRow.value} / 100</div><div style="font-size:0.8rem; margin-top:4px;">${escapeHtml(nutritionEval ? nutritionEval.label : '')}</div><div style="font-size:0.72rem; color:var(--color-text-muted); margin-top:4px;">${formatDateOnly(nutritionRow.measured_at)} · ${nutritionRow.measured_by === 'trainer' ? 'Trainer/Coach' : 'Kunde selbst'}${isStale(nutritionRow.measured_at) ? ' · <span style="color:var(--color-gold);">älter als 12 Wochen</span>' : ''}</div>` : '<p style="color:var(--color-text-muted); font-size:0.82rem; margin:0;">Noch keine Angabe.</p>'}
-              <details class="qn-details mt-16"><summary>Kurzcheck ausfüllen</summary>
-                <div style="padding:10px 0 0;">${nutritionQuizFormHtml()}</div>
-              </details>
-            </div>
-            <div class="result-box">
-              <div style="font-size:0.82rem; color:var(--color-text-muted); margin-bottom:6px;">Rauchen</div>
-              ${smokingRow ? `<div class="big" style="font-size:1.1rem;">${escapeHtml(smokingEval ? smokingEval.label : '')}</div><div style="font-size:0.72rem; color:var(--color-text-muted); margin-top:4px;">${formatDateOnly(smokingRow.measured_at)}${isStale(smokingRow.measured_at) ? ' · <span style="color:var(--color-gold);">älter als 12 Wochen</span>' : ''}</div>` : '<p style="color:var(--color-text-muted); font-size:0.82rem; margin:0;">Noch keine Angabe.</p>'}
-              <form class="pv-entry-form mt-16" data-test-key="smoking_status">
-                <div class="field"><label>Status</label>
-                  <select class="pv-value">
-                    ${SMOKING_OPTIONS.map((o) => `<option value="${o.value}">${escapeHtml(o.label)}</option>`).join('')}
-                  </select>
-                </div>
-                <div class="field"><label>Datum</label><input type="date" class="pv-date" value="${new Date().toISOString().slice(0, 10)}" required /></div>
-                <div class="field"><label>Wer hat eingetragen?</label>
-                  <select class="pv-measured-by"><option value="client">Ich selbst</option><option value="trainer">Trainer/Coach</option></select>
-                </div>
-                <p style="font-size:0.7rem; color:var(--color-text-muted); margin-top:6px;">Quelle: ${escapeHtml(SMOKING_SOURCE)}</p>
-                <button class="btn secondary small-btn" type="submit">Speichern</button>
-              </form>
-            </div>
-            <div class="result-box">
-              <div style="font-size:0.82rem; color:var(--color-text-muted); margin-bottom:6px;">Alkohol (Standarddrinks/Woche)</div>
-              ${alcoholRow ? `<div class="big" style="font-size:1.4rem;">${alcoholRow.value}/Woche</div><div style="font-size:0.8rem; margin-top:4px;">${escapeHtml(alcoholEval ? alcoholEval.label : '')}</div><div style="font-size:0.72rem; color:var(--color-text-muted); margin-top:4px;">${formatDateOnly(alcoholRow.measured_at)}${isStale(alcoholRow.measured_at) ? ' · <span style="color:var(--color-gold);">älter als 12 Wochen</span>' : ''}</div>` : '<p style="color:var(--color-text-muted); font-size:0.82rem; margin:0;">Noch keine Angabe.</p>'}
-              <form class="pv-entry-form mt-16" data-test-key="alcohol_weekly_drinks">
-                <div class="field"><label>Standarddrinks pro Woche</label><input type="number" step="1" min="0" max="100" class="pv-value" required /></div>
-                <div class="field"><label>Datum</label><input type="date" class="pv-date" value="${new Date().toISOString().slice(0, 10)}" required /></div>
-                <div class="field"><label>Wer hat eingetragen?</label>
-                  <select class="pv-measured-by"><option value="client">Ich selbst</option><option value="trainer">Trainer/Coach</option></select>
-                </div>
-                <p style="font-size:0.7rem; color:var(--color-text-muted); margin-top:6px;">Ein Standarddrink ≈ 0,33l Bier, 0,125l Wein oder 4cl Spirituosen. Quelle: ${escapeHtml(ALCOHOL_SOURCE)}</p>
-                <button class="btn secondary small-btn" type="submit">Speichern</button>
-              </form>
-            </div>
-          </div>
-        </div>
-        `}
       `;
       lockMeasuredByToTrainer(el, isAdminView);
-
-      el.querySelectorAll('.nq-answer').forEach((sel) => {
-        sel.addEventListener('change', () => {
-          const form = sel.closest('form');
-          const answers = Array.from(form.querySelectorAll('.nq-answer')).sort((a, b) => a.dataset.idx - b.dataset.idx).map((s) => s.value);
-          const score = computeNutritionQuizScore(answers);
-          form.querySelector('.pv-value').value = score;
-          form.querySelector('#nq-score-preview').textContent = score;
-        });
-      });
+      layoutBodyViews(el);
 
       // Runde 18: Eingabeformular nur noch in der Admin-/Trainer-Ansicht
       // vorhanden (siehe renderPreventionSection oben) – Kunden sehen nur
@@ -2365,7 +2481,7 @@
         sexSelect.addEventListener('change', async () => {
           const { error } = await updateSex(clientId, sexSelect.value);
           if (error) { alert('Fehler: ' + error.message); return; }
-          renderPreventionSection(el, clientId, { isAdminView, hideLifestyleForms });
+          renderPreventionSection(el, clientId, { isAdminView });
         });
       }
       const birthBtn = document.getElementById('pv-edit-birthdate');
@@ -2376,7 +2492,7 @@
           e.preventDefault();
           const { error } = await updateBirthDate(clientId, document.getElementById('pv-birthdate-input').value);
           if (error) { alert('Fehler: ' + error.message); return; }
-          renderPreventionSection(el, clientId, { isAdminView, hideLifestyleForms });
+          renderPreventionSection(el, clientId, { isAdminView });
         });
       }
 
@@ -2396,7 +2512,7 @@
             measuredAt: form.querySelector('.pv-date').value,
           });
           if (error) { alert('Fehler: ' + error.message); submitBtn.disabled = false; return; }
-          renderPreventionSection(el, clientId, { isAdminView, hideLifestyleForms });
+          renderPreventionSection(el, clientId, { isAdminView });
         });
       });
     }
@@ -2607,20 +2723,42 @@
     function renderMonatsberichtCard(container, clientId, clientLabel, { isAdminView } = {}) {
       const now = new Date();
       const defaultMonthValue = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const forWho = isAdminView ? ` für ${escapeHtml(clientLabel)}` : '';
 
       container.innerHTML = `
         <div class="card">
           <h2 style="font-size:1.05rem;">Monatsbericht${isAdminView ? ` – ${escapeHtml(clientLabel)}` : ''}</h2>
           <p style="color:var(--color-text-muted); font-size:0.88rem;">
-            Ein hochwertiger PDF-Bericht${isAdminView ? ` für ${escapeHtml(clientLabel)}` : ''} mit Training, Ernährung und
-            Präventions-Score des gewählten Monats – zum Ausdrucken oder Archivieren. Der Bericht wird direkt hier im
-            Browser erzeugt; es gibt keinen automatischen Versand, du lädst ihn bei Bedarf selbst herunter.
+            Ein hochwertiger PDF-Bericht${forWho} für den gewählten Monat – zum Ausdrucken oder Archivieren: Training
+            (inkl. Ausdauer, Belastungsverteilung), Ernährung, Körpermaße, <strong>alle Tests mit Einstufung und Veränderung</strong>
+            (Kraftausdauer, Herz-Kreislauf, Blutdruck/Ruhepuls, Beweglichkeit, Lebensstil), Präventions-Score, Erfolge und Ziele.
+            Der Bericht wird direkt hier im Browser erzeugt; es gibt keinen automatischen Versand, du lädst ihn bei Bedarf selbst herunter.
           </p>
           <div class="grid-2 mt-16" style="align-items:flex-end;">
             <div class="field"><label>Monat</label><input type="month" id="mb-month" value="${defaultMonthValue}" max="${defaultMonthValue}" /></div>
             <button class="btn small-btn" id="mb-download-btn" type="button">PDF herunterladen</button>
           </div>
           <div id="mb-status" class="mt-16"></div>
+        </div>
+
+        <div class="card mt-24">
+          <h2 style="font-size:1.05rem;">Jahresbericht${isAdminView ? ` – ${escapeHtml(clientLabel)}` : ''}</h2>
+          <p style="color:var(--color-text-muted); font-size:0.88rem;">
+            Der Jahresbericht${forWho} zeigt das gewählte Kalenderjahr im Überblick – mit <strong>Jahresverlauf</strong> (Diagramme je Monat)
+            und <strong>Monatsvergleich</strong> (Training, Ernährung, Gewicht, Körperfett, Score), dazu dieselben Auswertungsseiten wie
+            im Monatsbericht: alle Tests im Vergleich zum Jahresbeginn, Körpermaße, Präventions-Score, Erfolge und Ziele.
+          </p>
+          <div class="grid-2 mt-16" style="align-items:flex-end;">
+            <div class="field"><label>Jahr</label><select id="jb-year"><option value="${now.getFullYear()}">${now.getFullYear()}</option></select></div>
+            <div class="field"><label>Zeitraum</label>
+              <select id="jb-range">
+                <option value="full">Ganzes Kalenderjahr (1.1.–31.12.)</option>
+                <option value="ytd">Bis heute (1.1.–heute)</option>
+              </select>
+            </div>
+          </div>
+          <div class="mt-16"><button class="btn small-btn" id="jb-download-btn" type="button">Jahresbericht als PDF herunterladen</button></div>
+          <div id="jb-status" class="mt-16"></div>
         </div>
       `;
 
@@ -2638,6 +2776,42 @@
           statusEl.innerHTML = `<div class="msg error">Fehler beim Erstellen des Berichts: ${escapeHtml(err.message)}</div>`;
         } finally {
           btn.disabled = false;
+        }
+      });
+
+      // Jahresbericht: Jahresauswahl ab Anmeldejahr (Fallback: die letzten 5 Jahre).
+      const yearSel = document.getElementById('jb-year');
+      const rangeSel = document.getElementById('jb-range');
+      const syncRange = () => {
+        const isCurrent = Number(yearSel.value) === now.getFullYear();
+        rangeSel.querySelector('option[value="ytd"]').disabled = !isCurrent;
+        if (!isCurrent) rangeSel.value = 'full';
+      };
+      const fillYears = (firstYear) => {
+        const years = [];
+        for (let y = now.getFullYear(); y >= firstYear; y -= 1) years.push(y);
+        yearSel.innerHTML = years.map((y) => `<option value="${y}">${y}</option>`).join('');
+        syncRange();
+      };
+      fillYears(now.getFullYear() - 1);
+      supabaseClient.from('profiles').select('created_at').eq('id', clientId).maybeSingle().then(({ data }) => {
+        const first = data && data.created_at ? new Date(data.created_at).getFullYear() : now.getFullYear() - 1;
+        fillYears(Math.min(first, now.getFullYear()));
+      }).catch(() => {});
+      yearSel.addEventListener('change', syncRange);
+
+      const jbStatus = document.getElementById('jb-status');
+      const jbBtn = document.getElementById('jb-download-btn');
+      jbBtn.addEventListener('click', async () => {
+        jbBtn.disabled = true;
+        jbStatus.innerHTML = `<p style="font-size:0.85rem; color:var(--color-text-muted);">Erstelle Jahresbericht – das kann einige Sekunden dauern …</p>`;
+        try {
+          await generateYearlyReport(clientId, clientLabel, Number(yearSel.value), rangeSel.value);
+          jbStatus.innerHTML = `<div class="msg success">PDF wurde heruntergeladen.</div>`;
+        } catch (err) {
+          jbStatus.innerHTML = `<div class="msg error">Fehler beim Erstellen des Jahresberichts: ${escapeHtml(err.message)}</div>`;
+        } finally {
+          jbBtn.disabled = false;
         }
       });
     }
@@ -2713,6 +2887,22 @@
         nutrition: profileRow ? profileRow.nutrition_enabled !== false : true,
       };
 
+      // Runde 22 (Nachtrag 5): erweiterte Auswertung (alle Tests, Körpermaße, Training
+      // im Detail, Erfolge/Ziele) – Berechnung in js/report-data.js.
+      const monthStartKey = dayKeyOf(new Date(year, monthIdx, 1));
+      const monthEndKey = dayKeyOf(new Date(year, monthIdx + 1, 0));
+      const raw = await loadAchievementRaw(clientId, { trainingEnabled: moduleAccess.training, nutritionEnabled: moduleAccess.nutrition, coachingEnabled: true }).catch(() => ({}));
+      const testRows = buildTestRows({ results: allPreventionResults || [], birthDate, sex, fromKey: monthStartKey, toKey: monthEndKey });
+      const extra = {
+        testRows,
+        testSummary: summarizeTestRows(testRows),
+        body: summarizeBody(bodyMeasurements || [], monthStartKey, monthEndKey),
+        trainingExtras: summarizeTrainingExtras(trainingLogsMonth || [], trainingSessionsMonth || []),
+        scoreInfo: scoreAround(raw && raw.profile ? computeScoreHistory(raw) : [], monthStartKey, monthEndKey),
+        achievements: achievementsInPeriod(raw && raw.achievementRows, monthStartKey, monthEndKey),
+        goals: goalsInPeriod(raw && raw.goals, monthStartKey, monthEndKey),
+      };
+
       await buildMonthlyReportPdf({
         profile: { full_name: (profileRow && profileRow.full_name) || clientLabel, email: profileRow && profileRow.email },
         monthDate,
@@ -2725,12 +2915,120 @@
         streak,
         monthPrEvents,
         moduleAccess,
+        extra,
       });
 
       // Runde 16: "Erster Monatsbericht"-Erfolg wird direkt beim erfolgreichen
       // Download vergeben (nicht aus Daten hergeleitet) – awardAchievement()
       // ist idempotent, ein erneuter Download schaltet nichts doppelt frei.
       awardAchievement(clientId, 'monthly_report_first').catch(() => {});
+    }
+
+    // Runde 22 (Nachtrag 5): Jahresbericht (Kalenderjahr wählbar).
+    async function generateYearlyReport(clientId, clientLabel, year, range) {
+      const now = new Date();
+      const isCurrent = year === now.getFullYear();
+      const lastMonthIdx = isCurrent ? now.getMonth() : 11;
+      const fromKey = `${year}-01-01`;
+      const toKey = isCurrent && range === 'ytd' ? dayKeyOf(now) : `${year}-12-31`;
+      const fromISO = new Date(year, 0, 1).toISOString();
+      const toISO = new Date(year + 1, 0, 1).toISOString();
+      const monthRanges = Array.from({ length: lastMonthIdx + 1 }, (_, m) => ({
+        from: new Date(year, m, 1).toISOString(),
+        to: new Date(year, m + 1, 1).toISOString(),
+      }));
+
+      const { data: profileRow } = await supabaseClient.from('profiles').select('birth_date, full_name, email, training_enabled, nutrition_enabled').eq('id', clientId).maybeSingle();
+      const moduleAccess = {
+        training: profileRow ? profileRow.training_enabled !== false : true,
+        nutrition: profileRow ? profileRow.nutrition_enabled !== false : true,
+      };
+      const [raw, sessionsRes, ...nutritionRes] = await Promise.all([
+        loadAchievementRaw(clientId, { trainingEnabled: moduleAccess.training, nutritionEnabled: moduleAccess.nutrition, coachingEnabled: true }),
+        listSessions(clientId, { from: fromISO, to: toISO }),
+        ...monthRanges.map((r) => (moduleAccess.nutrition ? listNutritionLogs(clientId, { from: r.from, to: r.to }) : Promise.resolve({ data: [] }))),
+      ]);
+      if (sessionsRes.error) throw new Error(sessionsRes.error.message);
+      const sessions = sessionsRes.data || [];
+      const allLogs = raw.logs || [];
+      const yearLogs = allLogs.filter((l) => { const k = dayKeyOf(l.performed_at); return k >= fromKey && k <= toKey; });
+      const sex = (await loadProfileBasics(clientId)).sex;
+      const birthDate = profileRow ? profileRow.birth_date : null;
+      const results = raw.preventionResults || [];
+      const bodyAll = raw.bodyMeasurements || [];
+
+      const scoreHistory = computeScoreHistory(raw);
+      const monthSeries = monthRanges.map((r, m) => {
+        const mFrom = dayKeyOf(new Date(year, m, 1));
+        const mTo = dayKeyOf(new Date(year, m + 1, 0));
+        const logs = yearLogs.filter((l) => { const k = dayKeyOf(l.performed_at); return k >= mFrom && k <= mTo; });
+        const ex = summarizeTrainingExtras(logs, []);
+        const volumeKg = logs.reduce((sum, l) => sum + ((Number(l.weight_kg) || 0) > 0 && (Number(l.reps) || 0) > 0 ? l.weight_kg * l.reps : 0), 0);
+        const sess = sessions.filter((x) => { const k = dayKeyOf(x.started_at); return k >= mFrom && k <= mTo; });
+        const nut = summarizeNutritionDays((nutritionRes[m] && nutritionRes[m].data) || []);
+        const bodyIn = bodyAll.filter((b) => b.measured_at && String(b.measured_at).slice(0, 10) >= mFrom && String(b.measured_at).slice(0, 10) <= mTo);
+        const lastW = [...bodyIn].reverse().find((b) => b.weight_kg != null);
+        const lastF = [...bodyIn].reverse().find((b) => b.body_fat_percent != null);
+        const sc = scoreAround(scoreHistory, mFrom, mTo).end;
+        return {
+          idx: m, sessions: sess.length, volumeKg, cardioMinutes: ex.cardioMinutes,
+          nutritionDays: nut.days, avgKcal: nut.kcal, avgProtein: nut.protein,
+          weight: lastW ? Number(lastW.weight_kg) : null, bodyFat: lastF ? Number(lastF.body_fat_percent) : null,
+          score: sc ? sc.total : null,
+        };
+      });
+
+      // Präventions-Score: aktueller Stand (wie in der Plattform) – identische Logik wie im Monatsbericht.
+      const ageYears = calcAge(birthDate);
+      const latestBody = bodyAll[bodyAll.length - 1] || null;
+      const latest = latestByKey(results);
+      const totals = {};
+      for (const log of allLogs.filter((l) => new Date(l.performed_at) >= new Date(Date.now() - 84 * 86400000))) {
+        const m = logMetric(log);
+        if (!m || m.type !== 'volume') continue;
+        const pattern = log.exercises && log.exercises.movement_pattern;
+        if (!pattern || pattern === 'sonstige') continue;
+        totals[pattern] = (totals[pattern] || 0) + m.value;
+      }
+      const balancePairRatios = BALANCE_PAIRS.map((p) => {
+        const a = totals[p.aKey] || 0, b = totals[p.bKey] || 0;
+        if (a === 0 && b === 0) return { ratio: null };
+        if (a === 0 || b === 0) return { ratio: Infinity };
+        return { ratio: Math.max(a, b) / Math.min(a, b) };
+      });
+      const preventionScore = computePreventionScore({ ageYears, sex, latestResults: latest, bodyFatPercent: latestBody ? latestBody.body_fat_percent : null, balancePairRatios });
+      const vitals = summarizeVitals(results, ageYears, sex);
+      const { prEvents } = computePersonalRecords(allLogs);
+      const yearPrEvents = prEvents.filter((e) => new Date(e.performedAt) >= new Date(fromISO) && new Date(e.performedAt) < new Date(toISO));
+      const streak = computeTrainingStreak(allLogs.map((l) => l.performed_at));
+
+      const testRows = buildTestRows({ results, birthDate, sex, fromKey, toKey });
+      const extra = {
+        testRows,
+        testSummary: summarizeTestRows(testRows),
+        body: summarizeBody(bodyAll, fromKey, toKey),
+        trainingExtras: summarizeTrainingExtras(yearLogs, sessions),
+        scoreInfo: scoreAround(scoreHistory, fromKey, toKey),
+        scoreSeries: scoreHistory.filter((h) => h.date >= fromKey && h.date <= toKey).map((h) => ({ date: h.date, value: h.total })),
+        achievements: achievementsInPeriod(raw.achievementRows, fromKey, toKey),
+        goals: goalsInPeriod(raw.goals, fromKey, toKey),
+      };
+
+      const longDate = (k) => new Date(`${k}T12:00:00`).toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' });
+      await buildYearlyReportPdf({
+        profile: { full_name: (profileRow && profileRow.full_name) || clientLabel, email: profileRow && profileRow.email },
+        year,
+        periodLabel: `${longDate(fromKey)} bis ${longDate(toKey)}`,
+        months: monthSeries,
+        trainingLogs: yearLogs,
+        trainingSessions: sessions,
+        preventionScore,
+        vitals,
+        streak,
+        yearPrEvents,
+        moduleAccess,
+        extra,
+      });
     }
 
     // =========================================================================
@@ -3011,11 +3309,13 @@
         </div>` : ''}
         ${staleItems.length > 0 ? `
         <div class="card mt-24" style="border-color: rgba(200,124,0,0.4);">
-          <h3 style="font-size:0.95rem; margin:0 0 8px; color:var(--color-gold);">Erinnerung: Tests aktualisieren</h3>
-          <p style="color:var(--color-text-muted); font-size:0.78rem; margin:0 0 8px;">${isAdminView ? 'Dieselbe Erinnerung sieht der Kunde als Banner im Nachrichten-Tab.' : 'Diesen Hinweis siehst du auch als Banner im Nachrichten-Tab, dein Trainer sieht ihn ebenfalls in deiner Kundendatei.'}</p>
-          <ul style="margin:0; padding-left:18px; font-size:0.85rem; color:var(--color-text-muted);">
-            ${staleItems.map((i) => `<li>${escapeHtml(i)}</li>`).join('')}
-          </ul>
+          <details class="qn-details">
+            <summary style="color:var(--color-gold); font-weight:600;">Erinnerung: ${staleItems.length} ${staleItems.length === 1 ? 'Test' : 'Tests'} aktualisieren</summary>
+            <p style="color:var(--color-text-muted); font-size:0.78rem; margin:8px 0;">${isAdminView ? 'Dieselbe Erinnerung sieht der Kunde als Banner im Nachrichten-Tab.' : 'Diesen Hinweis siehst du auch als Banner im Nachrichten-Tab, dein Trainer sieht ihn ebenfalls in deiner Kundendatei.'}</p>
+            <ul style="margin:0; padding-left:18px; font-size:0.85rem; color:var(--color-text-muted);">
+              ${staleItems.map((i) => `<li>${escapeHtml(i)}</li>`).join('')}
+            </ul>
+          </details>
         </div>` : `
         <div class="card">
           <p style="color:var(--color-success); font-size:0.85rem; margin:0;">✓ Alle Tests sind aktuell (nicht älter als 12 Wochen).</p>
@@ -3032,9 +3332,14 @@
 
         <h2 class="mt-24" style="font-size:1.1rem;">Beweglichkeitstests</h2>
         ${MOBILITY_TESTS.filter(isInputTest).map((t) => mobilityTestCardHtml(t, latest, results, ageYears, sex)).join('')}
+
+        <h2 class="mt-24" style="font-size:1.1rem;">Lebensstil-Tests (Selbstauskunft)</h2>
+        ${lifestyleTestsHtml(latest, sex)}
       `;
 
       lockMeasuredByToTrainer(el, isAdminView);
+      bindNutritionQuiz(el);
+      initTestCardCollapse(el, clientId);
       bindCardioTestForm(el, clientId, ageYears, sex, { isAdminView });
       bindVitalsForm(el, clientId, { isAdminView });
 
@@ -3161,6 +3466,7 @@
                 <option value="Bodyweight">Bodyweight</option>
                 <option value="Cardio">Cardio</option>
               </select>
+              <p style="color:var(--color-text-muted); font-size:0.78rem; margin:4px 0 0;">Tipp Kurse: Name mit „Kurs: " beginnen (z.&nbsp;B. „Kurs: Yoga") und die passendste Kategorie wählen – die Plattform plant und loggt sie dann automatisch als Dauer in Minuten.</p>
             </div>
             <div class="field"><label>Bild-URL (optional)</label><input type="url" id="ex-image" placeholder="https://..." /></div>
             <button class="btn" type="submit">Übung speichern</button>
@@ -3328,9 +3634,12 @@
       function updateModeVisibility() {
         const ex = exercisesById[exerciseSelect.value];
         const cat = ex ? ex.category : null;
-        const isCardio = cat === 'Cardio';
+        const isCourse = isCourseExercise(ex);
+        const isCardio = cat === 'Cardio' || isCourse;
         strengthFields.classList.toggle('hidden', isCardio);
         cardioFields.classList.toggle('hidden', !isCardio);
+        // Kurse: nur Dauer (und optional Herzfrequenz) – keine Distanz/Geschwindigkeit/Watt.
+        ['.row-distance', '.row-speed', '.row-watt'].forEach((sel) => { const el = row.querySelector(sel); if (el) el.classList.toggle('hidden', isCourse); });
         applyWeightFieldVisibility(cat);
       }
 
@@ -4313,7 +4622,7 @@
         renderProgressChart(logs);
         renderDysbalanceSection(logs);
         const preventionEl = document.getElementById('prevention-section');
-        if (preventionEl) renderPreventionSection(preventionEl, clientId, { isAdminView, hideLifestyleForms: !isAdminView });
+        if (preventionEl) renderPreventionSection(preventionEl, clientId, { isAdminView });
         const trendsEl = document.getElementById('trends-section');
         if (trendsEl) renderTrendsSection(trendsEl, clientId);
         const testsEl = document.getElementById('tests-section');
