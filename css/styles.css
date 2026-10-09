@@ -1453,3 +1453,49 @@ mark.legal-todo { background: #ffe9a8; color: #3a2c00; padding: 1px 4px; border-
 .nav-tab.has-submenu { transition: border-color 0.12s ease, box-shadow 0.12s ease; }
 .nav-submenu-panel { z-index: 70; cursor: default; user-select: none; -webkit-user-select: none; }
 .nav-submenu-panel a { cursor: pointer; }
+
+/* Runde 22 (Nachtrag 5): Körper-Ansichten (Gelenke/Muskeln) mit lesbaren
+   Beschriftungen in Textgröße – Aufbau und Berechnung siehe training.html
+   (bodyViewHtml / layoutBodyViews). */
+.bv-grid { display: grid; grid-template-columns: 1fr; gap: 28px 24px; }
+@media (min-width: 900px) { .bv-grid { grid-template-columns: 1fr 1fr; } }
+.bv-view { min-width: 0; }
+.bv-title { font-family: var(--font-heading); font-size: 1rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-text); margin: 0 0 10px; }
+.bv-stage { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(120px, 40%) minmax(0, 1fr); align-items: stretch; color: var(--color-text-muted); }
+@media (min-width: 560px) { .bv-stage { grid-template-columns: minmax(8.5rem, 1fr) minmax(170px, 240px) minmax(8.5rem, 1fr); } }
+@media (min-width: 900px) { .bv-stage { grid-template-columns: minmax(9.5rem, 1fr) minmax(190px, 300px) minmax(9.5rem, 1fr); } }
+.bv-imgwrap { display: block; min-width: 0; }
+.bv-img { display: block; width: 100%; height: auto; }
+.bv-col { position: relative; min-height: 100%; min-width: 0; }
+.bv-label { position: absolute; left: 0; right: 0; display: flex; align-items: center; gap: 6px; font-size: 0.8rem; line-height: 1.2; color: var(--color-text); hyphens: manual; overflow-wrap: normal; }
+@media (min-width: 560px) { .bv-label { font-size: 0.95rem; gap: 6px; } }
+/* Farbpunkt sitzt an der Innenseite (neben der Verbindungslinie) */
+.bv-left .bv-label { flex-direction: row-reverse; justify-content: flex-start; text-align: right; padding-right: 8px; gap: 4px; }
+.bv-right .bv-label { flex-direction: row; justify-content: flex-start; text-align: left; padding-left: 8px; gap: 4px; }
+.bv-sev { flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.25); }
+.bv-overlay { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+
+/* Runde 22 (Nachtrag 5): einklappbare Testkarten (Reiter "Tests") */
+.pv-card-body[hidden] { display: none; }
+.pv-collapse-btn {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; margin-top: 12px; padding: 10px 12px; cursor: pointer;
+  background: transparent; color: var(--color-text);
+  border: 1px solid var(--color-border, rgba(128,128,128,0.35)); border-radius: 10px;
+  font: inherit; font-size: 0.88rem; text-align: left;
+}
+.pv-collapse-btn:hover { border-color: var(--color-gold); }
+.pv-collapse-chev { transition: transform 0.15s ease; color: var(--color-gold); }
+.pv-test-card.pv-open .pv-collapse-chev { transform: rotate(180deg); }
+.pv-card-body { margin-top: 4px; }
+
+/* Runde 22 (Nachtrag 5): realistischer Dream-And-Do-It-Teller (SVG) */
+.plate-visual { align-items: center; gap: 24px; }
+.plate-figure { margin: 0; flex: 1 1 340px; max-width: 460px; text-align: center; }
+.plate-svg { width: 100%; height: auto; display: block; }
+.plate-caption { margin-top: 4px; font-family: var(--font-heading, inherit); font-size: 1.05rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-gold); font-weight: 700; }
+.plate-legend { flex: 1 1 260px; gap: 10px; font-size: 0.92rem; }
+.plate-legend .plate-title { margin: 0; font-size: 1.05rem; }
+.plate-legend .plate-lead { margin: 0 0 4px; color: var(--color-text-muted); font-size: 0.85rem; }
+.plate-legend .row { align-items: flex-start; }
+.plate-legend i { width: 14px; height: 14px; border-radius: 50%; margin-top: 3px; }
